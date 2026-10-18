@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// Always served from a domain root (e.g. Cloudflare Pages), never a sub-path.
+// Always served from a domain root (Railway), never a sub-path.
 const base = '/';
 
 export default defineConfig({
