@@ -113,3 +113,8 @@ Short log of technical decisions. Newest last.
 
 - Fernando asked whether the future log should be a default collection so the Pending panel can find it. Decision: no. The Year keeps its own kind (`future`) with a deterministic id (`future:YYYY`) and month slots (`YYYY-MM`), which is exactly what the panel's category C query needs; a collection has no months. An unwritten Year has no entries, so there is nothing to find.
 - Because the future log is "always on", the current year's Year is now pinned at the top of the Index even before anything is written. It is a link only; nothing is stored.
+
+## 2026-10-18 · List numbers read like bullets
+
+- A leading list number (`1. `, `12) `, up to 3 digits, followed by a space) is styled like a bullet: semi-bold, in the bullet color. On a plain text line it colors like a task (Fernando's example), so its children inherit that color; on a task/event/note it takes that item's color.
+- The number stays part of the text: stored and exported exactly as typed. The editor renders it in a `.num` span and rebuilds the line's text (keeping the caret) only when the number appears, changes or goes away.

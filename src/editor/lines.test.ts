@@ -76,3 +76,22 @@ describe('shiftIndent', () => {
     expect(shiftIndent(l(0, 1), 0, 0, -1)).toBeNull();
   });
 });
+
+describe('numbered lines', () => {
+  it('finds a leading list number only when followed by a space', async () => {
+    const { numberPrefix } = await import('./lines');
+    expect(numberPrefix('1. Mistborn')).toBe('1.');
+    expect(numberPrefix('12) Second')).toBe('12)');
+    expect(numberPrefix('1.5 kg of flour')).toBeNull();
+    expect(numberPrefix('2026 was good')).toBeNull();
+  });
+
+  it('a numbered plain line colors like a task and its children inherit', () => {
+    const lines = [
+      { type: 'text' as const, indent: 0, text: '1. Mistborn' },
+      { type: 'note' as const, indent: 1, text: 'When: Jan' },
+      { type: 'text' as const, indent: 0, text: 'Plain line' },
+    ];
+    expect(colorTypes(lines)).toEqual(['task', 'task', 'text']);
+  });
+});

@@ -526,3 +526,15 @@
     animation: none;
   }
 }
+
+/* A leading list number ("1. ") reads like a bullet: semi-bold, in the bullet
+   color. On a plain line it colors like a task, and its children inherit. */
+.line-text .num {
+  font-weight: 600;
+  color: var(--bullet);
+  font-variant-numeric: tabular-nums;
+}
+
+.line.t-text.numbered {
+  --caret: var(--bullet);
+}

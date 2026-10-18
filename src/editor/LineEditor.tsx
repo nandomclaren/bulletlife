@@ -19,7 +19,7 @@ import {
   subtreeEnd,
   type Line,
 } from './lines';
-import { buildGutter, lineClass } from './render';
+import { buildGutter, fillText, lineClass, textShapeMatches } from './render';
 
 interface Caret {
   index: number;
@@ -88,8 +88,7 @@ class LineEditorCore {
     el.style.setProperty('--indent', String(line.indent));
     const text = document.createElement('div');
     text.className = 'line-text';
-    if (line.text) text.textContent = line.text;
-    else text.append(document.createElement('br'));
+    fillText(text, line.text);
     el.append(buildGutter(document, line, collapsed), text);
     return el;
   }
@@ -428,9 +427,19 @@ class LineEditorCore {
       line.priority = m.priority || line.priority;
       return this.commit({ index: i, offset: 0 });
     }
+    const textEl = el?.querySelector<HTMLElement>('.line-text');
+    // A list number appeared, changed or went away: rebuild this line's text
+    // (number span + rest), keep the caret, and recolor (children inherit).
+    if (textEl && text && !textShapeMatches(textEl, text)) {
+      fillText(textEl, text);
+      this.placeCaret(sel.start);
+      this.refreshDecor();
+    }
     // An emptied line can lose its <br>; keep it so the line keeps its height.
-    const textEl = el?.querySelector('.line-text');
-    if (textEl && !text && !textEl.querySelector('br')) textEl.append(document.createElement('br'));
+    if (textEl && !text && !textEl.querySelector('br')) {
+      textEl.append(document.createElement('br'));
+      this.refreshDecor();
+    }
     this.emit();
   };
 

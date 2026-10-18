@@ -1,6 +1,6 @@
 // Line markup shared by both editors, so they look and behave the same.
 import { t } from '../i18n/en';
-import { glyph, hasStates, type Line, type LineType } from './lines';
+import { glyph, hasStates, numberPrefix, type Line, type LineType } from './lines';
 
 // Display always shows a saved state, also on events when "Event states" is
 // off (CLAUDE.md 12: data is never hidden); only the interaction is gated.
@@ -12,8 +12,9 @@ export interface LineView {
   hidden: boolean;
 }
 
-export function lineClass(line: Pick<Line, 'type' | 'state' | 'priority' | 'collapsed'>, view: LineView) {
+export function lineClass(line: Pick<Line, 'type' | 'state' | 'priority' | 'collapsed' | 'text'>, view: LineView) {
   const c = ['line', `t-${line.type}`, `c-${view.color}`];
+  if (numberPrefix(line.text)) c.push('numbered');
   if (hasStates(line.type, SHOW_STATES)) c.push(`s-${line.state}`);
   if (line.priority) c.push('prio');
   if (view.hasChildren) c.push('has-children');
@@ -76,4 +77,27 @@ function eye(doc: Document) {
   m.innerHTML =
     '<svg width="11" height="8" viewBox="0 0 22 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M1.5 8C4 3.5 7.3 1.5 11 1.5S18 3.5 20.5 8C18 12.5 14.7 14.5 11 14.5S4 12.5 1.5 8Z"/><circle cx="11" cy="8" r="2.6" fill="currentColor" stroke="none"/></svg>';
   return m;
+}
+
+/** Fills a line's text element; a leading list number gets its own span (styled like a bullet). */
+export function fillText(el: HTMLElement, text: string) {
+  const num = numberPrefix(text);
+  if (num) {
+    const span = el.ownerDocument.createElement('span');
+    span.className = 'num';
+    span.textContent = num;
+    el.replaceChildren(span, text.slice(num.length));
+  } else if (text) {
+    el.replaceChildren(text);
+  } else {
+    el.replaceChildren(el.ownerDocument.createElement('br'));
+  }
+}
+
+/** Whether the text element's DOM already matches how fillText would build it. */
+export function textShapeMatches(el: Element, text: string) {
+  const num = numberPrefix(text);
+  const span = el.querySelector('.num');
+  if (!num) return !span;
+  return !!span && el.firstChild === span && span.textContent === num;
 }

@@ -93,11 +93,24 @@ export function glyph(type: LineType, state: LineState, eventStates: boolean): s
 }
 
 /** Color comes from the root line's type; children inherit it. */
-export function colorTypes(lines: Pick<Line, 'type' | 'indent'>[]): Array<LineType> {
+/**
+ * A leading list number ("1. ", "12) ") is styled like a bullet. It stays part
+ * of the text (stored and exported as typed); this only finds it.
+ */
+export function numberPrefix(text: string): string | null {
+  return /^(\d{1,3}[.)])(?=\s)/.exec(text)?.[1] ?? null;
+}
+
+/** Color group of a line: its type, except that a numbered plain line colors like a task. */
+function ownColor(l: Pick<Line, 'type'> & { text?: string }): LineType {
+  return l.type === 'text' && l.text !== undefined && numberPrefix(l.text) ? 'task' : l.type;
+}
+
+export function colorTypes(lines: Array<Pick<Line, 'type' | 'indent'> & { text?: string }>): Array<LineType> {
   const stack: Array<{ indent: number; color: LineType }> = [];
   return lines.map((l) => {
     while (stack.length && stack[stack.length - 1].indent >= l.indent) stack.pop();
-    const color = stack.length ? stack[0].color : l.type;
+    const color = stack.length ? stack[0].color : ownColor(l);
     stack.push({ indent: l.indent, color });
     return color;
   });
