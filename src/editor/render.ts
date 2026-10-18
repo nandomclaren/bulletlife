@@ -49,7 +49,10 @@ export function buildGutter(doc: Document, line: Line, collapsed: boolean): HTML
     bullet.setAttribute('role', 'button');
     bullet.setAttribute('aria-label', label);
   }
-  bullet.textContent = bulletGlyph(line);
+  const g = bulletGlyph(line);
+  // Open/cancelled task and event bullets are drawn in CSS (see editor.css).
+  if (g === '•' || g === '○') bullet.classList.add('drawn', g === '•' ? 'dot' : 'ring');
+  else bullet.textContent = g;
   gutter.append(chevron, sig, bullet);
   return gutter;
 }

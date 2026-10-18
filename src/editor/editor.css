@@ -21,7 +21,8 @@
   --bullet: var(--muted);
   --caret: var(--text);
   display: flex;
-  align-items: flex-start;
+  /* Gutter and text share a baseline, so bullets line up with the words in any font. */
+  align-items: baseline;
   padding-left: calc(var(--indent, 0) * var(--step));
 }
 
@@ -48,11 +49,9 @@
   position: relative;
   flex: none;
   width: var(--gutter);
-  height: calc(1.6em + 6px);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   padding-right: 10px;
+  text-align: right;
+  white-space: nowrap;
   color: var(--bullet);
   -webkit-user-select: none;
   user-select: none;
@@ -64,9 +63,9 @@
   display: inline-grid;
   place-items: center;
   width: 16px;
-  height: 20px;
   font-size: 20px;
   line-height: 1;
+  vertical-align: baseline;
   cursor: pointer;
   transition: transform 140ms var(--ease);
 }
@@ -78,8 +77,8 @@
   inset: -14px -8px;
 }
 
-.t-text .bullet,
-.t-heading .bullet {
+.line.t-text .bullet,
+.line.t-heading .bullet {
   display: none;
 }
 
@@ -93,7 +92,7 @@
 
 .sig {
   width: 10px;
-  margin-right: 5px;
+  margin-right: 0;
   font-weight: 700;
   text-align: right;
 }
@@ -156,9 +155,6 @@
   padding-top: 10px;
 }
 
-.t-heading > .gutter {
-  height: calc(1.6em + 13px);
-}
 
 .s-done .line-text,
 .s-migrated .line-text,
@@ -254,26 +250,32 @@
 }
 
 /* Task dot and event ring are drawn, not typed: "•" and "○" vary a lot
-   between fonts. Both are sized to match the "×" of a completed item. */
-.t-task.s-open .bullet,
-.t-task.s-cancelled .bullet,
-.t-event:not(.s-done):not(.s-migrated):not(.s-scheduled) .bullet {
-  font-size: 0;
+   between fonts. Both match the size of the "×" of a completed item.
+   An empty 1ex box sitting on the baseline is centered on the x-height,
+   which is where the eye expects a bullet next to lowercase text. */
+.bullet.drawn {
+  font-size: 17px;
+  height: 1ex;
 }
 
-.t-event:not(.s-done):not(.s-migrated):not(.s-scheduled) .bullet::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
+/* Text glyphs (×, –, >, <) sit on the baseline like any letter. */
+.bullet:not(.drawn) {
+  display: inline-block;
+  text-align: center;
 }
 
-.t-task.s-open .bullet::before,
-.t-task.s-cancelled .bullet::before {
+.bullet.dot::before {
   content: '';
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: currentColor;
+}
+
+.bullet.ring::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
 }
