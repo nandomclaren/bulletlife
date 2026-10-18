@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { recordLaunch } from './data/spikeDb';
 import './styles.css';
+import './editor/editor.css';
 
 registerSW({ immediate: true });
 void recordLaunch();

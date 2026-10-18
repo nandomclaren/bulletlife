@@ -27,7 +27,7 @@ export function SampleMonth({ ym }: { ym: string }) {
   }, []);
   return (
     <main className="page">
-      <button className="link" onClick={() => navigate('/')}>
+      <button className="link" onClick={() => navigate('/check')}>
         ‹ {t.routes.backToChecks}
       </button>
       <p className="eyebrow">{monthLabel.format(new Date(y, m - 1, 1)).toUpperCase()}</p>

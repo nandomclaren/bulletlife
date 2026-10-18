@@ -1,0 +1,258 @@
+/* Shared by both editor prototypes. Line DOM:
+   div.line > span.gutter[contenteditable=false] (chevron, sig, bullet) + div.line-text */
+
+.page-editor {
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
+}
+
+.editor {
+  /* Gutter hangs into the page margin: chevron at the far left, bullet next to the text.
+     Hit areas: chevron 0–24px, bullet 26–58px, both 44px tall. */
+  --gutter: 60px;
+  --step: 26px;
+  outline: none;
+  margin: 8px 0 0 -20px;
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.line {
+  --bullet: var(--muted);
+  --caret: var(--text);
+  display: flex;
+  align-items: flex-start;
+  padding-left: calc(var(--indent, 0) * var(--step));
+}
+
+.line.c-task {
+  --bullet: var(--task);
+}
+.line.c-event {
+  --bullet: var(--event);
+}
+.line.c-note {
+  --bullet: var(--note);
+}
+.line.t-task,
+.line.t-event,
+.line.t-note {
+  --caret: var(--bullet);
+}
+
+.line.is-hidden {
+  display: none;
+}
+
+.gutter {
+  position: relative;
+  flex: none;
+  width: var(--gutter);
+  height: calc(1.6em + 6px);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 10px;
+  color: var(--bullet);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.bullet {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms var(--ease);
+}
+
+/* 44px hit area around a small glyph. */
+.bullet::after {
+  content: '';
+  position: absolute;
+  inset: -14px -8px;
+}
+
+.t-text .bullet,
+.t-heading .bullet {
+  display: none;
+}
+
+.t-note .bullet {
+  cursor: default;
+}
+
+.bullet:active {
+  transform: scale(0.8);
+}
+
+.sig {
+  width: 10px;
+  margin-right: 2px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.chevron {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  display: none;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.chevron::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 160ms var(--ease);
+}
+
+.chevron::after {
+  content: '';
+  position: absolute;
+  inset: -13px -4px -13px -6px;
+}
+
+.has-children > .gutter .chevron {
+  display: block;
+}
+
+.collapsed > .gutter .chevron::before {
+  transform: rotate(-45deg);
+  left: 3px;
+  top: 6px;
+}
+
+.line-text {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  caret-color: var(--caret);
+  transition: color 180ms var(--ease);
+}
+
+.t-heading .line-text {
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  padding-top: 10px;
+}
+
+.t-heading > .gutter {
+  height: calc(1.6em + 13px);
+}
+
+.s-done .line-text,
+.s-migrated .line-text,
+.s-scheduled .line-text {
+  color: var(--muted);
+}
+
+.s-cancelled .line-text {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.collapsed > .line-text::after {
+  content: ' …';
+  color: var(--muted);
+}
+
+.ProseMirror {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Bar above the iOS keyboard */
+
+.kb-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 4px max(8px, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--rule);
+}
+
+.kb-btn {
+  min-width: 52px;
+  height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 19px;
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kb-btn:active {
+  background: var(--rule);
+}
+
+/* Prototype page */
+
+.proto-nav {
+  display: flex;
+  justify-content: space-between;
+}
+
+.hint {
+  margin-top: 32px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.model {
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-x: auto;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.choices {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.choice {
+  min-height: 64px;
+  padding: 0 20px;
+  text-align: left;
+  font-size: 19px;
+  font-weight: 600;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+/* "•" renders smaller than "○" and "–" in most fonts; balance them optically. */
+.t-task:not(.s-done) .bullet {
+  font-size: 28px;
+}

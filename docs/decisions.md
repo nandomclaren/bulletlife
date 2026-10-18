@@ -25,3 +25,13 @@ Short log of technical decisions. Newest last.
 
 - Spike runs on a Dexie Cloud **evaluation user** (sync stops after 30 active days; local data and the offline app keep working).
 - The manager offered no free production user, only seat packs (25 for $3/month). Decide in Phase 2: pay the $3/month, or move to another backend (Instant, Jazz, or our own on Railway). The `src/data/` repository layer keeps that switch cheap.
+
+## 2026-10-18 · Phase 1: editor prototypes
+
+- Two prototypes with identical features, same line DOM and CSS, so the comparison is about the engine only:
+  - **A · ProseMirror** (`src/proto/PmEditor.tsx`): raw ProseMirror (no TipTap layer), flat `line` nodes with `indent` as an attribute; derived classes (inherited color, chevrons, hidden subtrees) via node decorations; prefixes via input rules (Backspace right after undoes the conversion).
+  - **B · Line editor** (`src/proto/LineEditor.tsx`): one contentEditable root; the browser edits text inside a line, structural edits are intercepted in `beforeinput` and applied to our model.
+- **Flat list + indent** instead of nested lists: maps 1:1 to `Entry` (`parentId` derived from indentation, see `src/editor/lines.ts`), makes collapse a pure render concern, and keeps multi-line selection inside a single editing host.
+- Shared, editor-agnostic logic lives in `src/editor/lines.ts` with unit tests (prefix matching, state cycle, color inheritance, collapse, indent rules).
+- Routes: `/` prototype chooser, `/proto/a`, `/proto/b`, `/check` device check.
+- Decision pending Fernando's hands-on test on iPhone and Mac.
