@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { recordLaunch } from './data/spikeDb';
+import { applyTheme } from './theme';
 import './styles.css';
 import './editor/editor.css';
 
+applyTheme();
 registerSW({ immediate: true });
 void recordLaunch();
 

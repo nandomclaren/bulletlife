@@ -132,6 +132,18 @@ export const en = {
     chooseTitle: 'Two editors',
     chooseLede: 'Same features, different engines. Write in both on the iPhone and the Mac, then say which one feels better.',
     deviceCheck: 'Device check',
+    settings: 'Settings',
+  },
+  settings: {
+    title: 'Settings',
+    theme: 'Theme',
+    themes: { auto: 'Automatic', paper: 'Paper', graphite: 'Graphite', night: 'Night' },
+    themeHints: {
+      auto: 'Follows the system',
+      paper: 'Light',
+      graphite: 'Dark',
+      night: 'Black, for OLED screens',
+    },
   },
   bullets: {
     task: 'Task',

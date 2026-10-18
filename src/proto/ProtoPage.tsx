@@ -98,9 +98,14 @@ export function ProtoChooser() {
           {t.proto.b}
         </button>
       </div>
-      <button className="link" onClick={() => navigate('/check')}>
-        {t.proto.deviceCheck} ›
-      </button>
+      <div className="proto-nav">
+        <button className="link" onClick={() => navigate('/settings')}>
+          {t.proto.settings} ›
+        </button>
+        <button className="link" onClick={() => navigate('/check')}>
+          {t.proto.deviceCheck} ›
+        </button>
+      </div>
     </main>
   );
 }

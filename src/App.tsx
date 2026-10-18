@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { restoreScroll, usePath } from './router';
 import { ProtoChooser, ProtoPage } from './proto/ProtoPage';
+import { SettingsPage } from './SettingsPage';
 import { SpikePage } from './spike/SpikePage';
 import { SampleDay, SampleMonth } from './spike/SamplePages';
 
@@ -15,5 +16,6 @@ export function App() {
   const proto = path.match(/^\/proto\/(a|b)$/);
   if (proto) return <ProtoPage key={proto[1]} kind={proto[1] as 'a' | 'b'} />;
   if (path === '/check') return <SpikePage />;
+  if (path === '/settings') return <SettingsPage />;
   return <ProtoChooser />;
 }

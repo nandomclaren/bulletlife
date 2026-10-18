@@ -14,6 +14,13 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Bullet Life</title>
+    <script>
+      // Apply the saved theme before first paint (keep in sync with src/theme.ts).
+      try {
+        var th = localStorage.getItem('settings.theme');
+        if (th && th !== 'auto') document.documentElement.dataset.theme = th;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

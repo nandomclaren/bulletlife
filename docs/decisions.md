@@ -35,3 +35,9 @@ Short log of technical decisions. Newest last.
 - Shared, editor-agnostic logic lives in `src/editor/lines.ts` with unit tests (prefix matching, state cycle, color inheritance, collapse, indent rules).
 - Routes: `/` prototype chooser, `/proto/a`, `/proto/b`, `/check` device check.
 - Decision pending Fernando's hands-on test on iPhone and Mac.
+
+## 2026-10-18 · Themes now, not in Phase 5
+
+- Fernando asked for dark mode with a manual choice. Themes ship now: **Automatic** (follows the system, default), **Paper** (light), **Graphite** (dark), **Night** (OLED black), on a Settings page at `/settings`.
+- Tokens are CSS variables switched by `data-theme` on `<html>`; no attribute = Automatic via `prefers-color-scheme`. An inline script in `index.html` applies the saved theme before first paint (no flash). `theme-color` follows the theme so the iOS status bar matches.
+- Stored in `localStorage` for now; moves into the synced Settings model later in Phase 1.

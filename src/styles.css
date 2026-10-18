@@ -16,11 +16,13 @@
   --measure: 720px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
+/* Themes: Paper (light, default above), Graphite (dark), Night (OLED black).
+   No data-theme = Automatic, following the system. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #141414;
     --surface: #1d1d1d;
     --text: #ece9e4;
@@ -29,7 +31,36 @@
     --task: #ef6b56;
     --event: #5b9bd8;
     --note: #3bb3a4;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='paper'] {
+  color-scheme: light;
+}
+
+:root[data-theme='graphite'] {
+  --bg: #141414;
+  --surface: #1d1d1d;
+  --text: #ece9e4;
+  --muted: #8d8a85;
+  --rule: #2a2a2a;
+  --task: #ef6b56;
+  --event: #5b9bd8;
+  --note: #3bb3a4;
+  color-scheme: dark;
+}
+
+:root[data-theme='night'] {
+  --bg: #000000;
+  --surface: #111111;
+  --text: #e6e3de;
+  --muted: #85827d;
+  --rule: #222222;
+  --task: #ef6b56;
+  --event: #5b9bd8;
+  --note: #3bb3a4;
+  color-scheme: dark;
 }
 
 * {
@@ -418,4 +449,79 @@ h1 {
   * {
     transition: none !important;
   }
+}
+
+/* Settings */
+
+.setting h2 {
+  margin: 24px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.options {
+  display: grid;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:first-child {
+  border-top: 0;
+}
+
+.option[aria-checked='true'] {
+  background: var(--surface);
+}
+
+.option[aria-checked='true'] .option-title::after {
+  content: ' ✓';
+  color: var(--accent);
+}
+
+.option-text {
+  display: grid;
+  line-height: 1.3;
+}
+
+.option-hint {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  flex: none;
+}
+
+.swatch-paper {
+  background: #faf8f4;
+}
+.swatch-graphite {
+  background: #141414;
+}
+.swatch-night {
+  background: #000;
+}
+.swatch-auto {
+  background: linear-gradient(135deg, #faf8f4 50%, #141414 50%);
 }
