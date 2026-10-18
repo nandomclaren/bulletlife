@@ -16,6 +16,7 @@ import {
   nextNumber,
   NO_SIGNIFIERS,
   numberPrefix,
+  listRestarts,
   renumberLists,
   restartIfFirst,
   nextState,
@@ -197,8 +198,14 @@ class LineEditorCore {
 
   // ---------- structural edits ----------
 
+  /** Renumbers lists, keeping the numbers the user chose before this edit. */
+  private renumber(): number[] {
+    const before = this.undoStack[this.undoStack.length - 1]?.lines ?? this.lines;
+    return renumberLists(this.lines, listRestarts(before));
+  }
+
   private commit(caret: Caret) {
-    renumberLists(this.lines);
+    this.renumber();
     this.renderAll();
     this.placeCaret(caret);
     this.emit();
@@ -292,7 +299,7 @@ class LineEditorCore {
     restartIfFirst(this.lines, from);
     if (render) {
       // Moving an item in or out of a list renumbers both lists.
-      if (renumberLists(this.lines).length || this.lines[from].text !== textBefore) {
+      if (this.renumber().length || this.lines[from].text !== textBefore) {
         const caret = this.readSelection()?.start;
         this.renderAll();
         if (caret) this.placeCaret(caret);
@@ -338,7 +345,7 @@ class LineEditorCore {
     for (let j = i + 1; j < end; j++) this.lines[j].indent = Math.max(0, this.lines[j].indent - 1);
     this.lines.splice(i, 1);
     if (!this.lines.length) this.lines.push(newLine());
-    renumberLists(this.lines);
+    this.renumber();
     this.renderAll();
     this.emit();
   }

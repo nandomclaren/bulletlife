@@ -107,13 +107,38 @@ export function nextNumber(prefix: string): string {
 }
 
 /**
+ * Items that open a list or were typed out of sequence (e.g. "10." after
+ * "2."): the user chose these numbers, so renumbering keeps them and counts
+ * on from them. Computed on the lines as they were before an edit.
+ */
+export function listRestarts(lines: Array<Pick<Line, 'id' | 'indent' | 'text'>>): Set<string> {
+  const restarts = new Set<string>();
+  const last = new Map<number, number | null>();
+  for (const l of lines) {
+    for (const d of [...last.keys()]) if (d > l.indent) last.delete(d);
+    const num = numberPrefix(l.text);
+    if (!num) {
+      last.set(l.indent, null);
+      continue;
+    }
+    const n = Number(num.slice(0, -1));
+    const prev = last.get(l.indent);
+    if (prev == null || n !== prev + 1) restarts.add(l.id);
+    last.set(l.indent, n);
+  }
+  return restarts;
+}
+
+/**
  * Renumbers numbered lists after a structural edit (Fernando's explicit
  * exception to "the app never changes entries by itself", CLAUDE.md 2.1).
  * A list is a run of consecutive siblings (same parent) that start with a
- * number; it keeps its first number and separator and counts up from there.
- * A sibling without a number ends the run. Returns the indexes it changed.
+ * number; each item gets the previous number + 1, except items in `keep`
+ * (numbers the user chose, see listRestarts), which stay as typed and the
+ * count goes on from them. A sibling without a number ends the run.
+ * Returns the indexes it changed.
  */
-export function renumberLists(lines: Array<Pick<Line, 'indent' | 'text'>>): number[] {
+export function renumberLists(lines: Array<Pick<Line, 'id' | 'indent' | 'text'>>, keep: Set<string> = new Set()): number[] {
   const changed: number[] = [];
   const last = new Map<number, { n: number; sep: string } | null>();
   lines.forEach((l, i) => {
@@ -124,8 +149,7 @@ export function renumberLists(lines: Array<Pick<Line, 'indent' | 'text'>>): numb
       return;
     }
     const prev = last.get(l.indent);
-    const sep = num.slice(-1);
-    if (prev) {
+    if (prev && !keep.has(l.id)) {
       const want = `${prev.n + 1}${prev.sep}`;
       if (want !== num) {
         l.text = want + l.text.slice(num.length);
@@ -133,7 +157,7 @@ export function renumberLists(lines: Array<Pick<Line, 'indent' | 'text'>>): numb
       }
       last.set(l.indent, { n: prev.n + 1, sep: prev.sep });
     } else {
-      last.set(l.indent, { n: Number(num.slice(0, -1)), sep });
+      last.set(l.indent, { n: Number(num.slice(0, -1)), sep: num.slice(-1) });
     }
   });
   return changed;
