@@ -20,10 +20,9 @@
 .line {
   --bullet: var(--muted);
   --caret: var(--text);
-  display: flex;
-  /* Gutter and text share a baseline, so bullets line up with the words in any font. */
-  align-items: baseline;
-  padding-left: calc(var(--indent, 0) * var(--step));
+  --pad-top: 3px;
+  position: relative;
+  padding-left: calc(var(--indent, 0) * var(--step) + var(--gutter));
 }
 
 .line.c-task {
@@ -45,11 +44,19 @@
   display: none;
 }
 
+/* The gutter is positioned beside the text, outside the text flow: WebKit
+   would otherwise let the caret land before it (e.g. Backspace on an empty
+   first line). Same top padding, font size and line height as the text, so
+   the bullet sits on the text's first baseline in any font. */
 .gutter {
-  position: relative;
-  flex: none;
+  position: absolute;
+  top: 0;
+  left: calc(var(--indent, 0) * var(--step));
   width: var(--gutter);
+  height: calc(var(--pad-top) + 1.6em); /* one text line, even with no bullet in it */
+  padding-top: var(--pad-top);
   padding-right: 10px;
+  line-height: 1.6;
   text-align: right;
   white-space: nowrap;
   color: var(--bullet);
@@ -139,9 +146,8 @@
 }
 
 .line-text {
-  flex: 1;
   min-width: 0;
-  padding: 3px 0;
+  padding: var(--pad-top) 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   caret-color: var(--caret);
@@ -275,10 +281,14 @@
 
 .compact .line.t-text > .gutter,
 .compact .line.t-heading > .gutter {
-  width: 0;
-  padding: 0;
+  display: none;
 }
 
-.compact .line-text {
-  padding: 8px 0;
+.compact .line.t-text,
+.compact .line.t-heading {
+  padding-left: calc(var(--indent, 0) * var(--step));
+}
+
+.compact .line {
+  --pad-top: 8px;
 }

@@ -54,6 +54,7 @@ class LineEditorCore {
     root.addEventListener('keydown', this.onKeyDown);
     root.addEventListener('compositionstart', this.onCompStart);
     root.addEventListener('compositionend', this.onCompEnd);
+    document.addEventListener('selectionchange', this.onSelectionChange);
     this.detachGutter = attachGutter(root, {
       bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, EVENT_STATES) ? { ...l, state: nextState(l.state) } : null)),
       chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
@@ -67,6 +68,7 @@ class LineEditorCore {
     this.root.removeEventListener('keydown', this.onKeyDown);
     this.root.removeEventListener('compositionstart', this.onCompStart);
     this.root.removeEventListener('compositionend', this.onCompEnd);
+    document.removeEventListener('selectionchange', this.onSelectionChange);
     this.detachGutter();
   }
 
@@ -385,6 +387,16 @@ class LineEditorCore {
   private onKeyDown = (e: KeyboardEvent) => {
     const sel = this.readSelection();
     if (!sel) return;
+    const atLineStart = sel.start.index === sel.end.index && sel.start.offset === 0 && sel.end.offset === 0;
+    if (e.key === 'Backspace' && atLineStart && !e.metaKey && !e.altKey && !e.ctrlKey && !this.composing) {
+      // Handled here rather than in beforeinput: at the very start of the
+      // editor WebKit may not let beforeinput cancel the deletion, and would
+      // move the caret into the gutter.
+      e.preventDefault();
+      this.snapshot(sel.start);
+      this.backspaceAtStart(sel.start);
+      return;
+    }
     if (e.code === 'Tab') {
       e.preventDefault();
       this.snapshot(sel.start);
@@ -399,6 +411,18 @@ class LineEditorCore {
       if (e.shiftKey) this.restore(this.redoStack, this.undoStack);
       else this.restore(this.undoStack, this.redoStack);
     }
+  };
+
+  /** Safety net: the caret may only live inside a line's text, never in the gutter. */
+  private onSelectionChange = () => {
+    const sel = document.getSelection();
+    if (!sel || !sel.isCollapsed || !sel.anchorNode || !this.root.contains(sel.anchorNode)) return;
+    const node = sel.anchorNode;
+    const el = node instanceof Element ? node : node.parentElement;
+    if (el?.closest('.line-text')) return;
+    let index = this.lineIndexOf(node);
+    if (index < 0) index = node === this.root ? Math.min(sel.anchorOffset, this.lines.length - 1) : 0;
+    this.placeCaret({ index, offset: 0 });
   };
 
   private onCompStart = () => {
