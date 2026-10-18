@@ -9,19 +9,19 @@ on each device, mark each check, tap **Copy report** and paste both reports at t
 
 | # | Check | iPhone | Mac | Notes |
 |---|---|---|---|---|
-| 1 | Install + standalone | ⏳ | ⏳ | Auto-detects `display-mode: standalone`. |
-| 2 | Works offline | ⏳ | ⏳ | Service worker precaches the whole app shell. |
-| 3 | IndexedDB survives several days | ⏳ | ⏳ | Every launch is logged; check "Days kept" after ≥ 3 days. |
-| 4 | `navigator.storage.persist()` | ⏳ | ⏳ | |
-| 5 | Dexie Cloud between both devices | ⏳ | ⏳ | Needs a database URL (setup below). Also test offline edits on both, then reconnect. |
-| 6 | `navigator.share` | ⏳ | ⏳ | |
-| 7 | Rich text copy (HTML) | ⏳ | ⏳ | Paste into Notes/Mail; report says which API path was used. |
-| 8 | Selection survives tapping "…" | ⏳ | ⏳ | Report compares the native selection at tap time with the stored one. |
-| 9 | Long press (iPhone) / right click (Mac) on bullet | ⏳ | ⏳ | |
-| 10 | Mac two-finger swipe triggers browser back/forward | — | ⏳ | Installed app in the Dock. |
-| 11 | Back gesture + route history + scroll restore | ⏳ | ⏳ | Month → day 18 → back. Verified in desktop Chromium: URL and scroll restored. |
-| 12 | Avenir Next renders | ⏳ | ⏳ | |
-| 13 | Caret takes the bullet color, typing feels good | ⏳ | ⏳ | |
+| 1 | Install + standalone | ✅ | ⏳ | Auto-detects `display-mode: standalone`. |
+| 2 | Works offline | ✅ | ⏳ | Service worker precaches the whole app shell. |
+| 3 | IndexedDB survives several days | ⏳ (day 0, 3 launches) | ⏳ | Every launch is logged; check "Days kept" after ≥ 3 days. |
+| 4 | `navigator.storage.persist()` | ✅ granted, quota ~39 GB | ⏳ | |
+| 5 | Dexie Cloud between both devices | ❌ not signed in (OTP step not completed) | ⏳ | Needs a database URL (setup below). Also test offline edits on both, then reconnect. |
+| 6 | `navigator.share` | ✅ | ⏳ | |
+| 7 | Rich text copy (HTML) | ✅ ClipboardItem | ⏳ | Paste into Notes/Mail; report says which API path was used. |
+| 8 | Selection survives tapping "…" | ✅ native selection still present | ⏳ | Report compares the native selection at tap time with the stored one. |
+| 9 | Long press (iPhone) / right click (Mac) on bullet | ✅ | ⏳ | |
+| 10 | Mac two-finger swipe triggers browser back/forward | ⚠️ iPhone: left→right swipe goes back a page | ⏳ | Installed app in the Dock. |
+| 11 | Back gesture + route history + scroll restore | ✅ | ⏳ | Month → day 18 → back. Verified in desktop Chromium: URL and scroll restored. |
+| 12 | Avenir Next renders | ✅ | ⏳ | |
+| 13 | Caret takes the bullet color, typing feels good | ✅ | ⏳ | |
 
 Verified on the live deploy (https://bulletlife.up.railway.app, 2026-10-18, Chromium with iPhone 13 emulation):
 all routes return 200 with the intended cache headers, the manifest has 3 icons, the service worker takes
@@ -50,6 +50,12 @@ own user to production in the Dexie Cloud manager so sync never stops.
 4. **Offline conflicts on both devices:** ⏳ to test (check 5).
 
 Sources: dexie.org/pricing, dexie.org/cloud/pricing, dexie.org/blog/dexie-cloud-subscription-model, dexie.org/docs/cloud/limits.
+
+## Findings so far
+
+- **iPhone (iOS 18.7, installed, 2026-10-18):** everything critical passes: standalone, offline, persistent storage granted, share sheet, rich text copy, selection kept when tapping "…", long press on the bullet, back gesture with routes, Avenir Next, bullet-colored caret.
+- **Sync:** the check reported `unauthorized · initial/not-started`. Dexie's own sign-in dialog (email → one-time code) was not completed. The check now shows the database URL, sign-in state, license and the last error, plus **Sign in** and **Sync now** buttons. Retest.
+- **Swipe on iPhone:** a left→right swipe navigates back. In an installed app this is the iOS edge-swipe back gesture. Impact on Phase 4: the `>` swipe on entries must start away from the left screen edge (and the gesture must claim the touch early), or we use the reversed default. To verify in Phase 4 with a real entry swipe.
 
 ## Recommendation
 

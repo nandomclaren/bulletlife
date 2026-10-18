@@ -130,13 +130,37 @@ function CloudPanel({ db }: { db: CloudDb }) {
   const sync = useObservable(db.cloud.syncState);
   const lines = useLiveQuery(() => db.lines.orderBy('createdAt').toArray(), [db]);
   const [text, setText] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
   const state = sync ? `${sync.phase}${sync.status ? ` · ${sync.status}` : ''}` : '…';
-  useFact('cloud', t.checks.cloud.user, user?.userId);
+  const error = actionError ?? sync?.error?.message ?? null;
+  const run = (fn: () => Promise<unknown>) => () => {
+    setActionError(null);
+    fn().catch((e: unknown) => setActionError(e instanceof Error ? `${e.name}: ${e.message}` : String(e)));
+  };
+  useFact('cloud', t.checks.cloud.database, getCloudUrl());
+  useFact('cloud', t.checks.cloud.user, user?.email ?? user?.userId);
+  useFact('cloud', t.checks.cloud.loggedIn, user ? yesNo(!!user.isLoggedIn) : null);
   useFact('cloud', t.checks.cloud.state, state);
+  useFact('cloud', t.checks.cloud.license, sync?.license);
+  useFact('cloud', t.checks.cloud.error, error);
   return (
     <>
-      <Fact label={t.checks.cloud.user} value={user?.userId ?? '…'} />
+      <Fact label={t.checks.cloud.database} value={getCloudUrl()} />
+      <Fact label={t.checks.cloud.user} value={user?.email ?? user?.userId ?? '…'} />
+      <Fact label={t.checks.cloud.loggedIn} value={user ? yesNo(!!user.isLoggedIn) : '…'} />
       <Fact label={t.checks.cloud.state} value={state} />
+      {sync?.license && <Fact label={t.checks.cloud.license} value={sync.license} />}
+      {error && <Fact label={t.checks.cloud.error} value={error} />}
+      <div className="row">
+        {!user?.isLoggedIn && (
+          <button className="btn" onClick={run(() => db.cloud.login())}>
+            {t.checks.cloud.signIn}
+          </button>
+        )}
+        <button className="btn" onClick={run(() => db.cloud.sync({ purpose: 'pull', wait: true }))}>
+          {t.checks.cloud.syncNow}
+        </button>
+      </div>
       <ul className="sync-lines">
         {lines?.length ? (
           lines.map((l) => (

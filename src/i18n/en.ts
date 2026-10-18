@@ -52,6 +52,12 @@ export const en = {
       user: 'Signed in as',
       state: 'Sync state',
       empty: 'No lines yet',
+      database: 'Database',
+      loggedIn: 'Signed in',
+      error: 'Last error',
+      license: 'License',
+      signIn: 'Sign in',
+      syncNow: 'Sync now',
     },
     share: {
       title: 'Share sheet',
