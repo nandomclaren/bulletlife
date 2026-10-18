@@ -13,7 +13,11 @@ import {
   hiddenMask,
   matchPrefix,
   newLine,
+  nextNumber,
   NO_SIGNIFIERS,
+  numberPrefix,
+  renumberLists,
+  restartIfFirst,
   nextState,
   shiftIndent,
   subtreeEnd,
@@ -194,6 +198,7 @@ class LineEditorCore {
   // ---------- structural edits ----------
 
   private commit(caret: Caret) {
+    renumberLists(this.lines);
     this.renderAll();
     this.placeCaret(caret);
     this.emit();
@@ -223,22 +228,37 @@ class LineEditorCore {
   }
 
   private enter(at: Caret) {
-    const line = this.lines[at.index];
+    const i = at.index;
+    const line = this.lines[i];
     if (!line.text && line.type !== 'text') {
-      if (line.indent > 0) this.shiftLines(at.index, at.index, -1, false);
+      if (line.indent > 0) this.shiftLines(i, i, -1, false);
       else Object.assign(line, { type: 'text', state: 'open', ...NO_SIGNIFIERS });
       return this.commit(at);
     }
-    const fresh = newLine({ type: continuationType(line.type), indent: line.indent });
-    if (at.offset === 0 && line.text) {
-      this.lines.splice(at.index, 0, fresh);
-      return this.commit({ index: at.index + 1, offset: 0 });
+    const num = numberPrefix(line.text);
+    // Enter on an empty list item ("3. " alone) ends the list.
+    if (num && line.text.trim() === num) {
+      line.text = '';
+      return this.commit({ index: i, offset: 0 });
     }
-    fresh.text = line.text.slice(at.offset);
+    if (at.offset === 0 && line.text) {
+      this.lines.splice(i, 0, newLine({ type: continuationType(line.type), indent: line.indent }));
+      return this.commit({ index: i + 1, offset: 0 });
+    }
+    const kids = hasChildren(this.lines, i);
+    // A collapsed item stays closed: the new line goes after everything hidden
+    // inside it, as its next sibling. An open item gets a new first child.
+    const asChild = kids && !line.collapsed;
+    const at2 = asChild ? i + 1 : kids ? subtreeEnd(this.lines, i) : i + 1;
+    const fresh = asChild
+      ? newLine({ type: this.lines[i + 1].type === 'heading' ? 'text' : this.lines[i + 1].type, indent: line.indent + 1 })
+      : newLine({ type: continuationType(line.type), indent: line.indent });
+    // Next list number for a sibling ("2. …" → "3. ").
+    const prefix = num && !asChild ? `${nextNumber(num)} ` : '';
+    fresh.text = prefix + line.text.slice(at.offset);
     line.text = line.text.slice(0, at.offset);
-    line.collapsed = false;
-    this.lines.splice(at.index + 1, 0, fresh);
-    this.commit({ index: at.index + 1, offset: 0 });
+    this.lines.splice(at2, 0, fresh);
+    this.commit({ index: at2, offset: prefix.length });
   }
 
   /** Backspace at a line start: drop a stray priority mark, outdent, drop the bullet, then join lines. */
@@ -267,9 +287,16 @@ class LineEditorCore {
   private shiftLines(from: number, to: number, delta: 1 | -1, render = true) {
     const indents = shiftIndent(this.lines, from, to, delta);
     if (!indents) return;
+    const textBefore = this.lines[from].text;
     this.lines.forEach((l, i) => (l.indent = indents[i]));
+    restartIfFirst(this.lines, from);
     if (render) {
-      this.refreshDecor();
+      // Moving an item in or out of a list renumbers both lists.
+      if (renumberLists(this.lines).length || this.lines[from].text !== textBefore) {
+        const caret = this.readSelection()?.start;
+        this.renderAll();
+        if (caret) this.placeCaret(caret);
+      } else this.refreshDecor();
       this.emit();
     }
   }
@@ -311,6 +338,7 @@ class LineEditorCore {
     for (let j = i + 1; j < end; j++) this.lines[j].indent = Math.max(0, this.lines[j].indent - 1);
     this.lines.splice(i, 1);
     if (!this.lines.length) this.lines.push(newLine());
+    renumberLists(this.lines);
     this.renderAll();
     this.emit();
   }

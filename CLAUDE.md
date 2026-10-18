@@ -31,6 +31,7 @@ Qualquer funcionalidade que viole um destes itens está errada, mesmo que pareç
    - Sem rollover automático de tarefas entre dias, semanas ou meses.
    - Sem arrastar/colar entradas de um log para outro, e sem botão "copiar texto" dentro do painel de pendências. Isso retiraria a fricção de reescrever.
    - Reordenar e indentar dentro da **mesma página** é permitido (não é migração).
+   - **Exceção autorizada pelo Fernando: listas numeradas.** Linhas que começam com número (`1. `, `2) `) são renumeradas pelo app quando a estrutura da lista muda (Enter, apagar, juntar linhas, indentar/desindentar, colar). Enter num item numerado já começa a linha com o próximo número; Enter num item vazio encerra a lista. Nada além do número é alterado.
 2. **Auxiliar sem fazer.** Os recursos de lembrete (faixa de montagem, painel de pendências, fechar o dia) **mostram e consultam**. A única escrita permitida a partir deles são marcações individuais de estado (seção 4.3).
 3. **Página livre.** O usuário pode escrever o que quiser: entradas com bullet, texto corrido, títulos, subitens. Nenhum ritual é obrigatório, bloqueia a edição ou impede pular etapas.
 4. **Local-first.** Tudo funciona offline. Leitura e escrita sempre no dispositivo; o sync é um complemento.

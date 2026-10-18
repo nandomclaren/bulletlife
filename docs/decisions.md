@@ -118,3 +118,9 @@ Short log of technical decisions. Newest last.
 
 - A leading list number (`1. `, `12) `, up to 3 digits, followed by a space) is styled like a bullet: semi-bold, in the bullet color. On a plain text line it colors like a task (Fernando's example), so its children inherit that color; on a task/event/note it takes that item's color.
 - The number stays part of the text: stored and exported exactly as typed. The editor renders it in a `.num` span and rebuilds the line's text (keeping the caret) only when the number appears, changes or goes away.
+
+## 2026-10-18 · Numbered lists behave like lists
+
+- **Enter on a numbered item** starts the next line with the next number (`2. …` → `3. `). Enter on an empty item (`3. ` alone) ends the list.
+- **Enter at the end of a collapsed item** puts the new line after everything hidden inside it, as the next sibling, and the item stays collapsed (it used to expand it and slip the line in among its children). On an open item with children, Enter starts a new first child.
+- **Automatic renumbering** — Fernando's explicit exception to principle 1 (recorded in CLAUDE.md 2.1). After a structural edit (Enter, delete, join, indent/outdent, paste) consecutive numbered siblings are renumbered from the list's first number and separator; a plain sibling ends the list; nested lists count separately. An item indented into a new nested list starts at 1. Typing a number by hand is never overridden while typing. Only the number changes.

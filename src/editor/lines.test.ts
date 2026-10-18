@@ -95,3 +95,62 @@ describe('numbered lines', () => {
     expect(colorTypes(lines)).toEqual(['task', 'task', 'text']);
   });
 });
+
+describe('list numbers', () => {
+  it('continues the list with the next number', async () => {
+    const { nextNumber } = await import('./lines');
+    expect(nextNumber('2.')).toBe('3.');
+    expect(nextNumber('9)')).toBe('10)');
+  });
+});
+
+describe('renumberLists', () => {
+  const run = async (lines: Array<{ indent: number; text: string }>) => {
+    const { renumberLists } = await import('./lines');
+    renumberLists(lines);
+    return lines.map((l) => l.text);
+  };
+
+  it('renumbers after an item is inserted or removed', async () => {
+    expect(await run([{ indent: 0, text: '1. a' }, { indent: 0, text: '2. new' }, { indent: 0, text: '2. b' }, { indent: 0, text: '3. c' }])).toEqual([
+      '1. a',
+      '2. new',
+      '3. b',
+      '4. c',
+    ]);
+    expect(await run([{ indent: 0, text: '1. a' }, { indent: 0, text: '3. c' }])).toEqual(['1. a', '2. c']);
+  });
+
+  it('counts siblings across their children and keeps nested lists separate', async () => {
+    expect(
+      await run([
+        { indent: 0, text: '1. a' },
+        { indent: 1, text: 'note' },
+        { indent: 1, text: '1. sub' },
+        { indent: 1, text: '5. sub' },
+        { indent: 0, text: '7. b' },
+      ]),
+    ).toEqual(['1. a', 'note', '1. sub', '2. sub', '2. b']);
+  });
+
+  it('keeps the first number and separator; a plain sibling ends the list', async () => {
+    expect(await run([{ indent: 0, text: '4) a' }, { indent: 0, text: '1. b' }, { indent: 0, text: 'plain' }, { indent: 0, text: '9. c' }])).toEqual([
+      '4) a',
+      '5) b',
+      'plain',
+      '9. c',
+    ]);
+  });
+});
+
+describe('restartIfFirst', () => {
+  it('an item indented into a new nested list starts at 1; one joining a list keeps counting', async () => {
+    const { restartIfFirst } = await import('./lines');
+    const a = [{ indent: 0, text: '1. Alpha' }, { indent: 1, text: '2. Inserted' }];
+    restartIfFirst(a, 1);
+    expect(a[1].text).toBe('1. Inserted');
+    const b = [{ indent: 0, text: '1. a' }, { indent: 0, text: '2. b' }, { indent: 0, text: '3. c' }];
+    restartIfFirst(b, 2);
+    expect(b[2].text).toBe('3. c');
+  });
+});

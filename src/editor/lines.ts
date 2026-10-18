@@ -101,6 +101,57 @@ export function numberPrefix(text: string): string | null {
   return /^(\d{1,3}[.)])(?=\s)/.exec(text)?.[1] ?? null;
 }
 
+/** The list number that follows: "2." → "3.", "9)" → "10)". */
+export function nextNumber(prefix: string): string {
+  return `${Number(prefix.slice(0, -1)) + 1}${prefix.slice(-1)}`;
+}
+
+/**
+ * Renumbers numbered lists after a structural edit (Fernando's explicit
+ * exception to "the app never changes entries by itself", CLAUDE.md 2.1).
+ * A list is a run of consecutive siblings (same parent) that start with a
+ * number; it keeps its first number and separator and counts up from there.
+ * A sibling without a number ends the run. Returns the indexes it changed.
+ */
+export function renumberLists(lines: Array<Pick<Line, 'indent' | 'text'>>): number[] {
+  const changed: number[] = [];
+  const last = new Map<number, { n: number; sep: string } | null>();
+  lines.forEach((l, i) => {
+    for (const d of [...last.keys()]) if (d > l.indent) last.delete(d);
+    const num = numberPrefix(l.text);
+    if (!num) {
+      last.set(l.indent, null);
+      return;
+    }
+    const prev = last.get(l.indent);
+    const sep = num.slice(-1);
+    if (prev) {
+      const want = `${prev.n + 1}${prev.sep}`;
+      if (want !== num) {
+        l.text = want + l.text.slice(num.length);
+        changed.push(i);
+      }
+      last.set(l.indent, { n: prev.n + 1, sep: prev.sep });
+    } else {
+      last.set(l.indent, { n: Number(num.slice(0, -1)), sep });
+    }
+  });
+  return changed;
+}
+
+/** After an indent/outdent: an item that now opens a list among its siblings starts at 1. */
+export function restartIfFirst(lines: Array<Pick<Line, 'indent' | 'text'>>, i: number) {
+  const num = numberPrefix(lines[i].text);
+  if (!num) return;
+  for (let j = i - 1; j >= 0 && lines[j].indent >= lines[i].indent; j--) {
+    if (lines[j].indent === lines[i].indent) {
+      if (numberPrefix(lines[j].text)) return; // continues an existing list
+      break;
+    }
+  }
+  lines[i].text = `1${num.slice(-1)}${lines[i].text.slice(num.length)}`;
+}
+
 /** Color group of a line: its type, except that a numbered plain line colors like a task. */
 function ownColor(l: Pick<Line, 'type'> & { text?: string }): LineType {
   return l.type === 'text' && l.text !== undefined && numberPrefix(l.text) ? 'task' : l.type;
