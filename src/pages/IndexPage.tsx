@@ -1,6 +1,6 @@
 // Index (CLAUDE.md 3.1): always on, derived from the logs, never stored.
 import { useState } from 'react';
-import { fmt, weekKey, type Weekday } from '../dates';
+import { fmt, todayIso, weekKey, yearOf, type Weekday } from '../dates';
 import { createCollection, useCollections, useSettings, useWrittenTimeLogs } from '../data/repo';
 import type { Log } from '../data/types';
 import { t } from '../i18n/en';
@@ -22,6 +22,23 @@ export function IndexPage() {
         ‹ {t.nav.back}
       </button>
       <h1>{t.index.title}</h1>
+
+      {/* The Year (future log) is always on: the current one is always listed,
+          even before anything is written in it. Nothing is stored for this. */}
+      <ul className="index-list index-pinned">
+        <li>
+          <button
+            className="index-link"
+            onClick={() => {
+              setAnchor(todayIso());
+              navigate(`/year/${yearOf(todayIso())}`);
+            }}
+          >
+            <span className="index-kind">{t.index.kinds.future}</span>
+            {yearOf(todayIso())}
+          </button>
+        </li>
+      </ul>
 
       <section className="index-section">
         <h2 className="section-title">{t.index.collections}</h2>

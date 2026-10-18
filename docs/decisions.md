@@ -108,3 +108,8 @@ Short log of technical decisions. Newest last.
 - **Index** (`/index`, button left of the breadcrumb) is derived: collections A–Z, then logs that have entries, grouped by year (Year, Month, Week, Day). Settings link moved there too (the footer link stays).
 - **Scroll restore:** the browser's scroll anchoring shifted the restored position while a page's entries loaded (Month back from Day landed 136 px off). `overflow-anchor: none` on the root, and the router retries the restore for up to 800 ms until the page is tall enough (stops if the user scrolls).
 - Acceptance recorded in `docs/phase1-acceptance.md`.
+
+## 2026-10-18 · Year always listed in the Index
+
+- Fernando asked whether the future log should be a default collection so the Pending panel can find it. Decision: no. The Year keeps its own kind (`future`) with a deterministic id (`future:YYYY`) and month slots (`YYYY-MM`), which is exactly what the panel's category C query needs; a collection has no months. An unwritten Year has no entries, so there is nothing to find.
+- Because the future log is "always on", the current year's Year is now pinned at the top of the Index even before anything is written. It is a link only; nothing is stored.

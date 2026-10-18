@@ -437,3 +437,7 @@
   line-height: 1.2;
   outline: none;
 }
+
+.index-pinned {
+  margin-top: 16px;
+}
