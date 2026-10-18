@@ -68,7 +68,7 @@ button {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  font-variant: all-small-caps;
+  text-transform: uppercase; /* real caps at a small size; synthetic small-caps renders unevenly */
   color: var(--muted);
 }
 

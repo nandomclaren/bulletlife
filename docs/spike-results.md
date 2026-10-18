@@ -23,6 +23,10 @@ on each device, mark each check, tap **Copy report** and paste both reports at t
 | 12 | Avenir Next renders | ⏳ | ⏳ | |
 | 13 | Caret takes the bullet color, typing feels good | ⏳ | ⏳ | |
 
+Verified on the live deploy (https://bulletlife.up.railway.app, 2026-10-18, Chromium with iPhone 13 emulation):
+all routes return 200 with the intended cache headers, the manifest has 3 icons, the service worker takes
+control and the deep link `/month/2026-10` loads offline. No console errors.
+
 Verified so far in headless Chromium (desktop): tap cycle open → complete → cancelled → open,
 right-click menu, route navigation, back with scroll restore, deep link reload. No console errors.
 
