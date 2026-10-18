@@ -77,8 +77,14 @@ export function useLogsWithContent(logIds: string[]): Set<string> {
 }
 
 export function useSettings(): Settings {
-  const row = useLiveQuery(() => db.settings.get('settings'));
-  return { ...DEFAULT_SETTINGS, ...row };
+  return useLoadedSettings() ?? DEFAULT_SETTINGS;
+}
+
+/** Settings, or undefined until they have been read (for decisions that must not use defaults). */
+export function useLoadedSettings(): Settings | undefined {
+  // null = read, no row stored yet.
+  const row = useLiveQuery(async () => (await db.settings.get('settings')) ?? null);
+  return row === undefined ? undefined : { ...DEFAULT_SETTINGS, ...row };
 }
 
 export async function updateSettings(patch: Partial<Settings>) {

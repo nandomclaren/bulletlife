@@ -96,3 +96,8 @@ Short log of technical decisions. Newest last.
 - **Bullet menu:** long press (500 ms, also click-and-hold) or right click / Ctrl-click on the bullet (right click anywhere in the margin for plain lines). One entry at a time: Type (Task, Event, Note, Text), State (Open, Complete, Cancel, Migrate, Schedule), Signifiers (Priority `*`, Inspiration `!`, Explore drawn eye), Indent, Outdent, Delete. Delete moves children up one level and shows an "Undo" toast for 5 s. "Copy as…" arrives with Phase 3.
 - **Migrate / Schedule** set `placement = { status: 'pending' }` (cleared when the entry leaves those states), ready for the Pending panel in Phase 4.
 - **Month text fit** (`src/pages/fitText.ts`): a phrase that does not fit one line shrinks continuously down to 85% (min 14 px), then wraps and the row grows. Never truncated.
+
+## 2026-10-18 · Pages of a turned-off level redirect
+
+- Bug: with only Week on, a Day page could still open (old link, history, or the app opening before Settings were read) and ‹ › stepped by day.
+- Now a Day, Week or Month page whose level is off is replaced (history `replace`) by the finest active level for the same date. Opening the app waits for Settings to be read (`useLoadedSettings`) instead of using defaults.
