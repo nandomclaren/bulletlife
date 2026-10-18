@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { LineEditor } from '../editor/LineEditor';
 import type { Line } from '../editor/lines';
-import { loadLines, saveLines, useSettings, type LogRef } from '../data/repo';
+import { loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
 
 const SAVE_DELAY = 400;
+/** Remote changes wait until the user has stopped typing for this long. */
+const TYPING_PAUSE = 2500;
 
 interface Props {
   log: LogRef;
@@ -23,10 +25,29 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
   const logRef = useRef(log);
   logRef.current = log;
   const focusAt = useRef<((lineId?: string) => void) | null>(null);
+  const area = useRef<HTMLDivElement>(null);
+  const shown = useRef<Line[] | null>(null);
+  /** What this editor last loaded or saved: the base for "what did I change". */
+  const base = useRef<Line[]>([]);
+  const [version, setVersion] = useState(0);
+  const lastInput = useRef(0);
+  const stamp = useEntriesStamp(log.id, slot);
+
+  // Saves only what this editor changed since its base, then moves the base.
+  const save = (lines: Line[]) => {
+    const from = base.current;
+    base.current = lines;
+    void saveLines(logRef.current, slot, lines, from);
+  };
 
   useEffect(() => {
     let alive = true;
-    void loadLines(log.id, slot).then((lines) => alive && setInitial(lines));
+    void loadLines(log.id, slot).then((lines) => {
+      if (!alive) return;
+      shown.current = lines;
+      base.current = lines;
+      setInitial(lines);
+    });
     return () => {
       alive = false;
     };
@@ -37,7 +58,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
       window.clearTimeout(timer.current);
       const lines = pending.current;
       pending.current = null;
-      if (lines) void saveLines(logRef.current, slot, lines);
+      if (lines) save(lines);
     };
     const onHide = () => document.visibilityState === 'hidden' && flush();
     window.addEventListener('pagehide', flush);
@@ -49,6 +70,31 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
     };
   }, [slot]);
 
+  // Entries changed underneath (sync from the other device): reload, but
+  // never while the user is typing here; wait for a short pause instead.
+  // Our own saves reload to the same lines and change nothing.
+  const refresh = useRef<() => void>(() => {});
+  refresh.current = () => {
+    if (!shown.current) return;
+    const idle = Date.now() - lastInput.current;
+    if (pending.current || idle < TYPING_PAUSE) {
+      window.setTimeout(() => refresh.current(), TYPING_PAUSE - Math.min(idle, TYPING_PAUSE) + 50);
+      return;
+    }
+    void loadLines(log.id, slot).then((lines) => {
+      if (pending.current || sameLines(lines, shown.current)) return;
+      const hadFocus = !!area.current?.contains(document.activeElement);
+      shown.current = lines;
+      base.current = lines;
+      setInitial(lines);
+      setVersion((v) => v + 1);
+      if (hadFocus) requestAnimationFrame(() => focusAt.current?.());
+    });
+  };
+  useEffect(() => {
+    if (stamp !== undefined) refresh.current();
+  }, [stamp]);
+
   if (!initial) return <div className={`editor-area${compact ? ' compact' : ''}`} />;
 
   return (
@@ -56,6 +102,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
     // text puts the caret at the end (the first line of an empty page); a tap
     // in a line's margin puts it at the end of that line.
     <div
+      ref={area}
       className={`editor-area${compact ? ' compact' : ''}`}
       onClick={(e) => {
         const target = e.target as Element;
@@ -64,6 +111,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
       }}
     >
       <LineEditor
+        key={version}
         initial={initial}
         autoFocus={autoFocus}
         className={compact ? 'compact' : ''}
@@ -71,14 +119,34 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
         eventStates={eventStates}
         focusRef={focusAt}
         onChange={(lines) => {
+          shown.current = lines;
+          lastInput.current = Date.now();
           pending.current = lines;
           window.clearTimeout(timer.current);
           timer.current = window.setTimeout(() => {
             pending.current = null;
-            void saveLines(logRef.current, slot, lines);
+            save(lines);
           }, SAVE_DELAY);
         }}
       />
     </div>
   );
+}
+
+function sameLines(a: Line[], b: Line[] | null) {
+  if (!b || a.length !== b.length) return false;
+  return a.every((l, i) => {
+    const o = b[i];
+    return (
+      l.id === o.id &&
+      l.text === o.text &&
+      l.type === o.type &&
+      l.state === o.state &&
+      l.indent === o.indent &&
+      l.collapsed === o.collapsed &&
+      !!l.priority === !!o.priority &&
+      !!l.inspiration === !!o.inspiration &&
+      !!l.explore === !!o.explore
+    );
+  });
 }

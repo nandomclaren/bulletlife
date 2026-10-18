@@ -600,3 +600,44 @@ h1 {
 .switch-row[aria-disabled='true'] .switch {
   opacity: 0.5;
 }
+
+/* Sync */
+
+.setting-hint-top {
+  margin: 0 4px 4px;
+}
+
+.sync-row {
+  justify-content: space-between;
+  cursor: default;
+}
+
+.sync-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--note);
+}
+
+.sync-dot.sync-syncing {
+  background: var(--muted);
+}
+
+.sync-dot.sync-offline,
+.sync-dot.sync-error {
+  background: transparent;
+  border: 1.5px solid var(--muted);
+}
+
+/* Tiny ring on the Index button: offline or paused. Never red, never a count. */
+.sync-badge {
+  position: absolute;
+  top: 9px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: var(--bg);
+}

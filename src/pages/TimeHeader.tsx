@@ -1,5 +1,5 @@
 import { fmt, monthOf, todayIso, weekKey, yearOf, type Weekday } from '../dates';
-import { useSettings } from '../data/repo';
+import { useSettings, useSync } from '../data/repo';
 import { t } from '../i18n/en';
 import { navigate } from '../router';
 import { activeLevels, goUp, pathFor, setAnchor, stepKey, type Level } from './nav';
@@ -17,6 +17,9 @@ interface Props {
 /** Breadcrumb (every level is one tap away), ‹ ›, Today and a date picker. */
 export function TimeHeader({ level, periodKey, anchor }: Props) {
   const settings = useSettings();
+  const sync = useSync();
+  // Quiet: nothing when in sync or not signed in; a small ring only when offline or paused.
+  const attention = sync.kind === 'offline' || sync.kind === 'error' ? sync.kind : null;
   const firstDay = settings.firstDayOfWeek as Weekday;
   const levels = activeLevels(settings);
 
@@ -46,8 +49,13 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
 
   return (
     <header className="time-header">
-      <button className="icon-btn-quiet index-btn" aria-label={t.nav.index} onClick={() => navigate('/index')}>
+      <button
+        className="icon-btn-quiet index-btn"
+        aria-label={attention ? `${t.nav.index}, ${t.sync.indicator[attention]}` : t.nav.index}
+        onClick={() => navigate('/index')}
+      >
         <IndexIcon />
+        {attention && <span className={`sync-badge sync-${attention}`} aria-hidden />}
       </button>
       <nav className="crumbs" aria-label={t.nav.path}>
         {levels.map((l, i) => (

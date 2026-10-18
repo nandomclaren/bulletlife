@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { updateSettings, useSettings } from './data/repo';
+import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
 import { navigate } from './router';
@@ -10,12 +10,44 @@ const TIME_LOGS: TimeLog[] = ['monthly', 'weekly', 'daily'];
 export function SettingsPage() {
   const settings = useSettings();
   const [theme, setThemeState] = useState<ThemePref>(getTheme);
+  const sync = useSync();
   return (
     <main className="page">
       <button className="link" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>
         ‹ {t.nav.back}
       </button>
       <h1>{t.settings.title}</h1>
+
+      <section className="setting">
+        <h2>{t.sync.title}</h2>
+        {sync.kind === 'off' ? (
+          <>
+            <p className="setting-hint setting-hint-top">{t.sync.off}</p>
+            <button className="btn" onClick={() => void signIn()}>
+              {t.sync.signIn}
+            </button>
+          </>
+        ) : (
+          <div className="options">
+            <div className="option sync-row">
+              <span className="option-text">
+                <span className="option-title">{t.sync.states[sync.kind]}</span>
+                <span className="option-hint">
+                  {t.sync.signedInAs} {sync.email}
+                  {sync.kind === 'error' && sync.message ? ` · ${sync.message}` : ''}
+                </span>
+              </span>
+              <span className={`sync-dot sync-${sync.kind}`} aria-hidden />
+            </div>
+            <button className="option" onClick={() => void syncNow()}>
+              <span className="option-title">{t.sync.syncNow}</span>
+            </button>
+            <button className="option" onClick={() => void signOut()}>
+              <span className="option-title muted">{t.sync.signOut}</span>
+            </button>
+          </div>
+        )}
+      </section>
 
       <section className="setting">
         <h2>{t.settings.logs}</h2>

@@ -131,3 +131,12 @@ Short log of technical decisions. Newest last.
 - Fernando found the "Logs" list messy (repeated year, a lone "Day" row, two stacked rules). Removed: the Index shows the current Year (pinned) and Collections only. Other years: ‹ › on the Year page or the calendar.
 - The Index header matches the time pages: Today and the calendar sit in exactly the same place; the ‹ › slots are kept empty so nothing shifts. Today opens today's finest log; the calendar opens the finest log of the chosen date.
 - The two rules were the last item's border plus the footer's border; the last item of a list no longer draws one.
+
+## 2026-10-18 · Phase 2: sync with Dexie Cloud
+
+- **Database:** `https://zsu6nu12q.dexie.cloud` (`src/data/cloud.ts`). `requireAuth: false`: the app works fully without signing in (local-first); sync starts after "Sign in" in Settings (email + one-time code, Dexie's own dialog for now).
+- **Same local database:** `nameSuffix: false`. By default the addon opens a new IndexedDB named after the cloud database, which made existing data look gone in testing (it was untouched in the old database). Now `bullet-life` is upgraded in place (v1 → v2), verified with a v1 database built by hand.
+- **Globally unique ids:** synced primary keys must be globally unique. Entries (ULID) and collections (`collection:<ULID>`) already are. The deterministic time-log rows (`daily:2026-10-18`, …) are dropped in the v2 upgrade: nothing needed them (everything about a time page comes from its date) and entries keep referring to the page by that name. Settings stay per device (`unsyncedTables`), a single fixed row; revisit for the commercial version.
+- **Editors only write what they changed:** each editor keeps a base (what it loaded or last saved) and saves only lines it touched; it deletes only lines it knew and removed. Before this, an editor that had not yet received a change from elsewhere wrote the whole page back and undid it (reproduced with two windows). `touchedIds` + `diffEntries(..., base)`, unit tested.
+- **Live updates:** each editor watches its stored entries; when they change from elsewhere it reloads, but never while the user is typing (waits for a 2.5 s pause, keeps the caret in the editor).
+- **Indicator:** Settings › Sync shows "Up to date", "Syncing…", "Offline…" or "Sync paused" with the signed-in email, plus Sync now and Sign out. On every page a small ring on the Index button appears only when offline or paused; nothing when in sync or not signed in.

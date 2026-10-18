@@ -163,6 +163,16 @@ export const en = {
     monthArea: 'Notes for',
     hasContent: 'has entries',
   },
+  sync: {
+    title: 'Sync',
+    off: 'Everything is saved on this device. Sign in to keep your iPhone and Mac in sync.',
+    signIn: 'Sign in',
+    signOut: 'Sign out',
+    syncNow: 'Sync now',
+    signedInAs: 'Signed in as',
+    states: { synced: 'Up to date', syncing: 'Syncing…', offline: 'Offline. Changes will sync when you are back online.', error: 'Sync paused' },
+    indicator: { offline: 'Offline', error: 'Sync paused', syncing: 'Syncing' },
+  },
   settings: {
     title: 'Settings',
     logs: 'Logs',

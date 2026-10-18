@@ -51,3 +51,23 @@ describe('signifiers and placement', () => {
     expect(reopened.placement).toBeUndefined();
   });
 });
+
+describe('saving only what the editor changed', () => {
+  const base = [newLine({ type: 'task', text: 'Pay rent' }), newLine({ type: 'text', text: 'Written here' })];
+  const stored = diffEntries(base, [], 'L', '', NOW).put;
+
+  it('a stale editor does not write back over a change made elsewhere', () => {
+    // Elsewhere: "Pay rent" was completed. This editor still shows it open and edits the other line.
+    const elsewhere = stored.map((e) => (e.text === 'Pay rent' ? { ...e, state: 'done' as const } : e));
+    const mine = [base[0], { ...base[1], text: 'Written here (typing)' }];
+    const { put, remove } = diffEntries(mine, elsewhere, 'L', '', NOW, base);
+    expect(put.map((e) => e.text)).toEqual(['Written here (typing)']);
+    expect(remove).toEqual([]);
+  });
+
+  it('never deletes an entry that arrived from elsewhere, but deletes what this editor removed', () => {
+    const arrived = { ...stored[0], id: 'remote-1', text: 'From the iPhone', order: 'a5' };
+    const { remove } = diffEntries([base[1]], [...stored, arrived], 'L', '', NOW, base);
+    expect(remove).toEqual([base[0].id]);
+  });
+});

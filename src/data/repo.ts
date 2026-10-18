@@ -1,10 +1,10 @@
 // The only way the UI reads or writes data. Swapping the sync backend later
 // means changing this file and db.ts, not the pages.
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { ulid } from 'ulid';
 import { addDays, daysInMonth, fmt, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
-import { diffEntries, entriesToLines, isBlank } from './convert';
+import { diffEntries, entriesToLines } from './convert';
 import { db } from './db';
 import { DEFAULT_SETTINGS, type Log, type LogKind, type Settings } from './types';
 
@@ -45,20 +45,18 @@ export async function loadLines(logId: string, slot = ''): Promise<Line[]> {
   return entriesToLines(entries);
 }
 
-/** Saves one editor's lines. Creates the log only when there is something to keep. */
-export async function saveLines(log: LogRef, slot: string, lines: Line[]): Promise<void> {
+/**
+ * Saves one editor's lines. With `base` (what the editor loaded or last
+ * saved), only what the editor changed is written. Time pages need no log row (they are derived from
+ * the date); a collection's row is touched so it sorts by last change.
+ */
+export async function saveLines(log: LogRef, slot: string, lines: Line[], base?: Line[]): Promise<void> {
   await db.transaction('rw', db.logs, db.entries, async () => {
     const now = new Date().toISOString();
     const existing = await db.entries.where('[logId+slot]').equals([log.id, slot]).toArray();
-    const { put, remove } = diffEntries(lines, existing, log.id, slot, now);
+    const { put, remove } = diffEntries(lines, existing, log.id, slot, now, base);
     if (!put.length && !remove.length) return;
-    const stored = await db.logs.get(log.id);
-    if (!stored && !isBlank(lines)) {
-      const row: Log = { ...log, createdAt: now, updatedAt: now };
-      await db.logs.add(row);
-    } else if (stored) {
-      await db.logs.update(log.id, { updatedAt: now });
-    }
+    if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
     if (put.length) await db.entries.bulkPut(put);
     if (remove.length) await db.entries.bulkDelete(remove);
   });
@@ -120,4 +118,51 @@ export function useCollections(): Log[] | undefined {
     const all = await db.logs.where('kind').equals('collection').toArray();
     return all.sort((a, b) => a.title.localeCompare(b.title, 'en', { sensitivity: 'base' }));
   });
+}
+
+// ---------- Sync ----------
+
+export type SyncView =
+  | { kind: 'off' } // not signed in: everything stays on this device
+  | { kind: 'synced'; email?: string }
+  | { kind: 'syncing'; email?: string }
+  | { kind: 'offline'; email?: string }
+  | { kind: 'error'; email?: string; message: string };
+
+/** One calm summary of the sync state for the UI. */
+export function useSync(): SyncView {
+  const user = useObservable(db.cloud.currentUser);
+  const state = useObservable(db.cloud.syncState);
+  if (!user?.isLoggedIn) return { kind: 'off' };
+  const email = user.email;
+  if (!state) return { kind: 'syncing', email };
+  if (state.phase === 'error' || state.status === 'error') return { kind: 'error', email, message: state.error?.message ?? '' };
+  if (state.phase === 'offline' || state.status === 'offline' || state.status === 'disconnected') return { kind: 'offline', email };
+  if (state.phase === 'in-sync') return { kind: 'synced', email };
+  return { kind: 'syncing', email };
+}
+
+/** Opens the sign-in flow (email, then a one-time code). */
+export function signIn() {
+  return db.cloud.login();
+}
+
+/** Signs out (the sync service handles what happens to data on this device). */
+export function signOut() {
+  return db.cloud.logout();
+}
+
+export function syncNow() {
+  return db.cloud.sync({ purpose: 'pull', wait: true });
+}
+
+/** Changes whenever the stored entries of one (log, slot) change, locally or from sync. */
+export function useEntriesStamp(logId: string, slot = ''): string | undefined {
+  return useLiveQuery(async () => {
+    const entries = await db.entries.where('[logId+slot]').equals([logId, slot]).toArray();
+    return entries
+      .map((e) => `${e.id}@${e.updatedAt}`)
+      .sort()
+      .join('|');
+  }, [logId, slot]);
 }
