@@ -1,0 +1,127 @@
+// All user-visible strings live here so other languages can be added later.
+export const en = {
+  appName: 'Bullet Life',
+  spike: {
+    title: 'Device check',
+    subtitle:
+      'A throwaway page to test what the real app depends on. Run it on the installed app on each device, mark each check, then copy the report.',
+    pass: 'Pass',
+    fail: 'Fail',
+    unsure: 'Unsure',
+    notePlaceholder: 'Notes (optional)',
+    copyReport: 'Copy report',
+    reportCopied: 'Report copied',
+    environment: 'Environment',
+    yes: 'yes',
+    no: 'no',
+  },
+  checks: {
+    install: {
+      title: 'Install and standalone',
+      how: 'iPhone: Safari › Share › Add to Home Screen. Mac: Safari › File › Add to Dock. Open it from the icon.',
+      standalone: 'Running standalone',
+    },
+    offline: {
+      title: 'Works offline',
+      how: 'Open the app once online. Turn on Airplane Mode (or turn off Wi-Fi), quit the app fully and reopen it.',
+      sw: 'Service worker controlling page',
+      online: 'Network',
+    },
+    persistence: {
+      title: 'Local data survives days',
+      how: 'Every launch is stored locally. Come back after several days: the first launch date should still be there.',
+      firstLaunch: 'First launch',
+      launches: 'Launches recorded',
+      span: 'Days kept',
+    },
+    persist: {
+      title: 'Persistent storage',
+      how: 'Ask the browser to keep data even under storage pressure.',
+      request: 'Request persistence',
+      persisted: 'Persisted',
+      usage: 'Usage',
+    },
+    cloud: {
+      title: 'Sync between devices',
+      how: 'Paste the sync database URL, connect, sign in with the same email on both devices and add a line on each. Then try editing offline on both and reconnecting.',
+      urlPlaceholder: 'https://xxxxxxxx.dexie.cloud',
+      connect: 'Connect',
+      disconnect: 'Disconnect',
+      add: 'Add line',
+      linePlaceholder: 'Write something to sync',
+      user: 'Signed in as',
+      state: 'Sync state',
+      empty: 'No lines yet',
+    },
+    share: {
+      title: 'Share sheet',
+      how: 'Tap Share. The system share sheet should open.',
+      button: 'Share',
+      unsupported: 'Share is not available here',
+    },
+    richCopy: {
+      title: 'Copy as rich text',
+      how: 'Tap Copy, then paste into Notes or Mail. The task should keep bold text and the list.',
+      button: 'Copy rich text',
+      done: 'Copied. Now paste it in another app.',
+      failed: 'Copy failed',
+    },
+    selection: {
+      title: 'Selection survives the … menu',
+      how: 'Select part of the lines below, then tap …. The menu should know what was selected.',
+      menu: 'More',
+      copySelection: 'Copy selection',
+      captured: 'Selection captured',
+      nativeAtTap: 'Native selection when … was tapped',
+      nothing: '(nothing)',
+    },
+    longPress: {
+      title: 'Long press and right click on a bullet',
+      how: 'iPhone: press and hold the bullet. Mac: right click or Ctrl-click it. A small menu should open, and the text should stay selectable.',
+      opened: 'Menu opened by',
+      complete: 'Complete',
+      cancel: 'Cancel',
+      close: 'Close',
+    },
+    swipe: {
+      title: 'Horizontal swipe on Mac',
+      how: 'Mac only: swipe left and right with two fingers inside the box. Did the app go back or forward a page?',
+      area: 'Swipe here',
+      lastDelta: 'Last horizontal scroll',
+    },
+    back: {
+      title: 'Back with route history',
+      how: 'Open Month, scroll down, tap a day, then go back with the edge swipe (iPhone) or two-finger swipe / ⌘[ (Mac). The Month page should return at the same scroll.',
+      openMonth: 'Open sample Month',
+    },
+    font: {
+      title: 'Avenir Next renders',
+      how: 'The sample should look like Avenir Next (round, geometric).',
+      detected: 'Avenir Next detected',
+      sample: 'The quick brown fox jumps over the lazy dog. 0123456789',
+    },
+    caret: {
+      title: 'Writing feels good',
+      how: 'Type on each line. The cursor should take the bullet color. Typing should feel instant.',
+    },
+  },
+  bullets: {
+    task: 'Task',
+    event: 'Event',
+    note: 'Note',
+    states: {
+      open: 'open',
+      done: 'complete',
+      cancelled: 'cancelled',
+    },
+  },
+  routes: {
+    home: 'Device check',
+    month: 'This Month',
+    day: 'Day',
+    backToChecks: 'Device check',
+  },
+} as const;
+
+export type Strings = typeof en;
+export const t = en;
