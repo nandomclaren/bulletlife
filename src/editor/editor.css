@@ -253,11 +253,20 @@
   cursor: pointer;
 }
 
-/* The task dot is drawn, not typed: "•" varies a lot between fonts.
-   Sized to match the "×" of a completed task. */
+/* Task dot and event ring are drawn, not typed: "•" and "○" vary a lot
+   between fonts. Both are sized to match the "×" of a completed item. */
 .t-task.s-open .bullet,
-.t-task.s-cancelled .bullet {
+.t-task.s-cancelled .bullet,
+.t-event:not(.s-done):not(.s-migrated):not(.s-scheduled) .bullet {
   font-size: 0;
+}
+
+.t-event:not(.s-done):not(.s-migrated):not(.s-scheduled) .bullet::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
 }
 
 .t-task.s-open .bullet::before,
