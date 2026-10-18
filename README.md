@@ -28,5 +28,5 @@ Local check of the production server: `docker build -t bulletlife . && docker ru
 
 ## Phase 0 device check
 
-Open the deployed URL, install it (see the page itself for steps), run each check on the
+Open https://bulletlife.up.railway.app, install it (see the page itself for steps), run each check on the
 installed app, then tap **Copy report** and paste the result into `docs/spike-results.md`.

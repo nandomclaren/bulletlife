@@ -30,7 +30,7 @@ right-click menu, route navigation, back with scroll restore, deep link reload. 
 
 ```sh
 npx dexie-cloud create            # asks for your email, prints the database URL
-npx dexie-cloud whitelist https://<your-app>.up.railway.app
+npx dexie-cloud whitelist https://bulletlife.up.railway.app
 ```
 
 Paste the URL into check 5 on both devices and sign in with the same email.
