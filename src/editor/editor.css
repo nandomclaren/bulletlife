@@ -64,6 +64,7 @@
   display: inline-grid;
   place-items: center;
   width: 16px;
+  height: 20px;
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
@@ -92,7 +93,7 @@
 
 .sig {
   width: 10px;
-  margin-right: 2px;
+  margin-right: 5px;
   font-weight: 700;
   text-align: right;
 }
@@ -252,7 +253,18 @@
   cursor: pointer;
 }
 
-/* "•" renders smaller than "○" and "–" in most fonts; balance them optically. */
-.t-task:not(.s-done) .bullet {
-  font-size: 28px;
+/* The task dot is drawn, not typed: "•" varies a lot between fonts.
+   Sized to match the "×" of a completed task. */
+.t-task.s-open .bullet,
+.t-task.s-cancelled .bullet {
+  font-size: 0;
+}
+
+.t-task.s-open .bullet::before,
+.t-task.s-cancelled .bullet::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
