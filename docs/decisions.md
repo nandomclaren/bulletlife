@@ -61,3 +61,8 @@ Short log of technical decisions. Newest last.
 - **Month:** day rows are rendered from the date; each row is a compact editor storing entries with `slot = 'YYYY-MM-DD'`. "Month tasks" is the same log with an empty slot. Year: twelve editors with `slot = 'YYYY-MM'`.
 - **Header:** breadcrumb of active levels, ‹ ›, Today, native date picker. Settings moved to a quiet footer link until the Index menu exists (the header must fit a 390 px iPhone).
 - Still to do in Phase 1: Month row font shrink (85% then wrap), bullet menu, settings for active logs / event states / first day, Collections and Index, offline check of the whole flow.
+
+## 2026-10-18 · Week strip removed, cross drawn
+
+- The 7-day strip on Day and Week pages is **commented out** at Fernando's request (it made the app look like a digital note taker). Week → Day goes through the breadcrumb's day crumb (the anchor day), then ‹ › on the Day page. Code kept in `src/pages/WeekStrip.tsx`.
+- The completed "×" is now drawn in CSS like the dot and ring: the text glyph sat higher than the dot it replaced.

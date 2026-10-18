@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { addDays, fmt, todayIso, weekKey, weekKeyStart, type Weekday } from '../dates';
+import { addDays, fmt, todayIso, weekKeyStart, type Weekday } from '../dates';
 import { periodLog, useSettings } from '../data/repo';
 import { t } from '../i18n/en';
 import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
-import { WeekStrip } from './WeekStrip';
+// Week strip hidden at Fernando's request (felt like a digital note taker). Kept for later.
+// import { WeekStrip } from './WeekStrip';
 
 export function DayPage({ iso }: { iso: string }) {
   const settings = useSettings();
@@ -16,7 +17,7 @@ export function DayPage({ iso }: { iso: string }) {
   return (
     <main className="page page-time">
       <TimeHeader level="day" periodKey={iso} anchor={iso} />
-      <WeekStrip weekKey={weekKey(iso, firstDay)} firstDay={firstDay} selected={iso} />
+      {/* <WeekStrip weekKey={weekKey(iso, firstDay)} firstDay={firstDay} selected={iso} /> */}
       <p className="eyebrow">{isToday ? t.pages.today : fmt(iso, { weekday: 'long' })}</p>
       <h1>{fmt(iso, isToday ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })}</h1>
       <PageEditor key={log.id} log={log} autoFocus label={log.title} />
@@ -43,12 +44,12 @@ export function WeekPage({ weekKey: key }: { weekKey: string }) {
   return (
     <main className="page page-time">
       <TimeHeader level="week" periodKey={key} anchor={anchor} />
-      {settings.activeLogs.daily && <WeekStrip weekKey={key} firstDay={firstDay} />}
+      {/* {settings.activeLogs.daily && <WeekStrip weekKey={key} firstDay={firstDay} />} */}
       <p className="eyebrow">
         {t.pages.week} {Number(key.split('-W')[1])}
       </p>
       <h1>{range}</h1>
-      <PageEditor key={log.id} log={log} autoFocus={!settings.activeLogs.daily} label={log.title} />
+      <PageEditor key={log.id} log={log} autoFocus label={log.title} />
       <PageFooter />
     </main>
   );

@@ -50,8 +50,9 @@ export function buildGutter(doc: Document, line: Line, collapsed: boolean): HTML
     bullet.setAttribute('aria-label', label);
   }
   const g = bulletGlyph(line);
-  // Open/cancelled task and event bullets are drawn in CSS (see editor.css).
-  if (g === '•' || g === '○') bullet.classList.add('drawn', g === '•' ? 'dot' : 'ring');
+  // Dot, ring and cross are drawn in CSS (see editor.css) so they share one size and height.
+  const drawn: Record<string, string> = { '•': 'dot', '○': 'ring', '×': 'cross' };
+  if (drawn[g]) bullet.classList.add('drawn', drawn[g]);
   else bullet.textContent = g;
   gutter.append(chevron, sig, bullet);
   return gutter;

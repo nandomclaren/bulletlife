@@ -181,12 +181,12 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 **Descer tocando no próprio conteúdo**
 - Ano → Mês: tocar no **cabeçalho do mês**.
 - Mês → Dia: tocar no **número do dia**. Mês → Semana: tocar no rótulo **"Wk N"** da divisória.
-- Semana → Dia: no topo da página da semana há uma **faixa de 7 dias** (inicial + número; hoje destacado; pontinho discreto nos dias que já têm conteúdo, calculado a partir dos dados), cada dia **tocável**.
+- Semana → Dia: pela **trilha** (o item do dia mostra o dia âncora: hoje, se estiver na semana, ou o primeiro dia) e depois ‹ › na página do Dia. *A faixa de 7 dias foi retirada pelo Fernando (dava cara de app de notas digital); o código fica comentado em `src/pages/WeekStrip.tsx` caso volte.*
 - Se o nível de destino estiver desativado, vai para o próximo ativo (Mês → Dia quando Weekly está desligado).
 
 **Subir e andar de lado**
 - Pela trilha: Dia → Semana, Dia → Mês ou Dia → Ano em 1 toque.
-- Na página do **Dia**, a mesma faixa de 7 dias permite pular para outro dia da semana sem subir de nível.
+- Na página do **Dia**, ‹ › andam um dia por vez e o seletor de data pula para qualquer dia.
 - Ao subir, a página **rola até o item de origem e o destaca brevemente** (ex.: voltar do dia 18 ao Monthly rola até a linha do 18).
 
 **Voltar**
@@ -388,7 +388,7 @@ interface Settings { /* seção 12 */ }
 - **Fechar o dia:** ligar/desligar (padrão: ligado) e horário (padrão: 20:00).
 - Contador do botão de pendências: mostrar/esconder.
 - Inverter direção dos swipes.
-- Faixa de 7 dias nas páginas de Semana e Dia: mostrar/esconder (padrão: mostrar).
+- ~~Faixa de 7 dias nas páginas de Semana e Dia~~ (retirada; ver seção 5.1).
 - Prefixos de rapid logging (configuráveis).
 - Estilo de glifos no Markdown.
 - Tema: Papel / Grafite / Noite / automático. Fonte: Avenir Next (padrão) ou fallback.

@@ -105,7 +105,6 @@ function fromId(level: Level, periodKey: string, target: Level, anchor: string):
   if (target === 'year') return `year-month-${monthOf(anchor)}`;
   if (target === 'month' && level === 'day') return `month-day-${periodKey}`;
   if (target === 'month' && level === 'week') return `month-day-${anchor}`;
-  if (target === 'week' && level === 'day') return `strip-${periodKey}`;
   return '';
 }
 

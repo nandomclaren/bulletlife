@@ -241,6 +241,15 @@
   background: currentColor;
 }
 
+.bullet.cross::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background:
+    linear-gradient(45deg, transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px), currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px)),
+    linear-gradient(-45deg, transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px), currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px));
+}
+
 .bullet.ring::before {
   content: '';
   width: 8px;
