@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { fmt, monthOf, todayIso, weekKey, yearOf, type Weekday } from '../dates';
 import { useSettings } from '../data/repo';
 import { t } from '../i18n/en';
@@ -20,10 +19,7 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
   const settings = useSettings();
   const firstDay = settings.firstDayOfWeek as Weekday;
   const levels = activeLevels(settings);
-  const current = useRef<HTMLButtonElement>(null);
 
-  // Keep the current crumb visible when the trail scrolls sideways on a phone.
-  useEffect(() => current.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' }), [level, periodKey]);
 
   const label = (l: Level) => {
     switch (l) {
@@ -55,7 +51,6 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
           <span key={l} className="crumb-wrap">
             {i > 0 && <span className="crumb-sep" aria-hidden>›</span>}
             <button
-              ref={l === level ? current : undefined}
               className={`crumb${l === level ? ' is-current' : ''}`}
               aria-current={l === level ? 'page' : undefined}
               onClick={() => go(l)}

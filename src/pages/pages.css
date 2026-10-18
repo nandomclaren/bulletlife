@@ -26,18 +26,18 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  overflow-x: auto;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
-}
-
-.crumbs::-webkit-scrollbar {
-  display: none;
+  /* Never scrolls sideways: outer crumbs shrink (ellipsis), the current one stays whole. */
+  overflow: hidden;
 }
 
 .crumb-wrap {
   display: flex;
   align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.crumb-wrap:has(.is-current) {
   flex: none;
 }
 
@@ -47,6 +47,9 @@
 }
 
 .crumb {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-height: 40px;
   padding: 0 4px;
   border: 0;

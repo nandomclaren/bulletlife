@@ -71,6 +71,22 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* No horizontal scrolling anywhere: nothing may push the page sideways,
+   no sideways rubber-band on iOS, and no sideways overscroll on the Mac
+   (in browsers that honor it, that also stops swipe-to-go-back). Vertical
+   panning and pinch zoom stay. Horizontal pointer moves still reach the app
+   (needed for the > / < swipes on entries in Phase 4). */
+html,
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+
+body {
+  touch-action: pan-y pinch-zoom;
+}
+
 body {
   margin: 0;
   background: var(--bg);

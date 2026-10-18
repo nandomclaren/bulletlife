@@ -66,3 +66,9 @@ Short log of technical decisions. Newest last.
 
 - The 7-day strip on Day and Week pages is **commented out** at Fernando's request (it made the app look like a digital note taker). Week → Day goes through the breadcrumb's day crumb (the anchor day), then ‹ › on the Day page. Code kept in `src/pages/WeekStrip.tsx`.
 - The completed "×" is now drawn in CSS like the dot and ring: the text glyph sat higher than the dot it replaced.
+
+## 2026-10-18 · No horizontal scrolling
+
+- `html, body { overflow-x: clip; overscroll-behavior-x: none }` and `body { touch-action: pan-y pinch-zoom }`: nothing can push the page sideways, no sideways rubber-band on iOS, vertical panning and pinch zoom kept. Horizontal pointer moves still reach the app (Phase 4 swipes).
+- The breadcrumb no longer scrolls: outer crumbs shrink with an ellipsis, the current one stays whole.
+- Mac: Safari's two-finger swipe between pages is a system gesture; `overscroll-behavior-x` may not stop it in Safari (Chromium honors it). If it still fires, it can be turned off in macOS System Settings › Trackpad › More Gestures › Swipe between pages (affects all apps).
