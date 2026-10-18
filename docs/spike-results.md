@@ -45,6 +45,7 @@ own user to production in the Dexie Cloud manager so sync never stops.
 
 1. **Paid price per user:** Pro is listed at **$0.12 per user per month**, sold in packs of 25 seats ($3/month).
 2. **Free plan storage:** the pricing page lists **100 MB** on the free plan (3 production users, 50,000 evaluation users, 10 databases, 10 connections, 20 req/s). Pro storage is quoted inconsistently (20+, 21+, 25+ GB) and scales with seats.
+3. **Free production users — not available in practice (Fernando, 2026-10-18):** the manager only offers buying seats (minimum pack of 25 for $3/month); no free production slot showed up. Decision for now: stay on an **evaluation user** during the spike (30 active days, until roughly late November 2026). Before that runs out: buy the $3/month pack, or switch backend (Phase 2 decision).
 3. **Evaluation users:** they **do expire**. After **30 active days** (days without sync don't count) sync stops for that user. The app keeps working offline. Fix: promote the user to production (free plan allows 3). Eval users also have tighter rate limits (sync 50 per 5 min vs 200).
 4. **Offline conflicts on both devices:** ⏳ to test (check 5).
 
