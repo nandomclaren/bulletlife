@@ -33,3 +33,21 @@ describe('lines ↔ entries', () => {
     expect(diffEntries([newLine()], [], 'L', '', NOW).put).toEqual([]);
   });
 });
+
+describe('signifiers and placement', () => {
+  it('stores all signifiers and reads them back', () => {
+    const l = newLine({ type: 'task', text: 'Idea', priority: true, explore: true });
+    const [e] = diffEntries([l], [], 'L', '', NOW).put;
+    expect(e.signifiers).toEqual(['priority', 'explore']);
+    expect(entriesToLines([e])[0]).toMatchObject({ priority: true, inspiration: false, explore: true });
+  });
+
+  it('marks > and < as pending placement and clears it when reopened', () => {
+    const l = newLine({ type: 'task', text: 'Renew passport' });
+    const [first] = diffEntries([l], [], 'L', '', NOW).put;
+    const [migrated] = diffEntries([{ ...l, state: 'migrated' }], [first], 'L', '', NOW).put;
+    expect(migrated.placement).toEqual({ status: 'pending' });
+    const [reopened] = diffEntries([l], [migrated], 'L', '', NOW).put;
+    expect(reopened.placement).toBeUndefined();
+  });
+});

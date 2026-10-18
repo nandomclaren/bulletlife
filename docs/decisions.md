@@ -88,3 +88,11 @@ Short log of technical decisions. Newest last.
 - Bug: typing "* " on an empty plain line turned it into a priority mark in the gutter, which Backspace could not remove.
 - Now a lone "* " marks priority only on a line that already has a bullet (as CLAUDE.md 3.4 says: "* " before a bullet). On plain text it stays a typed asterisk. "* . ", "* o. ", "* - " still create a priority task/event/note.
 - Backspace at the start of a plain line that still carries a priority mark (older data) removes the mark first.
+
+## 2026-10-18 · Phase 1 core, part 2: settings, bullet menu, Month text fit
+
+- **Settings** (Dexie `settings` row): active logs Month / Week / Day with the "at least one" rule (`src/data/settings.ts`, unit tested; the last switch on is locked), Event states, First day of week (Monday / Sunday). Theme stays per device.
+- **Event states off:** event bullets stop cycling (tap and ⌘↵ do nothing); a state already saved stays visible (CLAUDE.md 12: never hide data).
+- **Bullet menu:** long press (500 ms, also click-and-hold) or right click / Ctrl-click on the bullet (right click anywhere in the margin for plain lines). One entry at a time: Type (Task, Event, Note, Text), State (Open, Complete, Cancel, Migrate, Schedule), Signifiers (Priority `*`, Inspiration `!`, Explore drawn eye), Indent, Outdent, Delete. Delete moves children up one level and shows an "Undo" toast for 5 s. "Copy as…" arrives with Phase 3.
+- **Migrate / Schedule** set `placement = { status: 'pending' }` (cleared when the entry leaves those states), ready for the Pending panel in Phase 4.
+- **Month text fit** (`src/pages/fitText.ts`): a phrase that does not fit one line shrinks continuously down to 85% (min 14 px), then wraps and the row grows. Never truncated.

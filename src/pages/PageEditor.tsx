@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LineEditor } from '../editor/LineEditor';
 import type { Line } from '../editor/lines';
-import { loadLines, saveLines, type LogRef } from '../data/repo';
+import { loadLines, saveLines, useSettings, type LogRef } from '../data/repo';
 
 const SAVE_DELAY = 400;
 
@@ -17,6 +17,7 @@ interface Props {
 
 export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props) {
   const [initial, setInitial] = useState<Line[] | null>(null);
+  const { eventStates } = useSettings();
   const pending = useRef<Line[] | null>(null);
   const timer = useRef(0);
   const logRef = useRef(log);
@@ -67,6 +68,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
         autoFocus={autoFocus}
         className={compact ? 'compact' : ''}
         label={label}
+        eventStates={eventStates}
         focusRef={focusAt}
         onChange={(lines) => {
           pending.current = lines;

@@ -1,5 +1,5 @@
 // Editor lines <-> stored entries. Pure functions, unit tested.
-import { parentIds, type Line } from '../editor/lines';
+import { parentIds, signifiersOf, type Line } from '../editor/lines';
 import { assignOrders } from './order';
 import type { Entry } from './types';
 
@@ -17,6 +17,8 @@ export function entriesToLines(entries: Entry[]): Line[] {
       indent: d,
       collapsed: e.collapsed,
       priority: e.signifiers.includes('priority'),
+      inspiration: e.signifiers.includes('inspiration'),
+      explore: e.signifiers.includes('explore'),
       text: e.text,
     };
   });
@@ -43,7 +45,8 @@ export function diffEntries(lines: Line[], existing: Entry[], logId: string, slo
   const put: Entry[] = [];
   keep.forEach((l, i) => {
     const old = byId.get(l.id);
-    const signifiers = mergeSignifiers(old?.signifiers ?? [], l.priority);
+    const signifiers = signifiersOf(l);
+    const migrating = l.state === 'migrated' || l.state === 'scheduled';
     const next: Entry = {
       ...(old ?? { createdAt: now }),
       id: l.id,
@@ -58,16 +61,14 @@ export function diffEntries(lines: Line[], existing: Entry[], logId: string, slo
       collapsed: l.collapsed,
       updatedAt: old?.updatedAt ?? now,
     } as Entry;
+    // Marked > or < : pending until the user confirms they wrote it at the destination (CLAUDE.md 4.3).
+    if (migrating) next.placement = old?.placement ?? { status: 'pending' };
+    else delete next.placement;
     if (!old || changed(old, next)) put.push({ ...next, updatedAt: now });
   });
   const live = new Set(keep.map((l) => l.id));
   const remove = existing.filter((e) => !live.has(e.id)).map((e) => e.id);
   return { put, remove };
-}
-
-function mergeSignifiers(old: Entry['signifiers'], priority: boolean): Entry['signifiers'] {
-  const rest = old.filter((s) => s !== 'priority');
-  return priority ? ['priority', ...rest] : rest;
 }
 
 function changed(a: Entry, b: Entry) {
@@ -79,6 +80,7 @@ function changed(a: Entry, b: Entry) {
     a.text !== b.text ||
     a.collapsed !== b.collapsed ||
     a.slot !== b.slot ||
-    a.signifiers.join() !== b.signifiers.join()
+    a.signifiers.join() !== b.signifiers.join() ||
+    a.placement?.status !== b.placement?.status
   );
 }

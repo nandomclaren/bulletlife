@@ -13,6 +13,8 @@ export interface Line {
   indent: number;
   collapsed: boolean;
   priority: boolean;
+  inspiration?: boolean;
+  explore?: boolean;
   text: string;
 }
 
@@ -27,7 +29,7 @@ export interface Prefixes {
 export const DEFAULT_PREFIXES: Prefixes = { task: '.', event: 'o.', note: '-', heading: '#', priority: '*' };
 
 export function newLine(partial: Partial<Line> = {}): Line {
-  return { id: ulid(), type: 'text', state: 'open', indent: 0, collapsed: false, priority: false, text: '', ...partial };
+  return { id: ulid(), type: 'text', state: 'open', indent: 0, collapsed: false, priority: false, inspiration: false, explore: false, text: '', ...partial };
 }
 
 export interface PrefixMatch {
@@ -143,13 +145,26 @@ export function continuationType(from: LineType): LineType {
   return from === 'heading' ? 'text' : from;
 }
 
+export type Signifier = 'priority' | 'inspiration' | 'explore';
+
+export function signifiersOf(l: Pick<Line, 'priority' | 'inspiration' | 'explore'>): Signifier[] {
+  const out: Signifier[] = [];
+  if (l.priority) out.push('priority');
+  if (l.inspiration) out.push('inspiration');
+  if (l.explore) out.push('explore');
+  return out;
+}
+
+/** Signifiers removed (e.g. when a line loses its bullet). */
+export const NO_SIGNIFIERS = { priority: false, inspiration: false, explore: false } as const;
+
 export interface EntryLike {
   id: string;
   parentId: string | null;
   type: LineType;
   state: LineState;
   text: string;
-  signifiers: Array<'priority'>;
+  signifiers: Signifier[];
   collapsed: boolean;
 }
 
@@ -161,7 +176,7 @@ export function toEntries(lines: Line[]): EntryLike[] {
     type: l.type,
     state: l.state,
     text: l.text,
-    signifiers: l.priority ? ['priority'] : [],
+    signifiers: signifiersOf(l),
     collapsed: l.collapsed,
   }));
 }

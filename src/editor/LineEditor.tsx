@@ -2,7 +2,8 @@
 // The browser edits text inside a line; anything that changes line structure
 // (Enter, Backspace at a line start, multi-line deletes, paste, undo) is
 // intercepted in `beforeinput` and applied to the model, then re-rendered.
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { BulletMenu, UndoToast, type MenuActions } from './BulletMenu';
 import { attachGutter } from './gutter';
 import {
   colorTypes,
@@ -12,11 +13,13 @@ import {
   hiddenMask,
   matchPrefix,
   newLine,
+  NO_SIGNIFIERS,
   nextState,
   shiftIndent,
+  subtreeEnd,
   type Line,
 } from './lines';
-import { buildGutter, EVENT_STATES, lineClass } from './render';
+import { buildGutter, lineClass } from './render';
 
 interface Caret {
   index: number;
@@ -35,6 +38,10 @@ class LineEditorCore {
   private lastTyping = 0;
   private composing = false;
   private detachGutter: () => void;
+  /** Settings › Event states: whether event bullets cycle through states. */
+  eventStates = true;
+  /** Opens the bullet menu (set by the React wrapper). */
+  onMenu: ((lineId: string, anchor: DOMRect) => void) | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -56,8 +63,9 @@ class LineEditorCore {
     root.addEventListener('compositionend', this.onCompEnd);
     document.addEventListener('selectionchange', this.onSelectionChange);
     this.detachGutter = attachGutter(root, {
-      bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, EVENT_STATES) ? { ...l, state: nextState(l.state) } : null)),
+      bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, this.eventStates) ? { ...l, state: nextState(l.state) } : null)),
       chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
+      menu: (id, anchor) => this.onMenu?.(id, anchor),
     });
     this.renderAll();
   }
@@ -219,7 +227,7 @@ class LineEditorCore {
     const line = this.lines[at.index];
     if (!line.text && line.type !== 'text') {
       if (line.indent > 0) this.shiftLines(at.index, at.index, -1, false);
-      else Object.assign(line, { type: 'text', state: 'open', priority: false });
+      else Object.assign(line, { type: 'text', state: 'open', ...NO_SIGNIFIERS });
       return this.commit(at);
     }
     const fresh = newLine({ type: continuationType(line.type), indent: line.indent });
@@ -247,7 +255,7 @@ class LineEditorCore {
       return this.commit(at);
     }
     if (line.type !== 'text') {
-      Object.assign(line, { type: 'text', state: 'open', priority: false });
+      Object.assign(line, { type: 'text', state: 'open', ...NO_SIGNIFIERS });
       return this.commit(at);
     }
     if (at.index === 0) return;
@@ -276,6 +284,40 @@ class LineEditorCore {
     this.lines[i] = next;
     this.refreshDecor();
     this.emit();
+  }
+
+  // ---------- bullet menu actions (one entry at a time) ----------
+
+  lineById(id: string): Line | undefined {
+    return this.lines.find((l) => l.id === id);
+  }
+
+  patchLine(id: string, patch: Partial<Line>) {
+    this.updateById(id, (l) => ({ ...l, ...patch }));
+  }
+
+  shiftLine(id: string, delta: 1 | -1) {
+    const i = this.lines.findIndex((l) => l.id === id);
+    if (i < 0 || !shiftIndent(this.lines, i, i, delta)) return;
+    this.snapshot({ index: i, offset: 0 });
+    this.shiftLines(i, i, delta);
+  }
+
+  /** Deletes one line; its children move up one level. Undoable. */
+  deleteLine(id: string) {
+    const i = this.lines.findIndex((l) => l.id === id);
+    if (i < 0) return;
+    this.snapshot({ index: i, offset: 0 });
+    const end = subtreeEnd(this.lines, i);
+    for (let j = i + 1; j < end; j++) this.lines[j].indent = Math.max(0, this.lines[j].indent - 1);
+    this.lines.splice(i, 1);
+    if (!this.lines.length) this.lines.push(newLine());
+    this.renderAll();
+    this.emit();
+  }
+
+  undo() {
+    this.restore(this.undoStack, this.redoStack);
   }
 
   // ---------- events ----------
@@ -412,7 +454,7 @@ class LineEditorCore {
     } else if (e.code === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       const l = this.lines[sel.start.index];
-      if (hasStates(l.type, EVENT_STATES)) this.updateById(l.id, (x) => ({ ...x, state: nextState(x.state) }));
+      if (hasStates(l.type, this.eventStates)) this.updateById(l.id, (x) => ({ ...x, state: nextState(x.state) }));
     } else if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
       // Safari does not always send historyUndo for our custom edits.
       e.preventDefault();
@@ -460,23 +502,60 @@ interface Props {
   autoFocus?: boolean;
   className?: string;
   label?: string;
+  /** Settings › Event states. */
+  eventStates?: boolean;
   /** Receives a function that places the caret at the end of a line (or of the page), for taps on empty space. */
   focusRef?: MutableRefObject<((lineId?: string) => void) | null>;
 }
 
-export function LineEditor({ initial, onChange, autoFocus, className, label, focusRef }: Props) {
+export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const core = useRef<LineEditorCore | null>(null);
+  const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);
+  const [toast, setToast] = useState(0);
+
   useEffect(() => {
-    const core = new LineEditorCore(host.current!, initial, onChange, className);
+    const c = new LineEditorCore(host.current!, initial, onChange, className);
+    core.current = c;
+    c.eventStates = eventStates;
+    c.onMenu = (id, anchor) => setMenu({ id, anchor });
     if (label) host.current!.setAttribute('aria-label', label);
-    if (focusRef) focusRef.current = (lineId) => core.focusEnd(lineId);
-    if (autoFocus) core.focusEnd();
+    if (focusRef) focusRef.current = (lineId) => c.focusEnd(lineId);
+    if (autoFocus) c.focusEnd();
     return () => {
       if (focusRef) focusRef.current = null;
-      core.destroy();
+      core.current = null;
+      c.destroy();
     };
     // The editor owns its state after mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return <div ref={host} />;
+  useEffect(() => {
+    if (core.current) core.current.eventStates = eventStates;
+  }, [eventStates]);
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const hideToast = useCallback(() => setToast(0), []);
+  const line = menu ? core.current?.lineById(menu.id) : undefined;
+  const actions = useMemo<MenuActions | null>(
+    () =>
+      menu && {
+        patch: (patch) => core.current?.patchLine(menu.id, patch),
+        shift: (delta) => core.current?.shiftLine(menu.id, delta),
+        remove: () => {
+          core.current?.deleteLine(menu.id);
+          setToast((n) => n + 1);
+        },
+        close: closeMenu,
+      },
+    [menu, closeMenu],
+  );
+
+  return (
+    <>
+      <div ref={host} />
+      {menu && line && actions && <BulletMenu line={line} anchor={menu.anchor} eventStates={eventStates} actions={actions} />}
+      {toast > 0 && <UndoToast key={toast} onUndo={() => core.current?.undo()} onDone={hideToast} />}
+    </>
+  );
 }

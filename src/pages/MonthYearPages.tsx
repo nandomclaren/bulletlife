@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { addMonths, fmt, fromIso, monthDays, monthOf, todayIso, weekKey, type Weekday } from '../dates';
 import { periodLog, useSettings } from '../data/repo';
 import { t } from '../i18n/en';
 import { navigate } from '../router';
+import { fitDayRows } from './fitText';
 import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
@@ -16,6 +17,8 @@ export function MonthPage({ ym }: { ym: string }) {
   const log = periodLog('monthly', ym, firstDay);
   const today = todayIso();
   const isCurrent = monthOf(today) === ym;
+  const daysRef = useRef<HTMLOListElement>(null);
+  useEffect(() => fitDayRows(daysRef.current!), [ym]);
 
   useEffect(() => {
     const from = takeFrom();
@@ -34,7 +37,7 @@ export function MonthPage({ ym }: { ym: string }) {
       <p className="eyebrow">{fmt(`${ym}-01`, { month: 'long' })}</p>
       <h1>{isCurrent ? t.pages.thisMonth : fmt(`${ym}-01`, { month: 'long', year: 'numeric' })}</h1>
       <div className="month-spread">
-        <ol className="month-days">
+        <ol className="month-days" ref={daysRef}>
           {days.map((iso, i) => {
             const d = fromIso(iso);
             const weekend = d.getDay() === 0 || d.getDay() === 6;

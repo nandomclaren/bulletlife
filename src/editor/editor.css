@@ -292,3 +292,237 @@
 .compact .line {
   --pad-top: 8px;
 }
+
+/* Signifiers left of the bullet: * priority, ! inspiration, drawn eye explore. */
+.sig {
+  display: inline-flex;
+  gap: 2px;
+  align-items: baseline;
+  width: auto;
+}
+
+.sig-mark {
+  font-weight: 700;
+}
+
+.sig-explore svg {
+  display: block;
+  transform: translateY(-1px);
+}
+
+/* Bullet menu */
+
+.bullet-menu {
+  position: fixed;
+  z-index: 40;
+  width: min(320px, calc(100vw - 16px));
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  box-shadow:
+    0 12px 32px rgb(0 0 0 / 0.16),
+    0 2px 6px rgb(0 0 0 / 0.08);
+  font-size: 15px;
+  animation: menu-in 140ms var(--ease);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.menu-section + .menu-section {
+  margin-top: 8px;
+}
+
+.menu-section-title {
+  margin: 0 4px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.menu-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.menu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.menu-chip[aria-checked='true'] {
+  border-color: var(--text);
+}
+
+.chip-mark {
+  width: 10px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.chip-eye {
+  height: 8px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M1.5 8C4 3.5 7.3 1.5 11 1.5S18 3.5 20.5 8C18 12.5 14.7 14.5 11 14.5S4 12.5 1.5 8Z' fill='none' stroke='black' stroke-width='2.4'/%3E%3Ccircle cx='11' cy='8' r='2.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M1.5 8C4 3.5 7.3 1.5 11 1.5S18 3.5 20.5 8C18 12.5 14.7 14.5 11 14.5S4 12.5 1.5 8Z' fill='none' stroke='black' stroke-width='2.4'/%3E%3Ccircle cx='11' cy='8' r='2.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Small bullet previews in the chips. */
+.chip-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 600;
+}
+.chip-glyph.c-task {
+  color: var(--task);
+}
+.chip-glyph.c-event {
+  color: var(--event);
+}
+.chip-glyph.c-note {
+  color: var(--note);
+}
+.g-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.g-ring::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+.g-cross::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background:
+    linear-gradient(45deg, transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px), currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px)),
+    linear-gradient(-45deg, transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px), currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px));
+}
+.g-dash::before {
+  content: '–';
+}
+.g-gt::before {
+  content: '>';
+}
+.g-lt::before {
+  content: '<';
+}
+.g-none {
+  display: none;
+}
+.g-cancel {
+  position: relative;
+}
+.g-cancel::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: currentColor;
+}
+
+.menu-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.menu-actions button {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.menu-actions button:hover,
+.menu-chip:hover {
+  background: var(--rule);
+}
+
+.menu-actions button:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.menu-actions .menu-delete {
+  color: var(--task);
+}
+
+.undo-toast {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 15px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+  animation: menu-in 160ms var(--ease);
+}
+
+.undo-toast button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bullet-menu,
+  .undo-toast {
+    animation: none;
+  }
+}
