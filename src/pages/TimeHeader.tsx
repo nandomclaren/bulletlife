@@ -46,6 +46,9 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
 
   return (
     <header className="time-header">
+      <button className="icon-btn-quiet index-btn" aria-label={t.nav.index} onClick={() => navigate('/index')}>
+        <IndexIcon />
+      </button>
       <nav className="crumbs" aria-label={t.nav.path}>
         {levels.map((l, i) => (
           <span key={l} className="crumb-wrap">
@@ -121,5 +124,16 @@ export function PageFooter() {
         {t.nav.settings}
       </button>
     </footer>
+  );
+}
+
+function IndexIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+      <path d="M8 6.5h12M8 12h12M8 17.5h12" />
+      <circle cx="4" cy="6.5" r="0.9" fill="currentColor" />
+      <circle cx="4" cy="12" r="0.9" fill="currentColor" />
+      <circle cx="4" cy="17.5" r="0.9" fill="currentColor" />
+    </svg>
   );
 }

@@ -82,7 +82,7 @@
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: 32px;
+  width: 30px;
   height: 40px;
   border: 0;
   background: none;
@@ -94,7 +94,7 @@
 
 .today-btn {
   height: 30px;
-  padding: 0 9px;
+  padding: 0 8px;
   border: 1px solid var(--rule);
   border-radius: 999px;
   background: none;
@@ -362,4 +362,78 @@
   margin-top: 24px;
   padding-top: 12px;
   border-top: 1px solid var(--rule);
+}
+
+.index-btn {
+  margin-left: -6px;
+  flex: none;
+}
+
+/* Index */
+
+.index-section {
+  margin-top: 28px;
+}
+
+.index-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.index-link {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  text-align: left;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.index-kind {
+  flex: none;
+  width: 52px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.index-year-title {
+  margin: 20px 0 4px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.add-link {
+  margin-top: 6px;
+  color: var(--text);
+}
+
+.new-collection .field {
+  margin-top: 10px;
+}
+
+/* Collection title, edited in place */
+
+.title-input {
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  outline: none;
 }

@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { addDays, daysInMonth, todayIso, weekKeyStart, type Weekday } from './dates';
 import { useLoadedSettings } from './data/repo';
 import type { Settings } from './data/types';
+import { CollectionPage } from './pages/CollectionPage';
 import { DayPage, WeekPage } from './pages/DayWeekPages';
+import { IndexPage } from './pages/IndexPage';
 import { MonthPage, YearPage } from './pages/MonthYearPages';
 import { activeLevels, anchorWithin, finestLevel, pathFor, type Level } from './pages/nav';
 import { replace, restoreScroll, usePath } from './router';
@@ -33,6 +35,11 @@ export function App() {
     return guard(settings, 'month', () => anchorWithin(`${ym}-01`, `${ym}-${daysInMonth(ym)}`)) ?? <MonthPage key={ym} ym={ym} />;
   }
   if ((m = path.match(/^\/year\/(\d{4})$/))) return <YearPage key={m[1]} year={m[1]} />;
+  if ((m = path.match(/^\/collection\/([^/]+)$/))) {
+    const id = decodeURIComponent(m[1]);
+    return <CollectionPage key={id} id={id} />;
+  }
+  if (path === '/index') return <IndexPage />;
   if (path === '/settings') return <SettingsPage />;
   if (path === '/check') return <SpikePage />;
   return settings ? <Redirect to={pathFor(finestLevel(settings), todayIso(), settings.firstDayOfWeek as Weekday)} /> : null;

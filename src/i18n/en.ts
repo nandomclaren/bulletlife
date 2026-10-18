@@ -131,6 +131,20 @@ export const en = {
     collapse: 'Collapse',
     expand: 'Expand',
   },
+  index: {
+    title: 'Index',
+    collections: 'Collections',
+    newCollection: 'New collection',
+    namePlaceholder: 'Name',
+    create: 'Create',
+    cancel: 'Cancel',
+    noCollections: 'No collections yet.',
+    logs: 'Logs',
+    noLogs: 'Nothing written yet.',
+    kinds: { future: 'Year', monthly: 'Month', weekly: 'Week', daily: 'Day' },
+    untitled: 'Untitled',
+    settings: 'Settings',
+  },
   nav: {
     back: 'Back',
     today: 'Today',
@@ -140,6 +154,7 @@ export const en = {
     path: 'Location',
     weekShort: 'Wk',
     settings: 'Settings',
+    index: 'Index',
   },
   pages: {
     thisMonth: 'This Month',

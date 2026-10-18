@@ -1,6 +1,7 @@
 // The only way the UI reads or writes data. Swapping the sync backend later
 // means changing this file and db.ts, not the pages.
 import { useLiveQuery } from 'dexie-react-hooks';
+import { ulid } from 'ulid';
 import { addDays, daysInMonth, fmt, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
 import { diffEntries, entriesToLines, isBlank } from './convert';
@@ -90,4 +91,45 @@ export function useLoadedSettings(): Settings | undefined {
 export async function updateSettings(patch: Partial<Settings>) {
   const current = (await db.settings.get('settings')) ?? { id: 'settings' as const, ...DEFAULT_SETTINGS };
   await db.settings.put({ ...current, ...patch, id: 'settings' });
+}
+
+// ---------- Collections and Index ----------
+
+export function collectionRef(log: Log): LogRef {
+  return { id: log.id, kind: 'collection', title: log.title };
+}
+
+/** Collections are created only by an explicit user action (principle 7). */
+export async function createCollection(title: string): Promise<string> {
+  const now = new Date().toISOString();
+  const id = `collection:${ulid()}`;
+  await db.logs.add({ id, kind: 'collection', title, createdAt: now, updatedAt: now });
+  return id;
+}
+
+export async function renameCollection(id: string, title: string) {
+  await db.logs.update(id, { title, updatedAt: new Date().toISOString() });
+}
+
+export function useLog(id: string): Log | null | undefined {
+  return useLiveQuery(async () => (await db.logs.get(id)) ?? null, [id]);
+}
+
+export function useCollections(): Log[] | undefined {
+  return useLiveQuery(async () => {
+    const all = await db.logs.where('kind').equals('collection').toArray();
+    return all.sort((a, b) => a.title.localeCompare(b.title, 'en', { sensitivity: 'base' }));
+  });
+}
+
+/** Time logs that have been written in, newest period first (the Index is derived, never stored). */
+export function useWrittenTimeLogs(): Log[] | undefined {
+  return useLiveQuery(async () => {
+    const logs = await db.logs.where('kind').anyOf('future', 'monthly', 'weekly', 'daily').toArray();
+    const withContent = new Set((await db.entries.where('logId').anyOf(logs.map((l) => l.id)).toArray()).map((e) => e.logId));
+    const rank: Record<string, number> = { future: 0, monthly: 1, weekly: 2, daily: 3 };
+    return logs
+      .filter((l) => withContent.has(l.id))
+      .sort((a, b) => (b.periodStart ?? '').slice(0, 4).localeCompare((a.periodStart ?? '').slice(0, 4)) || rank[a.kind] - rank[b.kind] || (b.periodStart ?? '').localeCompare(a.periodStart ?? ''));
+  });
 }

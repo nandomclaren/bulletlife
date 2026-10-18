@@ -101,3 +101,10 @@ Short log of technical decisions. Newest last.
 
 - Bug: with only Week on, a Day page could still open (old link, history, or the app opening before Settings were read) and ‹ › stepped by day.
 - Now a Day, Week or Month page whose level is off is replaced (history `replace`) by the finest active level for the same date. Opening the app waits for Settings to be read (`useLoadedSettings`) instead of using defaults.
+
+## 2026-10-18 · Phase 1 part 3: Collections, Index, acceptance
+
+- **Collections** are logs of kind `collection` with id `collection:<ULID>`, created only by "New collection" in the Index (explicit action) and renamed in place. Route `/collection/<id>`.
+- **Index** (`/index`, button left of the breadcrumb) is derived: collections A–Z, then logs that have entries, grouped by year (Year, Month, Week, Day). Settings link moved there too (the footer link stays).
+- **Scroll restore:** the browser's scroll anchoring shifted the restored position while a page's entries loaded (Month back from Day landed 136 px off). `overflow-anchor: none` on the root, and the router retries the restore for up to 800 ms until the page is tall enough (stops if the user scrolls).
+- Acceptance recorded in `docs/phase1-acceptance.md`.

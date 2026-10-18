@@ -83,6 +83,12 @@ body {
   overscroll-behavior-x: none;
 }
 
+/* Our router restores scroll itself; the browser's scroll anchoring would
+   shift it again while a page's entries finish loading. */
+html {
+  overflow-anchor: none;
+}
+
 body {
   touch-action: pan-y pinch-zoom;
 }
