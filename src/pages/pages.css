@@ -1,6 +1,11 @@
 /* Time pages: header, week strip, Month and Year layouts. */
 
 .page-time {
+  /* Column filling the screen so the editor area can take all the free space. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
   padding-top: max(12px, env(safe-area-inset-top));
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
@@ -327,17 +332,34 @@
 }
 
 .year-month-area {
+  display: flex;
+  flex-direction: column;
   min-height: 96px;
   border-bottom: 1px solid var(--rule);
   padding-bottom: 8px;
 }
 
-.editor-loading {
+/* Tap targets: the free space of a page belongs to its editor. */
+.editor-area {
   min-height: 34px;
+  cursor: text;
+}
+
+.page-time > .editor-area {
+  flex: 1;
+  min-height: 40vh;
+}
+
+.year-month-area > .editor-area {
+  flex: 1;
+}
+
+.day-text > .editor-area {
+  min-height: 44px;
 }
 
 .page-footer {
-  margin-top: 40vh;
+  margin-top: 24px;
   padding-top: 12px;
   border-top: 1px solid var(--rule);
 }

@@ -72,3 +72,8 @@ Short log of technical decisions. Newest last.
 - `html, body { overflow-x: clip; overscroll-behavior-x: none }` and `body { touch-action: pan-y pinch-zoom }`: nothing can push the page sideways, no sideways rubber-band on iOS, vertical panning and pinch zoom kept. Horizontal pointer moves still reach the app (Phase 4 swipes).
 - The breadcrumb no longer scrolls: outer crumbs shrink with an ellipsis, the current one stays whole.
 - Mac: Safari's two-finger swipe between pages is a system gesture; `overscroll-behavior-x` may not stop it in Safari (Chromium honors it). If it still fires, it can be turned off in macOS System Settings › Trackpad › More Gestures › Swipe between pages (affects all apps).
+
+## 2026-10-18 · The page's free space belongs to the editor
+
+- Each editor sits in an `.editor-area` tap target. A tap on free space puts the caret at the end of the last visible line (the first line on an empty page); a tap in a line's left margin puts it at the end of that line. Taps on text, bullets and chevrons are left alone.
+- On Day and Week pages the area stretches to the bottom of the screen; Year month areas and Month day rows are whole tap targets too. The focus happens inside the tap, so iOS opens the keyboard.

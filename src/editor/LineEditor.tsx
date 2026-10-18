@@ -2,7 +2,7 @@
 // The browser edits text inside a line; anything that changes line structure
 // (Enter, Backspace at a line start, multi-line deletes, paste, undo) is
 // intercepted in `beforeinput` and applied to the model, then re-rendered.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { attachGutter } from './gutter';
 import {
   colorTypes,
@@ -409,10 +409,16 @@ class LineEditorCore {
     this.onInput();
   };
 
-  focusEnd() {
+  /** Caret at the end of a line, or of the last visible line (the first line of an empty page). */
+  focusEnd(lineId?: string) {
     this.root.focus();
-    const last = this.lines.length - 1;
-    this.placeCaret({ index: last, offset: this.lines[last].text.length });
+    const hidden = hiddenMask(this.lines);
+    let index = lineId ? this.lines.findIndex((l) => l.id === lineId) : -1;
+    if (index < 0 || hidden[index]) {
+      index = this.lines.length - 1;
+      while (index > 0 && hidden[index]) index--;
+    }
+    this.placeCaret({ index, offset: this.lines[index].text.length });
   }
 }
 
@@ -422,15 +428,21 @@ interface Props {
   autoFocus?: boolean;
   className?: string;
   label?: string;
+  /** Receives a function that places the caret at the end of a line (or of the page), for taps on empty space. */
+  focusRef?: MutableRefObject<((lineId?: string) => void) | null>;
 }
 
-export function LineEditor({ initial, onChange, autoFocus, className, label }: Props) {
+export function LineEditor({ initial, onChange, autoFocus, className, label, focusRef }: Props) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const core = new LineEditorCore(host.current!, initial, onChange, className);
     if (label) host.current!.setAttribute('aria-label', label);
+    if (focusRef) focusRef.current = (lineId) => core.focusEnd(lineId);
     if (autoFocus) core.focusEnd();
-    return () => core.destroy();
+    return () => {
+      if (focusRef) focusRef.current = null;
+      core.destroy();
+    };
     // The editor owns its state after mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

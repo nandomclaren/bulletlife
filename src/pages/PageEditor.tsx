@@ -21,6 +21,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
   const timer = useRef(0);
   const logRef = useRef(log);
   logRef.current = log;
+  const focusAt = useRef<((lineId?: string) => void) | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -47,22 +48,35 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
     };
   }, [slot]);
 
-  if (!initial) return <div className={compact ? 'editor-loading compact' : 'editor-loading'} />;
+  if (!initial) return <div className={`editor-area${compact ? ' compact' : ''}`} />;
 
   return (
-    <LineEditor
-      initial={initial}
-      autoFocus={autoFocus}
-      className={compact ? 'compact' : ''}
-      label={label}
-      onChange={(lines) => {
-        pending.current = lines;
-        window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => {
-          pending.current = null;
-          void saveLines(logRef.current, slot, lines);
-        }, SAVE_DELAY);
+    // The whole free area around the lines is a tap target: a tap below the
+    // text puts the caret at the end (the first line of an empty page); a tap
+    // in a line's margin puts it at the end of that line.
+    <div
+      className={`editor-area${compact ? ' compact' : ''}`}
+      onClick={(e) => {
+        const target = e.target as Element;
+        if (target.closest('.line-text, .bullet, .chevron')) return;
+        focusAt.current?.(target.closest<HTMLElement>('.line')?.dataset.id);
       }}
-    />
+    >
+      <LineEditor
+        initial={initial}
+        autoFocus={autoFocus}
+        className={compact ? 'compact' : ''}
+        label={label}
+        focusRef={focusAt}
+        onChange={(lines) => {
+          pending.current = lines;
+          window.clearTimeout(timer.current);
+          timer.current = window.setTimeout(() => {
+            pending.current = null;
+            void saveLines(logRef.current, slot, lines);
+          }, SAVE_DELAY);
+        }}
+      />
+    </div>
   );
 }
