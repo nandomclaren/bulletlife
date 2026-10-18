@@ -182,8 +182,10 @@
 
 .kb-bar {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: 12px;
+  right: 12px;
+  border-radius: 14px;
+  transition: opacity 120ms var(--ease);
   z-index: 20;
   display: flex;
   gap: 4px;
@@ -191,7 +193,12 @@
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  border-top: 1px solid var(--rule);
+  border: 1px solid var(--rule);
+}
+
+.kb-bar.is-moving {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .kb-btn {

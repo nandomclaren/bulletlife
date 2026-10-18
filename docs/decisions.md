@@ -34,10 +34,18 @@ Short log of technical decisions. Newest last.
 - **Flat list + indent** instead of nested lists: maps 1:1 to `Entry` (`parentId` derived from indentation, see `src/editor/lines.ts`), makes collapse a pure render concern, and keeps multi-line selection inside a single editing host.
 - Shared, editor-agnostic logic lives in `src/editor/lines.ts` with unit tests (prefix matching, state cycle, color inheritance, collapse, indent rules).
 - Routes: `/` prototype chooser, `/proto/a`, `/proto/b`, `/check` device check.
-- Decision pending Fernando's hands-on test on iPhone and Mac.
+- Decision: see next entry.
 
 ## 2026-10-18 · Themes now, not in Phase 5
 
 - Fernando asked for dark mode with a manual choice. Themes ship now: **Automatic** (follows the system, default), **Paper** (light), **Graphite** (dark), **Night** (OLED black), on a Settings page at `/settings`.
 - Tokens are CSS variables switched by `data-theme` on `<html>`; no attribute = Automatic via `prefers-color-scheme`. An inline script in `index.html` applies the saved theme before first paint (no flash). `theme-color` follows the theme so the iOS status bar matches.
 - Stored in `localStorage` for now; moves into the synced Settings model later in Phase 1.
+
+## 2026-10-18 · Editor decision: B (own line editor)
+
+- **Chosen: B**, after Fernando wrote in both on the iPhone. B "wins easily": deleting a bullet behaves like editing text he controls, and he can freely type "-" or any other symbol. In A, Backspace over a bullet jumped back to the previous bullet.
+- A (ProseMirror) and its dependencies were removed. B lives in `src/editor/LineEditor.tsx`; `/` now opens it until the real pages exist.
+- Risk to watch with B: iOS autocorrect, dictation, predictive text and IME composition all go through our `beforeinput` handling. Test them on the iPhone as the editor grows.
+- **iPhone indenting without Tab:** a space at the very start of a line indents it; Backspace at the start outdents first, then removes the bullet, then joins with the line above.
+- **iOS form bar (^ v ✓) cannot be hidden by a web app.** Our toolbar sits above it (58 px offset on iOS while the keyboard is up) and hides while the keyboard or page is moving, so it never visibly chases the viewport. A native app could replace that bar (roadmap).

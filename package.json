@@ -14,13 +14,6 @@
     "dexie": "^4.4.6",
     "dexie-cloud-addon": "^4.4.15",
     "dexie-react-hooks": "^4.4.0",
-    "prosemirror-commands": "^1.7.2",
-    "prosemirror-history": "^1.5.1",
-    "prosemirror-inputrules": "^1.5.1",
-    "prosemirror-keymap": "^1.2.3",
-    "prosemirror-model": "^1.25.12",
-    "prosemirror-state": "^1.4.4",
-    "prosemirror-view": "^1.42.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "ulid": "^3.0.2"

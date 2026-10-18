@@ -8,7 +8,7 @@ export function SettingsPage() {
   return (
     <main className="page">
       <button className="link" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>
-        ‹ {t.proto.chooseTitle}
+        ‹ {t.proto.back}
       </button>
       <h1>{t.settings.title}</h1>
       <section className="setting">

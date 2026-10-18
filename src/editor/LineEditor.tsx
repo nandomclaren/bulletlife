@@ -3,8 +3,8 @@
 // (Enter, Backspace at a line start, multi-line deletes, paste, undo) is
 // intercepted in `beforeinput` and applied to the model, then re-rendered.
 import { useEffect, useRef } from 'react';
-import type { EditorApi } from '../editor/KeyboardBar';
-import { attachGutter } from '../editor/gutter';
+import type { EditorApi } from './KeyboardBar';
+import { attachGutter } from './gutter';
 import {
   colorTypes,
   continuationType,
@@ -16,8 +16,8 @@ import {
   nextState,
   shiftIndent,
   type Line,
-} from '../editor/lines';
-import { buildGutter, EVENT_STATES, lineClass } from '../editor/render';
+} from './lines';
+import { buildGutter, EVENT_STATES, lineClass } from './render';
 
 interface Caret {
   index: number;
@@ -232,14 +232,15 @@ class LineEditorCore {
     this.commit({ index: at.index + 1, offset: 0 });
   }
 
+  /** Backspace at a line start: outdent first, then drop the bullet, then join lines. */
   private backspaceAtStart(at: Caret) {
     const line = this.lines[at.index];
-    if (line.type !== 'text') {
-      Object.assign(line, { type: 'text', state: 'open', priority: false });
-      return this.commit(at);
-    }
     if (line.indent > 0) {
       this.shiftLines(at.index, at.index, -1, false);
+      return this.commit(at);
+    }
+    if (line.type !== 'text') {
+      Object.assign(line, { type: 'text', state: 'open', priority: false });
       return this.commit(at);
     }
     if (at.index === 0) return;
@@ -329,6 +330,19 @@ class LineEditorCore {
       case 'historyRedo':
         e.preventDefault();
         return this.restore(this.redoStack, this.undoStack);
+      case 'insertText':
+        // A space at the very start of a line indents it (the iPhone keyboard has no Tab).
+        if (collapsed && start.offset === 0 && e.data === ' ' && shiftIndent(this.lines, start.index, start.index, 1)) {
+          e.preventDefault();
+          this.snapshot(start);
+          this.shiftLines(start.index, start.index, 1);
+          return;
+        }
+        if (!multi) {
+          this.snapshot(start, true);
+          return;
+        }
+        break;
       default:
         if (!multi) {
           this.snapshot(start, true);
