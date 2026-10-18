@@ -45,7 +45,7 @@ Qualquer funcionalidade que viole um destes itens está errada, mesmo que pareç
 
 ### 3.1 Módulos
 
-- **Index**: sempre ativo. Gerado automaticamente (logs e coleções), com busca global.
+- **Index**: sempre ativo, com busca global (Fase 5). Mostra o **Year atual** (fixo no topo) e as **Collections**. *Decisão do Fernando: não listar dias/semanas/meses escritos (poluía); Today e o calendário ficam no cabeçalho do Index na mesma posição das outras páginas, sem as setas ‹ ›.*
 - **Future Log / Ano**: sempre ativo. Uma página por **ano civil** (jan–dez), com os 12 meses em layout fixo (seção 3.6). Na UI aparece como **"Year"**.
 - **Monthly Log**: opcional. Página do mês com **layout fixo**: calendário com todos os dias + seção "Month tasks" (seção 3.6).
 - **Weekly Log**: opcional. Uma página por semana.

@@ -125,3 +125,9 @@ Short log of technical decisions. Newest last.
 - **Enter at the end of a collapsed item** puts the new line after everything hidden inside it, as the next sibling, and the item stays collapsed (it used to expand it and slip the line in among its children). On an open item with children, Enter starts a new first child.
 - **Automatic renumbering** — Fernando's explicit exception to principle 1 (recorded in CLAUDE.md 2.1). After a structural edit (Enter, delete, join, indent/outdent, paste) consecutive numbered siblings are renumbered from the list's first number and separator; a plain sibling ends the list; nested lists count separately. An item indented into a new nested list starts at 1. Typing a number by hand is never overridden while typing. Only the number changes.
 - **The user's numbers win** (follow-up from Fernando): before each structural edit the editor notes which items were *not* following their previous sibling + 1 (the first item of a list, or a number typed out of sequence such as `10.` after `2.`). Renumbering keeps those numbers and counts on from them (`10.`, `11.`, …); only the in-sequence items are renumbered. `listRestarts` + `renumberLists` in `src/editor/lines.ts`, unit tested.
+
+## 2026-10-18 · Simpler Index
+
+- Fernando found the "Logs" list messy (repeated year, a lone "Day" row, two stacked rules). Removed: the Index shows the current Year (pinned) and Collections only. Other years: ‹ › on the Year page or the calendar.
+- The Index header matches the time pages: Today and the calendar sit in exactly the same place; the ‹ › slots are kept empty so nothing shifts. Today opens today's finest log; the calendar opens the finest log of the chosen date.
+- The two rules were the last item's border plus the footer's border; the last item of a list no longer draws one.

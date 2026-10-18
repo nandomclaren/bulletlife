@@ -139,8 +139,6 @@ export const en = {
     create: 'Create',
     cancel: 'Cancel',
     noCollections: 'No collections yet.',
-    logs: 'Logs',
-    noLogs: 'Nothing written yet.',
     kinds: { future: 'Year', monthly: 'Month', weekly: 'Week', daily: 'Day' },
     untitled: 'Untitled',
     settings: 'Settings',

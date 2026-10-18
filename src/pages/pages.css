@@ -406,11 +406,6 @@
   color: var(--muted);
 }
 
-.index-year-title {
-  margin: 20px 0 4px;
-  font-size: 15px;
-  font-weight: 650;
-}
 
 .add-link {
   margin-top: 6px;
@@ -440,4 +435,18 @@
 
 .index-pinned {
   margin-top: 16px;
+}
+
+.index-back {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* Last item of a list carries no rule; the footer has its own. */
+.index-list li:last-child .index-link {
+  border-bottom: 0;
+}
+
+.index-footer {
+  margin-top: 48px;
 }

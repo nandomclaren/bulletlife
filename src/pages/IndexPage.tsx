@@ -1,41 +1,57 @@
-// Index (CLAUDE.md 3.1): always on, derived from the logs, never stored.
+// Index (CLAUDE.md 3.1): always on. The current Year and the collections.
 import { useState } from 'react';
-import { fmt, todayIso, weekKey, yearOf, type Weekday } from '../dates';
-import { createCollection, useCollections, useSettings, useWrittenTimeLogs } from '../data/repo';
-import type { Log } from '../data/types';
+import { todayIso, yearOf, type Weekday } from '../dates';
+import { createCollection, useCollections, useSettings } from '../data/repo';
 import { t } from '../i18n/en';
 import { navigate } from '../router';
-import { setAnchor } from './nav';
+import { finestLevel, pathFor, setAnchor } from './nav';
+import { CalendarIcon } from './TimeHeader';
 
 export function IndexPage() {
   const collections = useCollections();
-  const logs = useWrittenTimeLogs();
   const settings = useSettings();
+  const firstDay = settings.firstDayOfWeek as Weekday;
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
+  const year = yearOf(todayIso());
 
-  const years = groupByYear(logs ?? []);
+  const goTo = (iso: string) => {
+    setAnchor(iso);
+    navigate(pathFor(finestLevel(settings), iso, firstDay));
+  };
 
   return (
     <main className="page page-index">
-      <button className="link" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>
-        ‹ {t.nav.back}
-      </button>
+      {/* Same header as the time pages: Today and the calendar sit in the same
+          place. The ‹ › slots are kept empty (there is no previous Index). */}
+      <header className="time-header">
+        <button className="crumb index-back" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>
+          ‹ {t.nav.back}
+        </button>
+        <div className="crumbs" />
+        <div className="header-actions">
+          <span className="icon-btn-quiet" aria-hidden />
+          <button className="today-btn" onClick={() => goTo(todayIso())}>
+            {t.nav.today}
+          </button>
+          <span className="icon-btn-quiet" aria-hidden />
+          <label className="icon-btn-quiet date-pick" aria-label={t.nav.pickDate}>
+            <CalendarIcon />
+            <input type="date" value={todayIso()} onChange={(e) => e.currentTarget.value && goTo(e.currentTarget.value)} />
+          </label>
+        </div>
+      </header>
+
       <h1>{t.index.title}</h1>
 
       {/* The Year (future log) is always on: the current one is always listed,
-          even before anything is written in it. Nothing is stored for this. */}
+          even before anything is written in it. Nothing is stored for this.
+          Other years: ‹ › on the Year page, or the calendar. */}
       <ul className="index-list index-pinned">
         <li>
-          <button
-            className="index-link"
-            onClick={() => {
-              setAnchor(todayIso());
-              navigate(`/year/${yearOf(todayIso())}`);
-            }}
-          >
+          <button className="index-link" onClick={() => (setAnchor(todayIso()), navigate(`/year/${year}`))}>
             <span className="index-kind">{t.index.kinds.future}</span>
-            {yearOf(todayIso())}
+            {year}
           </button>
         </li>
       </ul>
@@ -85,64 +101,11 @@ export function IndexPage() {
         )}
       </section>
 
-      <section className="index-section">
-        <h2 className="section-title">{t.index.logs}</h2>
-        {logs?.length === 0 && <p className="muted">{t.index.noLogs}</p>}
-        {years.map(([year, items]) => (
-          <div key={year} className="index-year">
-            <h3 className="index-year-title">{year}</h3>
-            <ul className="index-list">
-              {items.map((l) => (
-                <li key={l.id}>
-                  <button className="index-link" onClick={() => open(l, settings.firstDayOfWeek as Weekday)}>
-                    <span className="index-kind">{t.index.kinds[l.kind as Exclude<Log['kind'], 'collection'>]}</span>
-                    {describe(l)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </section>
-
-      <footer className="page-footer">
+      <footer className="page-footer index-footer">
         <button className="link" onClick={() => navigate('/settings')}>
           {t.index.settings}
         </button>
       </footer>
     </main>
   );
-}
-
-function groupByYear(logs: Log[]): Array<[string, Log[]]> {
-  const map = new Map<string, Log[]>();
-  for (const l of logs) {
-    const y = (l.periodStart ?? '').slice(0, 4);
-    if (!map.has(y)) map.set(y, []);
-    map.get(y)!.push(l);
-  }
-  return [...map.entries()];
-}
-
-function describe(l: Log): string {
-  const start = l.periodStart!;
-  switch (l.kind) {
-    case 'future':
-      return start.slice(0, 4);
-    case 'monthly':
-      return fmt(start, { month: 'long' });
-    case 'weekly':
-      return `${l.title} · ${fmt(start, { month: 'short', day: 'numeric' })} – ${fmt(l.periodEnd!, { month: 'short', day: 'numeric' })}`;
-    default:
-      return fmt(start, { weekday: 'short', month: 'short', day: 'numeric' });
-  }
-}
-
-function open(l: Log, firstDay: Weekday) {
-  const start = l.periodStart!;
-  setAnchor(start);
-  if (l.kind === 'future') navigate(`/year/${start.slice(0, 4)}`);
-  else if (l.kind === 'monthly') navigate(`/month/${start.slice(0, 7)}`);
-  else if (l.kind === 'weekly') navigate(`/week/${weekKey(start, firstDay)}`);
-  else navigate(`/day/${start}`);
 }

@@ -121,15 +121,3 @@ export function useCollections(): Log[] | undefined {
     return all.sort((a, b) => a.title.localeCompare(b.title, 'en', { sensitivity: 'base' }));
   });
 }
-
-/** Time logs that have been written in, newest period first (the Index is derived, never stored). */
-export function useWrittenTimeLogs(): Log[] | undefined {
-  return useLiveQuery(async () => {
-    const logs = await db.logs.where('kind').anyOf('future', 'monthly', 'weekly', 'daily').toArray();
-    const withContent = new Set((await db.entries.where('logId').anyOf(logs.map((l) => l.id)).toArray()).map((e) => e.logId));
-    const rank: Record<string, number> = { future: 0, monthly: 1, weekly: 2, daily: 3 };
-    return logs
-      .filter((l) => withContent.has(l.id))
-      .sort((a, b) => (b.periodStart ?? '').slice(0, 4).localeCompare((a.periodStart ?? '').slice(0, 4)) || rank[a.kind] - rank[b.kind] || (b.periodStart ?? '').localeCompare(a.periodStart ?? ''));
-  });
-}

@@ -106,7 +106,7 @@ function fromId(level: Level, periodKey: string, target: Level, anchor: string):
   return '';
 }
 
-function CalendarIcon() {
+export function CalendarIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
       <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
