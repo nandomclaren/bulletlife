@@ -1,0 +1,25 @@
+{
+	# Railway terminates TLS at its edge.
+	auto_https off
+	admin off
+}
+
+:{$PORT:8080} {
+	root * /srv
+	encode zstd gzip
+
+	# Hashed build assets never change.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# Everything else (service worker, manifest, entry page, SPA routes) is
+	# revalidated so a new deploy reaches installed apps.
+	@unhashed not path /assets/*
+	header @unhashed Cache-Control "no-cache"
+
+	header /manifest.webmanifest Content-Type "application/manifest+json"
+
+	# SPA fallback: real URLs like /month/2026-10 load the app.
+	try_files {path} /index.html
+	file_server
+}

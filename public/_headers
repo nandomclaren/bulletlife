@@ -1,8 +1,0 @@
-# Cloudflare Pages: always revalidate the service worker and the entry page,
-# so a new deploy reaches installed apps.
-/sw.js
-  Cache-Control: no-cache
-/index.html
-  Cache-Control: no-cache
-/manifest.webmanifest
-  Cache-Control: no-cache
