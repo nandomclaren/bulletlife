@@ -234,9 +234,14 @@ class LineEditorCore {
     this.commit({ index: at.index + 1, offset: 0 });
   }
 
-  /** Backspace at a line start: outdent first, then drop the bullet, then join lines. */
+  /** Backspace at a line start: drop a stray priority mark, outdent, drop the bullet, then join lines. */
   private backspaceAtStart(at: Caret) {
     const line = this.lines[at.index];
+    // A plain line can still carry a priority mark (older data); it must always be removable.
+    if ((line.type === 'text' || line.type === 'heading') && line.priority) {
+      line.priority = false;
+      return this.commit(at);
+    }
     if (line.indent > 0) {
       this.shiftLines(at.index, at.index, -1, false);
       return this.commit(at);
@@ -372,7 +377,10 @@ class LineEditorCore {
 
     // Rapid logging prefix typed at the start of the line.
     const m = sel.start.offset <= 5 ? matchPrefix(text.slice(0, sel.start.offset)) : null;
-    if (m && m.length === sel.start.offset) {
+    // A lone "* " marks priority only on a line that already has a bullet;
+    // on plain text it stays a typed asterisk.
+    const bulletless = line.type === 'text' || line.type === 'heading';
+    if (m && m.length === sel.start.offset && !(m.type === 'text' && bulletless)) {
       line.text = text.slice(m.length);
       if (m.type !== 'text') Object.assign(line, { type: m.type, state: 'open' });
       line.priority = m.priority || line.priority;

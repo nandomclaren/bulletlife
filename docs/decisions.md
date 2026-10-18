@@ -82,3 +82,9 @@ Short log of technical decisions. Newest last.
 
 - Bug (iPhone): Backspace on an empty first line moved the caret into the gutter and broke the line. WebKit lets the caret sit before a non-editable element at the start of the editing host.
 - Fix in three layers: (1) the gutter is now absolutely positioned beside the text, outside the text flow, with the same top padding, font size and line height as the text so bullets still sit on the first baseline; (2) Backspace at a line start is handled in `keydown` (not only `beforeinput`, which WebKit may not let us cancel there); (3) a `selectionchange` guard moves any caret that lands outside `.line-text` back to the start of that line.
+
+## 2026-10-18 · "* " on plain text stays text
+
+- Bug: typing "* " on an empty plain line turned it into a priority mark in the gutter, which Backspace could not remove.
+- Now a lone "* " marks priority only on a line that already has a bullet (as CLAUDE.md 3.4 says: "* " before a bullet). On plain text it stays a typed asterisk. "* . ", "* o. ", "* - " still create a priority task/event/note.
+- Backspace at the start of a plain line that still carries a priority mark (older data) removes the mark first.
