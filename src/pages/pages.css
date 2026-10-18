@@ -1,0 +1,340 @@
+/* Time pages: header, week strip, Month and Year layouts. */
+
+.page-time {
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+/* Header: breadcrumb left, actions right. Low chrome. */
+
+.time-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 -8px 8px;
+  padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.crumbs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.crumbs::-webkit-scrollbar {
+  display: none;
+}
+
+.crumb-wrap {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.crumb-sep {
+  color: var(--rule);
+  padding: 0 1px;
+}
+
+.crumb {
+  min-height: 40px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.crumb.is-current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.icon-btn-quiet {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 40px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.today-btn {
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.date-pick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.crumb:hover,
+.icon-btn-quiet:hover,
+.today-btn:hover {
+  color: var(--text);
+}
+
+.page-time > h1 {
+  margin-bottom: 4px;
+}
+
+.page-time > .eyebrow {
+  margin-top: 16px;
+}
+
+/* Week strip */
+
+.week-strip {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin: 4px 0 8px;
+  padding: 0;
+}
+
+.strip-day {
+  width: 100%;
+  min-height: 56px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 6px 0 4px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.strip-initial {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.strip-num {
+  font-size: 16px;
+}
+
+.strip-day.is-today .strip-num {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.strip-day.is-selected {
+  background: var(--surface);
+}
+
+.strip-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.strip-dot.on {
+  background: var(--muted);
+}
+
+/* Month */
+
+.month-spread {
+  display: grid;
+  gap: 32px;
+  margin-top: 16px;
+}
+
+@media (min-width: 1100px) {
+  .page-month {
+    max-width: 1180px;
+  }
+  /* An open notebook: calendar left, month tasks right. */
+  .month-spread {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 56px;
+  }
+  .month-tasks {
+    position: sticky;
+    top: 72px;
+    align-self: start;
+  }
+}
+
+.month-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.month-day {
+  display: grid;
+  grid-template-columns: 30px 18px minmax(0, 1fr);
+  align-items: baseline;
+  min-height: 44px;
+  font-variant-numeric: tabular-nums;
+  transition: background 600ms var(--ease);
+  border-radius: 8px;
+}
+
+.week-rule {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--rule);
+}
+
+.week-label {
+  position: absolute;
+  right: 0;
+  top: -11px;
+  min-height: 22px;
+  padding: 0 0 0 8px;
+  border: 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.day-num {
+  position: relative;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 16px;
+  line-height: 44px;
+  cursor: pointer;
+}
+
+.day-initial {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.month-day.weekend .day-num,
+.month-day.weekend .day-initial {
+  opacity: 0.55;
+}
+
+.month-day.today .day-num {
+  font-weight: 700;
+}
+
+.day-num .n {
+  position: relative;
+}
+
+.month-day.today .day-num .n::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  margin-left: -2px;
+  bottom: -5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.day-text {
+  min-width: 0;
+}
+
+.flash {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.section-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Year */
+
+.year-month {
+  margin-top: 8px;
+  border-radius: 10px;
+  transition: background 600ms var(--ease);
+}
+
+.year-month-title {
+  position: sticky;
+  top: 52px;
+  z-index: 2;
+  margin: 0;
+  background: var(--bg);
+}
+
+.year-month-title button {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 19px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.year-month.is-current .year-month-title button {
+  color: var(--accent);
+}
+
+.year-month-area {
+  min-height: 96px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+}
+
+.editor-loading {
+  min-height: 34px;
+}
+
+.page-footer {
+  margin-top: 40vh;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}

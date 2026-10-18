@@ -248,3 +248,28 @@
   border-radius: 50%;
   border: 1.5px solid currentColor;
 }
+
+/* Compact editor: one per day row in the Month. Text lines start right at
+   the row's text column; bullets take only the room they need. */
+.editor.compact {
+  --gutter: 24px;
+  margin: 0;
+}
+
+.compact .gutter {
+  padding-right: 6px;
+}
+
+.compact .chevron {
+  display: none;
+}
+
+.compact .line.t-text > .gutter,
+.compact .line.t-heading > .gutter {
+  width: 0;
+  padding: 0;
+}
+
+.compact .line-text {
+  padding: 8px 0;
+}

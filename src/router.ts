@@ -1,5 +1,5 @@
-// Minimal history router for the spike: real URLs so the system back gesture
-// and scroll restoration can be tested in the installed app.
+// Minimal history router: real URLs so the system back gesture works in the
+// installed app, deep links work, and scroll is restored on back.
 import { useSyncExternalStore } from 'react';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -17,6 +17,11 @@ export function navigate(path: string) {
   history.pushState({ scrollY: 0 }, '', base + path);
   listeners.forEach((l) => l());
   window.scrollTo(0, 0);
+}
+
+export function replace(path: string) {
+  history.replaceState({ scrollY: 0 }, '', base + path);
+  listeners.forEach((l) => l());
 }
 
 export function usePath() {

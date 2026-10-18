@@ -115,16 +115,24 @@ export const en = {
     collapse: 'Collapse',
     expand: 'Expand',
   },
-  proto: {
-    eyebrow: 'Editor preview',
+  nav: {
     back: 'Back',
-    pageTitle: 'Sun, Oct 18',
-    hint: 'Type ". " for a task, "o. " for an event, "- " for a note, "# " for a heading, "* " for priority. Tap a bullet to complete, again to cancel. A space at the start of a line indents it, Backspace at the start outdents (or Tab / Shift-Tab).',
-    showModel: 'Show model',
-    hideModel: 'Hide model',
-    reset: 'Reset sample',
-    deviceCheck: 'Device check',
+    today: 'Today',
+    previous: 'Previous',
+    next: 'Next',
+    pickDate: 'Go to date',
+    path: 'Location',
+    weekShort: 'Wk',
     settings: 'Settings',
+  },
+  pages: {
+    thisMonth: 'This Month',
+    monthTasks: 'Month tasks',
+    week: 'Week',
+    today: 'Today',
+    dayRow: 'Notes for',
+    monthArea: 'Notes for',
+    hasContent: 'has entries',
   },
   settings: {
     title: 'Settings',
@@ -150,12 +158,6 @@ export const en = {
       migrated: 'migrated',
       scheduled: 'scheduled',
     },
-  },
-  routes: {
-    home: 'Device check',
-    month: 'This Month',
-    day: 'Day',
-    backToChecks: 'Device check',
   },
 } as const;
 

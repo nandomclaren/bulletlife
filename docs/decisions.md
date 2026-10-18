@@ -49,3 +49,15 @@ Short log of technical decisions. Newest last.
 - Risk to watch with B: iOS autocorrect, dictation, predictive text and IME composition all go through our `beforeinput` handling. Test them on the iPhone as the editor grows.
 - **iPhone indenting without Tab:** a space at the very start of a line indents it; Backspace at the start outdents first, then removes the bullet, then joins with the line above.
 - **iOS form bar (^ v ✓) cannot be hidden by a web app.** A toolbar of our own above the keyboard kept fighting it (covered, then floating over the page while scrolling), so it was **dropped** (Fernando). Indent/outdent use space/Backspace at the line start; priority uses the `* ` prefix and the bullet menu. A native app can replace the system bar (`inputAccessoryView`); see CLAUDE.md section 14.
+
+## 2026-10-18 · Phase 1 core, part 1: data and time pages
+
+- **Repository** (`src/data/repo.ts`) is the only data entry point; Dexie lives in `src/data/db.ts`. Tables: `logs`, `entries` (`[logId+slot]` index), `settings`.
+- **Deterministic ids for time logs** (`daily:2026-10-18`, `weekly:2026-W43`, `monthly:2026-10`, `future:2026`): two offline devices writing the same day never create two logs. Entries use ULIDs.
+- **Lazy creation:** a log row is written only when its first non-blank entry is saved. Navigating never writes. A blank page (one empty line) is never stored.
+- **Saving:** each editor saves its `(log, slot)` 400 ms after the last change, and flushes on page hide and unmount. Only changed entries are written (`diffEntries`); order uses fractional keys that are kept when still in order (`assignOrders`).
+- **Flat lines ↔ entries:** the editor's indent becomes `parentId`; loading rebuilds indents from parents in order.
+- **Weeks:** keys follow ISO-8601 numbering (`2026-W43`). With Sunday as first day, a week takes the number of the Monday after its Sunday. Routes: `/day/2026-10-18`, `/week/2026-W43`, `/month/2026-10`, `/year/2026`; `/` redirects to today's finest active log.
+- **Month:** day rows are rendered from the date; each row is a compact editor storing entries with `slot = 'YYYY-MM-DD'`. "Month tasks" is the same log with an empty slot. Year: twelve editors with `slot = 'YYYY-MM'`.
+- **Header:** breadcrumb of active levels, ‹ ›, Today, native date picker. Settings moved to a quiet footer link until the Index menu exists (the header must fit a 390 px iPhone).
+- Still to do in Phase 1: Month row font shrink (85% then wrap), bullet menu, settings for active logs / event states / first day, Collections and Index, offline check of the whole flow.

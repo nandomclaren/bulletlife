@@ -6,6 +6,7 @@ import { recordLaunch } from './data/spikeDb';
 import { applyTheme } from './theme';
 import './styles.css';
 import './editor/editor.css';
+import './pages/pages.css';
 
 applyTheme();
 registerSW({ immediate: true });

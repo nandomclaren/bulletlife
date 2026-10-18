@@ -40,10 +40,11 @@ class LineEditorCore {
     private root: HTMLElement,
     initial: Line[],
     private onChange: (lines: Line[]) => void,
+    className = '',
   ) {
-    this.lines = initial.map((l) => ({ ...l }));
+    this.lines = initial.length ? initial.map((l) => ({ ...l })) : [newLine()];
     root.contentEditable = 'true';
-    root.className = 'editor';
+    root.className = `editor ${className}`.trim();
     root.spellcheck = true;
     root.setAttribute('autocapitalize', 'sentences');
     root.setAttribute('role', 'textbox');
@@ -418,13 +419,17 @@ class LineEditorCore {
 interface Props {
   initial: Line[];
   onChange: (lines: Line[]) => void;
+  autoFocus?: boolean;
+  className?: string;
+  label?: string;
 }
 
-export function LineEditor({ initial, onChange }: Props) {
+export function LineEditor({ initial, onChange, autoFocus, className, label }: Props) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const core = new LineEditorCore(host.current!, initial, onChange);
-    core.focusEnd();
+    const core = new LineEditorCore(host.current!, initial, onChange, className);
+    if (label) host.current!.setAttribute('aria-label', label);
+    if (autoFocus) core.focusEnd();
     return () => core.destroy();
     // The editor owns its state after mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
