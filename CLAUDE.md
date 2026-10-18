@@ -86,7 +86,7 @@ Os prefixos devem ser configuráveis. A conversão de tipo também é possível 
 
 ### 3.5 Subitens e colapso
 
-- Indentar um item (Tab, ou botão na barra do teclado no iPhone) torna o item de cima **pai** automaticamente.
+- Indentar um item (Tab no Mac; no iPhone, **espaço no início da linha**) torna o item de cima **pai** automaticamente. **Backspace no início da linha** desindenta; no nível 0, um novo Backspace remove o bullet (vira texto livre) e o seguinte junta com a linha de cima.
 - Pais exibem um chevron para **colapsar/expandir**; o estado `collapsed` é salvo na entrada.
 - **Colapsar nunca afeta exportação, cópia ou busca**: tudo continua incluído (seção 7).
 - Nível de aninhamento sem limite rígido (testar até 6 níveis).
@@ -211,8 +211,8 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 | Marcar `>` (migrar) | swipe **→** (esquerda para direita) | menu / ⌥→ |
 | Marcar `<` (agendar) | swipe **←** (direita para esquerda) | menu / ⌥← |
 | Menu do bullet | pressionar e segurar o bullet | clique direito, Ctrl+clique ou clicar e segurar |
-| Prioridade `*` | botão ★ na barra acima do teclado · menu do bullet · prefixo `*` | atalho (a definir) · menu · prefixo `*` |
-| Indentar / desindentar | botões na barra do teclado | Tab / ⇧Tab |
+| Prioridade `*` | menu do bullet · prefixo `*` | atalho (a definir) · menu · prefixo `*` |
+| Indentar / desindentar | espaço / Backspace no início da linha | Tab / ⇧Tab |
 | Colapsar / expandir | tocar no chevron | clicar no chevron |
 
 - **Eventos** usam o mesmo ciclo de toque e os mesmos swipes/menu das tarefas (`×`, riscado, `>`, `<`). Se o ajuste "Estados em eventos" estiver desligado, o toque e o swipe no bullet do evento não fazem nada.
@@ -440,6 +440,7 @@ Quando houver código nativo (iOS/macOS):
 - **Push notifications confiáveis** (lembretes de planejamento e de Fechar o dia). No PWA, ficam só as faixas dentro do app. *As fontes que consultei divergem sobre push em PWA na UE.*
 - **Receber compartilhamentos de outros apps** (Web Share *Target* não é suportado no iOS).
 - Atalhos do sistema, widgets e Spotlight.
+- **Barra própria acima do teclado no iPhone** (indentar, desindentar, prioridade). No PWA não dá: o iOS sempre mostra a barra de formulário (^ v ✓) e uma barra nossa fica brigando com ela (testado na Fase 1 e abandonado). No app nativo, substituir a barra do sistema (`inputAccessoryView`).
 - **Fotos por mês no Ano:** poucas fotos para cada mês (galeria pequena em cada seção do Ano). Exige armazenar e sincronizar blobs; o Dexie Cloud separa os limites de armazenamento de blobs e de objetos (verificar os valores). Não implementar no PWA agora; só não bloquear essa evolução no modelo de dados.
 - **Versão comercial:** contas, planos, backend de sync definitivo (revisar custos), site e identidade visual próprios, mais a **liberação de nome e marca**:
   - Busca de anterioridade de "Bullet Life" (INPI, EUIPO, USPTO) e consulta a advogado de marcas. O nome não foi verificado nesses registros.
@@ -457,7 +458,7 @@ Quando houver código nativo (iOS/macOS):
 4. Prefixos: `.` tarefa, `o. ` evento, `- ` nota.
 5. Primeiro dia da semana: segunda; Fechar o dia ligado às 20:00.
 6. Eventos ciclam estado como tarefas (com ajuste para desligar); notas nunca ciclam.
-7. Prioridade: botão ★ na barra do teclado + menu do bullet + prefixo `*` (o Fernando não sabe qual seria mais intuitivo; reavaliar após uso real).
+7. Prioridade: menu do bullet + prefixo `*` (o Fernando não sabe qual seria mais intuitivo; reavaliar após uso real). Sem barra própria acima do teclado no PWA (ver seção 14).
 8. **Ano = uma página por ano civil (jan–dez)**, e não "12 meses móveis a partir de hoje". O Fernando chamou de "yearly log" e descreveu uma linha por mês.
 9. Monthly: texto livre por dia (método purista); a fonte encolhe até 85% e depois a linha quebra e cresce.
 10. Navegação: trilha tocável + faixa de 7 dias + botão Hoje, sem swipe lateral (seção 5.1).

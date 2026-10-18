@@ -112,10 +112,6 @@ export const en = {
     },
   },
   editor: {
-    toolbar: 'Formatting',
-    indent: 'Indent',
-    outdent: 'Outdent',
-    priority: 'Priority',
     collapse: 'Collapse',
     expand: 'Expand',
   },

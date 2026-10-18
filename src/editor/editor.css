@@ -178,44 +178,6 @@
   word-wrap: break-word;
 }
 
-/* Bar above the iOS keyboard */
-
-.kb-bar {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  border-radius: 14px;
-  transition: opacity 120ms var(--ease);
-  z-index: 20;
-  display: flex;
-  gap: 4px;
-  padding: 4px max(8px, env(safe-area-inset-left));
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--rule);
-}
-
-.kb-bar.is-moving {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.kb-btn {
-  min-width: 52px;
-  height: 40px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  font-size: 19px;
-  color: var(--text);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.kb-btn:active {
-  background: var(--rule);
-}
-
 /* Prototype page */
 
 .proto-nav {

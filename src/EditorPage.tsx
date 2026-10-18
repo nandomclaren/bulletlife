@@ -1,7 +1,6 @@
 // Temporary home: one page of the chosen editor (B, line editor) while the
 // real pages (Day, Week, Month, Year) are built on top of it in Phase 1.
 import { useCallback, useState } from 'react';
-import { KeyboardBar, type EditorApi } from './editor/KeyboardBar';
 import { LineEditor } from './editor/LineEditor';
 import { SAMPLE_LINES, toEntries, type Line } from './editor/lines';
 import { t } from './i18n/en';
@@ -31,8 +30,6 @@ export function EditorPage() {
   const [initial, setInitial] = useState(load);
   const [version, setVersion] = useState(0);
   const [lines, setLines] = useState(initial);
-  const [api, setApi] = useState<EditorApi | null>(null);
-  const [focused, setFocused] = useState(false);
   const [showModel, setShowModel] = useState(false);
 
   const onChange = useCallback((next: Line[]) => {
@@ -52,7 +49,7 @@ export function EditorPage() {
       </nav>
       <p className="eyebrow">{t.proto.eyebrow}</p>
       <h1>{t.proto.pageTitle}</h1>
-      <LineEditor key={version} initial={initial} onChange={onChange} onApi={setApi} onFocusChange={setFocused} />
+      <LineEditor key={version} initial={initial} onChange={onChange} />
       <p className="hint">{t.proto.hint}</p>
       <div className="row">
         <button className="btn btn-quiet" onClick={() => setShowModel((v) => !v)}>
@@ -71,7 +68,6 @@ export function EditorPage() {
         </button>
       </div>
       {showModel && <pre className="model">{JSON.stringify(toEntries(lines), null, 2)}</pre>}
-      <KeyboardBar api={api} visible={focused} />
     </main>
   );
 }

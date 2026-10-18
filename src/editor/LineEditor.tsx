@@ -3,7 +3,6 @@
 // (Enter, Backspace at a line start, multi-line deletes, paste, undo) is
 // intercepted in `beforeinput` and applied to the model, then re-rendered.
 import { useEffect, useRef } from 'react';
-import type { EditorApi } from './KeyboardBar';
 import { attachGutter } from './gutter';
 import {
   colorTypes,
@@ -409,29 +408,6 @@ class LineEditorCore {
     this.onInput();
   };
 
-  // ---------- toolbar API ----------
-
-  api(): EditorApi {
-    const withSel = (fn: (s: { start: Caret; end: Caret }) => void) => () => {
-      const sel = this.readSelection();
-      if (sel) fn(sel);
-    };
-    return {
-      indent: withSel(({ start, end }) => {
-        this.snapshot(start);
-        this.shiftLines(start.index, end.index, 1);
-      }),
-      outdent: withSel(({ start, end }) => {
-        this.snapshot(start);
-        this.shiftLines(start.index, end.index, -1);
-      }),
-      togglePriority: withSel(({ start }) => {
-        const l = this.lines[start.index];
-        if (l.type !== 'heading') this.updateById(l.id, (x) => ({ ...x, priority: !x.priority }));
-      }),
-    };
-  }
-
   focusEnd() {
     this.root.focus();
     const last = this.lines.length - 1;
@@ -442,27 +418,14 @@ class LineEditorCore {
 interface Props {
   initial: Line[];
   onChange: (lines: Line[]) => void;
-  onApi: (api: EditorApi | null) => void;
-  onFocusChange: (focused: boolean) => void;
 }
 
-export function LineEditor({ initial, onChange, onApi, onFocusChange }: Props) {
+export function LineEditor({ initial, onChange }: Props) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = host.current!;
-    const core = new LineEditorCore(el, initial, onChange);
-    onApi(core.api());
-    const focus = () => onFocusChange(true);
-    const blur = () => onFocusChange(false);
-    el.addEventListener('focus', focus);
-    el.addEventListener('blur', blur);
+    const core = new LineEditorCore(host.current!, initial, onChange);
     core.focusEnd();
-    return () => {
-      el.removeEventListener('focus', focus);
-      el.removeEventListener('blur', blur);
-      core.destroy();
-      onApi(null);
-    };
+    return () => core.destroy();
     // The editor owns its state after mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
