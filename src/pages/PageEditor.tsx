@@ -5,8 +5,6 @@ import { LineEditor } from '../editor/LineEditor';
 import type { Line } from '../editor/lines';
 import { registerFlush } from './flush';
 import { loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
-import { suggestDestination } from '../data/openItems';
-import { todayIso } from '../dates';
 
 const SAVE_DELAY = 400;
 /** Remote changes wait until the user has stopped typing for this long. */
@@ -125,7 +123,6 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
         eventStates={eventStates}
         focusRef={focusAt}
         reverseSwipes={settings.reverseSwipes}
-        destination={(mark) => suggestDestination({ logId: log.id, slot }, mark, settings, todayIso())}
         onChange={(lines) => {
           shown.current = lines;
           lastInput.current = Date.now();

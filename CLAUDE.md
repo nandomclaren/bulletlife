@@ -58,7 +58,7 @@ Qualquer funcionalidade que viole um destes itens está errada, mesmo que pareç
 - O usuário liga **pelo menos 1** entre Monthly, Weekly e Daily. Ou seja, no mínimo 2 módulos ativos contando o Future Log.
 - Motivo: migrar precisa de origem e destino. Com um único log de tempo, `>` aponta para o próximo período dele e `<` para o Future Log.
 - Configurações dependentes: primeiro dia da semana (padrão: segunda-feira) e formato de data (padrão: DD/MM).
-- **Horizonte** (configurável, padrão 1 período): ao marcar `>` ou `<`, o app **mostra** (somente leitura) o destino sugerido: itens até N períodos à frente → log do período correspondente; além disso → Future Log. Exibe um atalho "abrir a página de destino". Nunca escreve nada lá.
+- ~~**Horizonte** / destino sugerido~~ (retirado pelo Fernando: como o app não executa a migração, mostrar um destino só confundia). Ao marcar `>` ou `<`, o app mostra apenas "Migrated"/"Scheduled" com **Undo**. O destino é decidido e escrito pelo usuário.
 
 ### 3.3 Bullets clássicos (método original)
 
@@ -137,7 +137,7 @@ Excluir: concluídas, canceladas e as com `placement.status = placed`.
 ### 4.3 Ações permitidas no painel (sempre uma entrada por vez)
 
 - Tocar no bullet → concluída; tocar de novo → cancelada (riscada). Mesmo ciclo da página.
-- Marcar `>` ou `<` (mostra o destino sugerido, somente leitura).
+- Marcar `>` ou `<` (aviso "Migrated"/"Scheduled" com Undo; sem destino sugerido).
 - Para itens da categoria B: botão **"I wrote it there"** → `placement.status = placed`. É uma confirmação **manual** do usuário.
 - **Não existe**: selecionar vários, "limpar tudo", copiar texto, arrastar para uma página.
 
@@ -220,7 +220,7 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 - **Notas** nunca têm estado: toque e swipe no bullet da nota não fazem nada. O tipo muda pelo menu.
 - **Ciclo de toque**: aberta → concluída → riscada → aberta.
 - **Direção dos swipes (recomendação, a confirmar com o Fernando):** `>` fica no swipe para a direita e `<` no swipe para a esquerda, porque a direção do gesto espelha o glifo. Ele sugeriu o contrário (direita→esquerda = `>`), então **crie um ajuste "Inverter direção dos swipes"**.
-- Ao revelar o swipe, mostrar o glifo (`>` ou `<`) e o destino sugerido (somente leitura).
+- Ao revelar o swipe, mostrar o glifo (`>` ou `<`) e a ação ("Migrate"/"Schedule"); ao soltar, aviso com Undo.
 - Menu do bullet (submenu): Tipo (tarefa/evento/nota), Estado, Prioridade, Inspiração, Explorar, Indentar/Desindentar, Copiar como…, Apagar (com desfazer).
 
 **Riscos técnicos conhecidos (tratar na Fase 0/1):**
@@ -288,7 +288,6 @@ Textos finais da UI. Onde o documento cita um termo em português, use o equival
 | Já escrevi no destino | I wrote it there |
 | Fechar o dia | Close the day |
 | Estados em eventos (ajuste) | Event states |
-| Horizonte (ajuste) | Horizon |
 | Inverter direção dos swipes (ajuste) | Reverse swipe directions |
 | Primeiro dia da semana (ajuste) | First day of week |
 | Faixa de 7 dias (ajuste) | Week strip |
@@ -384,7 +383,6 @@ interface Settings { /* seção 12 */ }
 - Logs ativos: Monthly / Weekly / Daily (mínimo 1; Index e Future Log fixos).
 - **Estados em eventos** (concluir, cancelar, migrar, agendar): ligado/desligado (**padrão: ligado**). Desligado: eventos sem estado e fora das pendências. Eventos que já têm estado gravado o mantêm visível; não apagar dados ao desligar.
 - Primeiro dia da semana (padrão: segunda); formato de data (padrão: DD/MM).
-- Horizonte de sugestão de destino (padrão: 1 período).
 - Faixa de montagem do período: ligar/desligar.
 - **Fechar o dia:** ligar/desligar (padrão: ligado) e horário (padrão: 20:00).
 - Contador do botão de pendências: mostrar/esconder.
@@ -426,7 +424,7 @@ Menu "…", 3 formatos, seleção (com colapsados), `copy` interceptado, Share o
 *Aceite:* copiar uma página em Markdown em ≤ 3 toques; selecionar linhas com itens colapsados e copiar leva os filhos; colar em app nativo funciona; Export baixa o arquivo.
 
 **Fase 4 — Painel de pendências e rituais.**
-Painel lateral, categorias A/B/C, gestos de swipe/long-press/menu, faixa de montagem de semana/mês, Fechar o dia (desabilitável), destino sugerido (somente leitura), "Já escrevi no destino".
+Painel lateral, categorias A/B/C, gestos de swipe/long-press/menu, faixa de montagem de semana/mês, Fechar o dia (desabilitável), "Já escrevi no destino".
 *Aceite:* uma tarefa `•` de semana anterior aparece; uma `>` sem destino aparece; ao confirmar o destino sai do painel; **nenhuma ação em massa existe**; o painel nunca altera entradas sem gesto individual; desligar "Fechar o dia" remove a faixa.
 **Fase 4b (opcional):** reconhecimento por similaridade (seção 4.4).
 

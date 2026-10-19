@@ -4,9 +4,9 @@
 // no drag to a page: rewriting by hand is the point.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { entriesToLines } from '../data/convert';
-import { ageLabel, groupItems, groupLabel, sourceLabel, sourcePath, stateful, suggestDestination, withKept, type Mark, type OpenItem } from '../data/openItems';
+import { ageLabel, groupItems, groupLabel, sourceLabel, sourcePath, stateful, withKept, type Mark, type OpenItem } from '../data/openItems';
 import { confirmPlaced, markEntry, useCollections, useSettings } from '../data/repo';
-import type { Entry, Settings } from '../data/types';
+import type { Entry } from '../data/types';
 import { BulletMenu, type MenuActions } from '../editor/BulletMenu';
 import { attachGutter } from '../editor/gutter';
 import { nextState, type Line } from '../editor/lines';
@@ -127,10 +127,6 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
         return !!e && stateful(e, settingsRef.current.eventStates);
       },
       current: (id) => entryOf(id)?.state,
-      destination: (id, m) => {
-        const e = entryOf(id);
-        return e ? suggestDestination(e, m, settingsRef.current, today).label : '';
-      },
       commit: mark,
       reverse: () => settingsRef.current.reverseSwipes,
     });
@@ -229,8 +225,6 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
                     <Row
                       key={item.entry.id}
                       item={item}
-                      today={today}
-                      settings={settings}
                       origin={g.id === 'due' ? sourceLabel(item.source, item.entry.slot, titles.get(item.source.logId)) : undefined}
                       onOpen={() => open(item)}
                       onWrote={() => {
@@ -253,29 +247,18 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
       {menu && menuEntry && menuActions && (
         <BulletMenu line={toLine(menuEntry)} anchor={menu.anchor} eventStates={settings.eventStates} actions={menuActions} statesOnly />
       )}
-      {marked && (
-        <MarkToast
-          key={marked.n}
-          mark={marked.mark}
-          destination={marked.mark ? suggestDestination(marked.entry, marked.mark, settings, today) : null}
-          onDone={hideMark}
-        />
-      )}
+      {marked && <MarkToast key={marked.n} mark={marked.mark} onUndo={() => void markEntry(marked.entry.id, marked.entry.state)} onDone={hideMark} />}
     </>
   );
 }
 
 function Row({
   item,
-  today,
-  settings,
   origin,
   onOpen,
   onWrote,
 }: {
   item: OpenItem;
-  today: string;
-  settings: Settings;
   /** In the Due group: the page the item lives on. */
   origin?: string;
   onOpen: () => void;
@@ -299,7 +282,7 @@ function Row({
         {origin && <span className="open-meta">{origin}</span>}
         {unplaced && (
           <span className="open-meta">
-            {t.open.notWritten[state as Mark]} · {suggestDestination(item.entry, state as Mark, settings, today).label}
+            {t.open.notWritten[state as Mark]}
             <button className="open-wrote" onClick={onWrote}>
               {t.open.wroteIt}
             </button>

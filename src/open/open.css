@@ -313,9 +313,6 @@ html.panel-docked #root {
   color: var(--accent);
 }
 
-.mark-dest {
-  font-weight: 600;
-}
 
 /* Settings › Close the day time */
 .time-row {

@@ -2,7 +2,7 @@
 // Shows what is loose; resolving anything is always the user's own gesture.
 // Also the suggested destination of a > or < mark, shown read-only.
 // Pure and unit tested.
-import { addDays, addMonths, daysInMonth, fmt, fromIso, monthOf, weekKey, weekKeyStart, yearOf, type Weekday } from '../dates';
+import { addDays, daysInMonth, fmt, fromIso, monthOf, weekKeyStart, type Weekday } from '../dates';
 import { dueOf } from '../editor/due';
 import { t } from '../i18n/en';
 import type { Entry, LogKind, Settings } from './types';
@@ -192,83 +192,4 @@ export function sourcePath(src: Source): string {
   }
 }
 
-// ---------- Suggested destination (read-only) ----------
-
 export type Mark = 'migrated' | 'scheduled';
-
-export interface Destination {
-  path: string;
-  label: string;
-  /** Element to scroll to on arrival (a Year month). */
-  flashId?: string;
-}
-
-type Level = 'day' | 'week' | 'month';
-const LEVEL_OF: Partial<Record<LogKind, Level>> = { daily: 'day', weekly: 'week', monthly: 'month' };
-
-function isActive(level: Level, s: Pick<Settings, 'activeLogs'>) {
-  return s.activeLogs[level === 'day' ? 'daily' : level === 'week' ? 'weekly' : 'monthly'];
-}
-
-function finest(s: Pick<Settings, 'activeLogs'>): Level {
-  return s.activeLogs.daily ? 'day' : s.activeLogs.weekly ? 'week' : 'month';
-}
-
-function keyAt(level: Level, iso: string, firstDay: Weekday) {
-  return level === 'day' ? iso : level === 'week' ? weekKey(iso, firstDay) : monthOf(iso);
-}
-
-function periodDestination(level: Level, key: string, today: string, firstDay: Weekday): Destination {
-  switch (level) {
-    case 'day':
-      return {
-        path: `/day/${key}`,
-        label:
-          key === today ? t.open.dest.today : key === addDays(today, 1) ? t.open.dest.tomorrow : fmt(key, { weekday: 'short', month: 'short', day: 'numeric' }),
-      };
-    case 'week':
-      return { path: `/week/${key}`, label: key === weekKey(today, firstDay) ? t.open.dest.thisWeek : `${t.nav.weekShort} ${Number(key.split('-W')[1])}` };
-    case 'month':
-      return {
-        path: `/month/${key}`,
-        label:
-          key === monthOf(today)
-            ? t.open.dest.thisMonth
-            : fmt(`${key}-01`, yearOf(key) === yearOf(today) ? { month: 'long' } : { month: 'long', year: 'numeric' }),
-      };
-  }
-}
-
-/**
- * > goes to the next period of the same log (or the current one, for an item
- * left behind), or to the finest active log when its own level is off; from
- * the Year it comes down to this Month. < goes to the Year, at the first
- * month after the item's period. Nothing is ever written there.
- */
-export function suggestDestination(
-  entry: Pick<Entry, 'logId' | 'slot'>,
-  mark: Mark,
-  s: Pick<Settings, 'activeLogs' | 'firstDayOfWeek'>,
-  today: string,
-): Destination {
-  const firstDay = s.firstDayOfWeek as Weekday;
-  const src = sourceOf(entry.logId, firstDay);
-  const nextMonth = addMonths(monthOf(today), 1);
-
-  if (mark === 'scheduled') {
-    const after = src.kind === 'future' && entry.slot ? addMonths(entry.slot, 1) : src.end ? addMonths(monthOf(src.end), 1) : nextMonth;
-    const ym = after > nextMonth ? after : nextMonth;
-    return { path: `/year/${yearOf(ym)}`, label: `${yearOf(ym)} · ${fmt(`${ym}-01`, { month: 'long' })}`, flashId: `year-month-${ym}` };
-  }
-
-  const own = LEVEL_OF[src.kind];
-  if (own && isActive(own, s)) {
-    const next = keyAt(own, addDays(src.end!, 1), firstDay);
-    const current = keyAt(own, today, firstDay);
-    return periodDestination(own, next > current ? next : current, today, firstDay);
-  }
-  const level: Level = src.kind === 'future' && s.activeLogs.monthly ? 'month' : finest(s);
-  const from = src.kind === 'future' && entry.slot && `${entry.slot}-01` > today ? `${entry.slot}-01` : today;
-  const key = keyAt(level, from, firstDay);
-  return periodDestination(level, key, today, firstDay);
-}

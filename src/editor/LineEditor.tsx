@@ -8,7 +8,7 @@ import { selectionDoc, toHtml, toPlain } from '../export/format';
 import { setSelection } from '../export/selection';
 import { attachGutter } from './gutter';
 import { attachSwipe } from './swipe';
-import type { Destination, Mark } from '../data/openItems';
+import type { Mark } from '../data/openItems';
 import { MarkToast } from '../open/MarkToast';
 import { LINES_MIME, linesFromJson, linesFromText } from './paste';
 import {
@@ -57,8 +57,6 @@ class LineEditorCore {
   eventStates = true;
   /** Settings › Reverse swipe directions. */
   reverseSwipes = false;
-  /** Suggested destination of a > or < mark (read-only). */
-  destination: ((mark: Mark) => Destination) | null = null;
   /** A line was marked > or < (or the mark was taken back: null). */
   onMark: ((mark: Mark | null) => void) | null = null;
   /** Opens the bullet menu (set by the React wrapper). */
@@ -100,7 +98,6 @@ class LineEditorCore {
         return !!l && hasStates(l.type, this.eventStates);
       },
       current: (id) => this.lineById(id)?.state,
-      destination: (_id, mark) => this.destination?.(mark).label ?? '',
       commit: (id, mark) => this.markLine(id, mark),
       reverse: () => this.reverseSwipes,
     });
@@ -802,25 +799,20 @@ interface Props {
   focusRef?: MutableRefObject<((lineId?: string) => void) | null>;
   /** Settings › Reverse swipe directions. */
   reverseSwipes?: boolean;
-  /** Suggested destination of a > or < mark on this page (read-only). */
-  destination?: (mark: Mark) => Destination;
 }
 
-export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef, reverseSwipes = false, destination }: Props) {
+export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef, reverseSwipes = false }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const core = useRef<LineEditorCore | null>(null);
   const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [toast, setToast] = useState(0);
   const [marked, setMarked] = useState<{ n: number; mark: Mark | null } | null>(null);
-  const dest = useRef(destination);
-  dest.current = destination;
 
   useEffect(() => {
     const c = new LineEditorCore(host.current!, initial, onChange, className);
     core.current = c;
     c.eventStates = eventStates;
     c.reverseSwipes = reverseSwipes;
-    c.destination = (mark) => dest.current?.(mark) ?? { path: '', label: '' };
     c.onMark = (mark) => setMarked((m) => ({ n: (m?.n ?? 0) + 1, mark }));
     c.onMenu = (id, anchor) => setMenu({ id, anchor });
     if (label) host.current!.setAttribute('aria-label', label);
@@ -869,7 +861,7 @@ export function LineEditor({ initial, onChange, autoFocus, className, label, eve
       <div ref={host} />
       {menu && line && actions && <BulletMenu line={line} anchor={menu.anchor} eventStates={eventStates} actions={actions} />}
       {toast > 0 && <UndoToast key={toast} onUndo={() => core.current?.undo()} onDone={hideToast} />}
-      {marked && destination && <MarkToast key={marked.n} mark={marked.mark} destination={marked.mark ? destination(marked.mark) : null} onDone={hideMark} />}
+      {marked && <MarkToast key={marked.n} mark={marked.mark} onUndo={() => core.current?.undo()} onDone={hideMark} />}
     </>
   );
 }

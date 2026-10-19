@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageLabel, groupItems, groupLabel, openItems, openToday, suggestDestination, withKept } from './openItems';
+import { ageLabel, groupItems, groupLabel, openItems, openToday, withKept } from './openItems';
 import { DEFAULT_SETTINGS, type Entry, type Settings } from './types';
 
 const TODAY = '2026-10-19'; // Monday, Wk 43
@@ -114,29 +114,5 @@ describe('open items (derived, never stored)', () => {
     const kept = new Map([[task.id, item]]);
     const shown = withKept(openItems([done], S, TODAY), kept, new Map([[task.id, done]]));
     expect(shown.map((i) => [i.entry.text, i.entry.state])).toEqual([['tap me', 'done']]);
-  });
-});
-
-describe('suggested destination (read-only)', () => {
-  const at = (logId: string, mark: 'migrated' | 'scheduled', s: Settings = S, slot = '') => {
-    const d = suggestDestination({ logId, slot }, mark, s, TODAY);
-    return `${d.label} ${d.path}`;
-  };
-  it('> goes to the next period of the same log, or the current one for older items', () => {
-    expect(at('daily:2026-10-19', 'migrated')).toBe('Tomorrow /day/2026-10-20');
-    expect(at('daily:2026-10-12', 'migrated')).toBe('Today /day/2026-10-19');
-    expect(at('weekly:2026-W43', 'migrated')).toBe('Wk 44 /week/2026-W44');
-    expect(at('monthly:2026-10', 'migrated')).toBe('November /month/2026-11');
-  });
-  it('> from the Year comes down to this Month; from a collection to the finest log', () => {
-    expect(at('future:2026', 'migrated', S, '2026-10')).toBe('This Month /month/2026-10');
-    expect(at('collection:01X', 'migrated')).toBe('Today /day/2026-10-19');
-    const weekOnly = { ...S, activeLogs: { monthly: false, weekly: true, daily: false } };
-    expect(at('daily:2026-10-12', 'migrated', weekOnly)).toBe('This week /week/2026-W43');
-  });
-  it('< goes to the Year, at the month after the item', () => {
-    expect(at('daily:2026-10-19', 'scheduled')).toBe('2026 · November /year/2026');
-    expect(at('monthly:2026-12', 'scheduled')).toBe('2027 · January /year/2027');
-    expect(at('future:2026', 'scheduled', S, '2026-10')).toBe('2026 · November /year/2026');
   });
 });

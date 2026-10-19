@@ -167,9 +167,6 @@ export const en = {
     due: 'Due',
     marked: { migrated: 'Migrated', scheduled: 'Scheduled' },
     unmarked: 'Back to open',
-    go: 'Open',
-    suggested: 'Suggested',
-    dest: { today: 'Today', tomorrow: 'Tomorrow', thisWeek: 'This week', thisMonth: 'This Month' },
     count: (n: number) => `${n} open ${n === 1 ? 'item' : 'items'}`,
   },
   due: {

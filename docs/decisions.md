@@ -196,3 +196,8 @@ Short log of technical decisions. Newest last.
 - **Sorting, on request only:** a list of two or more sibling bullets with at least one date that is out of order shows a small sort mark on its first line. A tap sorts it by date (cancelled ones too), undated items last in their order, children with their item; Undo puts it back. Reordering within the page is allowed by principle 1; the app never sorts on its own.
 - **Bug fixed on the way:** when lines moved, order keys of lines that did not move could be reassigned but not saved, so two lines could share a key and the stored order differed from the page. `diffEntries` now writes every line whose key changed (regression test).
 - Commercial note: the date format default should come from the device region; for now DD/MM per CLAUDE.md.
+
+## 2026-10-19 · Phase 4 adjustments (Fernando's iPhone test)
+
+- **Swipe did not work on iOS.** Inside editable text iOS Safari takes over a horizontal pointer gesture and cancels the pointer, so the swipe now uses Touch Events: a mostly horizontal touchmove is claimed (`preventDefault`) before Safari decides, a vertical one is left to scrolling, and the end of a swipe is cancelled so it does not place the caret. Pills, the sort mark and buttons do not start a swipe. Tested with real touch input (CDP) in Chromium; to confirm on the iPhone.
+- **No suggested destination.** Showing "Migrated · Tomorrow" suggested the app had done something it did not. After a mark the toast says only "Migrated" / "Scheduled" with **Undo**; the swipe reveals the glyph and "Migrate" / "Schedule". The destination logic, its tests and the Horizon setting are gone (CLAUDE.md updated).
