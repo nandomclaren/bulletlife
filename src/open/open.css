@@ -1,0 +1,349 @@
+/* Open items panel, banners and swipe marks (CLAUDE.md 4, 5, 6). */
+
+/* Title-row button with a plain count: no badge, no alarm. */
+.open-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  height: 44px;
+  margin-top: -2px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.open-btn:hover,
+.open-btn[aria-expanded='true'] {
+  color: var(--text);
+}
+
+.title-row .page-menu-btn {
+  margin-left: -8px;
+}
+
+/* Panel */
+
+.open-panel {
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  animation: panel-in 180ms var(--ease);
+  transition: transform 180ms var(--ease);
+}
+
+.open-panel.closing {
+  transform: translateX(100%);
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+/* Mac: a column beside the page; the page stays visible and editable. */
+.open-panel.docked {
+  width: 380px;
+  border-left: 1px solid var(--rule);
+  box-shadow: -8px 0 32px rgb(0 0 0 / 0.06);
+}
+
+html.panel-docked #root {
+  padding-right: 380px;
+}
+
+/* iPhone: a sheet from the right, almost full screen. */
+.open-panel.sheet {
+  width: calc(100% - 28px);
+  max-width: 520px;
+  box-shadow: -12px 0 40px rgb(0 0 0 / 0.18);
+  touch-action: pan-y;
+}
+
+.open-backdrop {
+  position: fixed;
+  z-index: 29;
+  inset: 0;
+  background: rgb(0 0 0 / 0.18);
+  animation: fade-in 180ms var(--ease);
+  transition: opacity 180ms var(--ease);
+}
+
+.open-backdrop.closing {
+  opacity: 0;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.open-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(16px, env(safe-area-inset-top)) 12px 4px 24px;
+}
+
+.open-head h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 650;
+}
+
+.open-close {
+  width: 44px;
+  height: 44px;
+}
+
+.open-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 20px calc(32px + env(safe-area-inset-bottom)) 20px;
+}
+
+.open-empty {
+  margin: 24px 4px;
+  color: var(--muted);
+}
+
+.open-list.editor {
+  margin: 0 0 0 -20px;
+  cursor: default;
+}
+
+.open-group {
+  margin-top: 18px;
+}
+
+.open-group-title {
+  margin: 0 0 2px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.open-age {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.open-row .line-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.open-text {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: inherit;
+  cursor: pointer;
+}
+
+.open-text:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+}
+
+.s-cancelled .open-text {
+  text-decoration: line-through;
+}
+
+.open-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.open-wrote {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.open-all {
+  margin-top: 20px;
+}
+
+/* Banners: quiet, dismissible. */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 6px 6px 6px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 15px;
+}
+
+.banner-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.banner-action {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.banner-dismiss {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* Swipe to mark > or < (iPhone). */
+
+.editor .line {
+  touch-action: pan-y;
+}
+
+.line.swiping > .gutter,
+.line.swiping > .gutter-host,
+.line.swiping > .line-text,
+.line.swipe-return > .gutter,
+.line.swipe-return > .gutter-host,
+.line.swipe-return > .line-text {
+  transform: translateX(var(--swipe, 0));
+}
+
+.line.swiping > .gutter-host > .gutter,
+.line.swipe-return > .gutter-host > .gutter {
+  transform: translateX(var(--swipe, 0));
+}
+
+.line.swipe-return > .gutter,
+.line.swipe-return > .gutter-host > .gutter,
+.line.swipe-return > .line-text {
+  transition: transform 180ms var(--ease);
+}
+
+.swipe-reveal {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.swipe-reveal.from-left {
+  left: calc(var(--indent, 0) * var(--step) + 14px);
+}
+
+.swipe-reveal.from-right {
+  right: 8px;
+  flex-direction: row-reverse;
+}
+
+.swipe-reveal b {
+  color: var(--bullet);
+  font-size: 18px;
+  transition: transform 140ms var(--ease);
+}
+
+.line.armed .swipe-reveal {
+  color: var(--text);
+}
+
+.line.armed .swipe-reveal b {
+  transform: scale(1.25);
+}
+
+.mark-toast .mark-glyph {
+  color: var(--accent);
+}
+
+.mark-dest {
+  font-weight: 600;
+}
+
+/* Settings › Close the day time */
+.time-row {
+  justify-content: space-between;
+  cursor: default;
+}
+
+.time-input {
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.line.flash {
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .open-panel,
+  .open-backdrop {
+    animation: none;
+    transition: none;
+  }
+  .line.swipe-return > .gutter,
+  .line.swipe-return > .line-text {
+    transition: none;
+  }
+}

@@ -8,7 +8,7 @@ import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune
 import { backupDb, type Snapshot } from './backupDb';
 import { diffEntries, entriesToLines } from './convert';
 import { db } from './db';
-import { DEFAULT_SETTINGS, type Log, type LogKind, type Settings } from './types';
+import { DEFAULT_SETTINGS, type Entry, type EntryState, type Log, type LogKind, type Settings } from './types';
 
 export type PeriodKind = Exclude<LogKind, 'collection'>;
 
@@ -246,4 +246,68 @@ export async function exportEverything(): Promise<{ name: string; text: string }
 export async function writtenPages(): Promise<{ logIds: string[]; collections: Log[] }> {
   const [logIds, collections] = await Promise.all([db.entries.orderBy('logId').uniqueKeys(), db.logs.toArray()]);
   return { logIds: logIds as string[], collections };
+}
+
+// ---------- Open items (CLAUDE.md 4) ----------
+
+/** All entries, live. Open items are derived from them in the UI (never stored). */
+export function useAllEntries(): Entry[] | undefined {
+  return useLiveQuery(() => db.entries.toArray());
+}
+
+/**
+ * One entry's state, from the Open items panel: always a single entry, always
+ * the user's own gesture. Marking > or < leaves the destination to be written
+ * by hand (placement pending); anything else clears the mark.
+ */
+export async function markEntry(id: string, state: EntryState): Promise<void> {
+  const migrating = state === 'migrated' || state === 'scheduled';
+  await db.transaction('rw', db.entries, async () => {
+    const e = await db.entries.get(id);
+    if (!e || e.state === state) return;
+    const next: Entry = { ...e, state, updatedAt: new Date().toISOString() };
+    if (migrating) next.placement = e.state === 'migrated' || e.state === 'scheduled' ? (e.placement ?? { status: 'pending' }) : { status: 'pending' };
+    else delete next.placement;
+    await db.entries.put(next);
+  });
+}
+
+/** "I wrote it there": the user confirms they rewrote the item at its destination. */
+export async function confirmPlaced(id: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.entries.update(id, { placement: { status: 'placed', confirmedAt: now }, updatedAt: now });
+}
+
+/** Which of these period logs are set up: explicitly ("Set up week") or by having entries. */
+export function usePeriodsSetUp(logIds: string[]): Set<string> | undefined {
+  return useLiveQuery(
+    async () => {
+      const [marks, entries] = await Promise.all([
+        db.logs.where('kind').anyOf(['daily', 'weekly', 'monthly']).toArray(),
+        db.entries.where('logId').anyOf(logIds).toArray(),
+      ]);
+      const ids = new Set(logIds);
+      return new Set([...marks.map((l) => l.periodLogId ?? ''), ...entries.map((e) => e.logId)].filter((id) => ids.has(id)));
+    },
+    [logIds.join()],
+  );
+}
+
+/**
+ * "Set up week" / "Set up month": records that the empty page was set up, so
+ * the banner goes away on every device. The page itself stays empty. Synced
+ * ids must be unique, so the row gets its own id and names its period.
+ */
+export async function setUpPeriod(log: LogRef): Promise<void> {
+  const now = new Date().toISOString();
+  await db.logs.add({
+    id: `setup:${ulid()}`,
+    kind: log.kind,
+    title: log.title,
+    periodStart: log.periodStart,
+    periodEnd: log.periodEnd,
+    periodLogId: log.id,
+    createdAt: now,
+    updatedAt: now,
+  });
 }

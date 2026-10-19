@@ -172,3 +172,17 @@ Short log of technical decisions. Newest last.
 ## 2026-10-19 · Phase 3 accepted
 
 - Fernando confirmed on the iPhone: Copy As (incl. rich text pasted into native apps), Share, the selection surviving a tap on "…", Export, and copy/paste of entries inside the app.
+
+## 2026-10-19 · Phase 4: Open items and rituals
+
+- **Name:** the panel and its button are "Open items" (Fernando). Swipe right marks `>`, left marks `<` (Fernando confirmed the default); Settings › Reverse swipe directions flips it.
+- **Derived, never stored** (`src/data/openItems.ts`, tested): A = open tasks (and events with Event states on) on a Day/Week/Month whose period has ended; B = marked `>`/`<` with `placement.status = pending`, on any page; C = open Year items whose month has come (or `dueDate` passed). Notes and free text never. Grouped by page (Year items by month), oldest first, coarser page first on the same date; label + age ("Wk 41 · Oct 5 – 11 · last week").
+- **Only single-entry writes:** tap the bullet (open → done → cancelled → open), long press / right click for a states-only menu, swipe for `>`/`<`, and "I wrote it there" (placement → placed). No select-many, clear-all, copy or drag. Items acted on stay listed with their new state until the panel closes, so a second tap can still cancel; then resolved ones are gone.
+- **Suggested destination** (read-only, toast with "Open"): `>` → the next period of the same log, or the current one for an item left behind; if that level is off, the finest active log; from the Year, this Month; from a collection, the finest log. `<` → the Year, at the first month after the item. Nothing is ever written there.
+- **Horizon** setting deferred: without a date on the entry there is nothing to compare N periods against. Revisit if dates on entries arrive.
+- **Mac shortcuts:** ⌃⌥→ migrate, ⌃⌥← schedule. The spec's ⌥→/⌥← are the macOS "move by word" keys in any text field, so they stay with the system.
+- **Swipe** (touch only, `src/editor/swipe.ts`): horizontal after 10 px, commits at 72 px, reveals the glyph and the destination behind the line; marking again takes the mark back. Lines use `touch-action: pan-y`. The Mac uses menu and shortcuts (trackpad swipes belong to the browser).
+- **Layout:** ≥ 1000 px the panel is a 380 px column beside the page (page stays editable); below, a sheet from the right that closes with ×, a tap on the backdrop, or a swipe right outside the rows. Tapping an item opens its page and flashes the entry (the sheet closes on iPhone; the column stays on Mac).
+- **Set up banner:** on pages of the current period, "October isn't set up yet" / "Week 43 isn't set up yet" (month first). "Set up" records a small row (`setup:<ULID>`, `periodLogId`) so every device knows; the page stays empty; then it opens that page and the panel. Entries on the page also count as set up. Dismiss is per device and per period.
+- **Close the day:** from 20:00 by default (time and on/off in Settings), on current-period pages when Day is active. Opens tomorrow's page with the panel filtered to what is still open today ("Show all open items" removes the filter). Dismissed for the day once used.
+- **Count:** plain number beside the button (Settings › Show the count), no badge.

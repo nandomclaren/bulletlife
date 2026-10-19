@@ -453,7 +453,7 @@ Quando houver código nativo (iOS/macOS):
 
 ## 15. Premissas assumidas (confirmar com o Fernando)
 
-1. Direção dos swipes: `>` = para a direita, `<` = para a esquerda (com opção de inverter).
+1. Direção dos swipes: `>` = para a direita, `<` = para a esquerda (com opção de inverter). **Confirmado pelo Fernando.**
 2. Terceiro toque volta o item riscado para aberto.
 3. Cores iniciais dos bullets e nomes dos temas (seção 8).
 4. Prefixos: `.` tarefa, `o. ` evento, `- ` nota.

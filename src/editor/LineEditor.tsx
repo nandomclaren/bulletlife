@@ -2,12 +2,22 @@
 // The browser edits text inside a line; anything that changes line structure
 // (Enter, Backspace at a line start, multi-line deletes, paste, undo) is
 // intercepted in `beforeinput` and applied to the model, then re-rendered.
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { BulletMenu, UndoToast, type MenuActions } from './BulletMenu';
-import { selectionDoc, toHtml, toPlain } from '../export/format';
-import { setSelection } from '../export/selection';
-import { attachGutter } from './gutter';
-import { LINES_MIME, linesFromJson, linesFromText } from './paste';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
+import { BulletMenu, UndoToast, type MenuActions } from "./BulletMenu";
+import { selectionDoc, toHtml, toPlain } from "../export/format";
+import { setSelection } from "../export/selection";
+import { attachGutter } from "./gutter";
+import { attachSwipe } from "./swipe";
+import type { Destination, Mark } from "../data/openItems";
+import { MarkToast } from "../open/MarkToast";
+import { LINES_MIME, linesFromJson, linesFromText } from "./paste";
 import {
   colorTypes,
   continuationType,
@@ -26,8 +36,8 @@ import {
   shiftIndent,
   subtreeEnd,
   type Line,
-} from './lines';
-import { buildGutter, fillText, lineClass, textShapeMatches } from './render';
+} from "./lines";
+import { buildGutter, fillText, lineClass, textShapeMatches } from "./render";
 
 interface Caret {
   index: number;
@@ -46,8 +56,15 @@ class LineEditorCore {
   private lastTyping = 0;
   private composing = false;
   private detachGutter: () => void;
+  private detachSwipe: () => void;
   /** Settings › Event states: whether event bullets cycle through states. */
   eventStates = true;
+  /** Settings › Reverse swipe directions. */
+  reverseSwipes = false;
+  /** Suggested destination of a > or < mark (read-only). */
+  destination: ((mark: Mark) => Destination) | null = null;
+  /** A line was marked > or < (or the mark was taken back: null). */
+  onMark: ((mark: Mark | null) => void) | null = null;
   /** Opens the bullet menu (set by the React wrapper). */
   onMenu: ((lineId: string, anchor: DOMRect) => void) | null = null;
 
@@ -55,60 +72,79 @@ class LineEditorCore {
     private root: HTMLElement,
     initial: Line[],
     private onChange: (lines: Line[]) => void,
-    className = '',
+    className = "",
   ) {
     this.lines = initial.length ? initial.map((l) => ({ ...l })) : [newLine()];
-    root.contentEditable = 'true';
+    root.contentEditable = "true";
     root.className = `editor ${className}`.trim();
     root.spellcheck = true;
-    root.setAttribute('autocapitalize', 'sentences');
-    root.setAttribute('role', 'textbox');
-    root.setAttribute('aria-multiline', 'true');
-    root.addEventListener('beforeinput', this.onBeforeInput);
-    root.addEventListener('input', this.onInput);
-    root.addEventListener('keydown', this.onKeyDown);
-    root.addEventListener('compositionstart', this.onCompStart);
-    root.addEventListener('compositionend', this.onCompEnd);
-    document.addEventListener('selectionchange', this.onSelectionChange);
-    root.addEventListener('copy', this.onCopy);
-    root.addEventListener('cut', this.onCopy);
-    root.addEventListener('paste', this.onPaste);
+    root.setAttribute("autocapitalize", "sentences");
+    root.setAttribute("role", "textbox");
+    root.setAttribute("aria-multiline", "true");
+    root.addEventListener("beforeinput", this.onBeforeInput);
+    root.addEventListener("input", this.onInput);
+    root.addEventListener("keydown", this.onKeyDown);
+    root.addEventListener("compositionstart", this.onCompStart);
+    root.addEventListener("compositionend", this.onCompEnd);
+    document.addEventListener("selectionchange", this.onSelectionChange);
+    root.addEventListener("copy", this.onCopy);
+    root.addEventListener("cut", this.onCopy);
+    root.addEventListener("paste", this.onPaste);
     this.detachGutter = attachGutter(root, {
-      bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, this.eventStates) ? { ...l, state: nextState(l.state) } : null)),
-      chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
+      bullet: (id) =>
+        this.updateById(id, (l) =>
+          hasStates(l.type, this.eventStates)
+            ? { ...l, state: nextState(l.state) }
+            : null,
+        ),
+      chevron: (id) =>
+        this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
       menu: (id, anchor) => this.onMenu?.(id, anchor),
+    });
+    this.detachSwipe = attachSwipe(root, {
+      canSwipe: (id) => {
+        const l = this.lineById(id);
+        return !!l && hasStates(l.type, this.eventStates);
+      },
+      current: (id) => this.lineById(id)?.state,
+      destination: (_id, mark) => this.destination?.(mark).label ?? "",
+      commit: (id, mark) => this.markLine(id, mark),
+      reverse: () => this.reverseSwipes,
     });
     this.renderAll();
   }
 
   destroy() {
-    this.root.removeEventListener('beforeinput', this.onBeforeInput);
-    this.root.removeEventListener('input', this.onInput);
-    this.root.removeEventListener('keydown', this.onKeyDown);
-    this.root.removeEventListener('compositionstart', this.onCompStart);
-    this.root.removeEventListener('compositionend', this.onCompEnd);
-    document.removeEventListener('selectionchange', this.onSelectionChange);
-    this.root.removeEventListener('copy', this.onCopy);
-    this.root.removeEventListener('cut', this.onCopy);
-    this.root.removeEventListener('paste', this.onPaste);
+    this.root.removeEventListener("beforeinput", this.onBeforeInput);
+    this.root.removeEventListener("input", this.onInput);
+    this.root.removeEventListener("keydown", this.onKeyDown);
+    this.root.removeEventListener("compositionstart", this.onCompStart);
+    this.root.removeEventListener("compositionend", this.onCompEnd);
+    document.removeEventListener("selectionchange", this.onSelectionChange);
+    this.root.removeEventListener("copy", this.onCopy);
+    this.root.removeEventListener("cut", this.onCopy);
+    this.root.removeEventListener("paste", this.onPaste);
     this.detachGutter();
+    this.detachSwipe();
   }
 
   // ---------- rendering ----------
 
   private renderLine(line: Line, collapsed: boolean): HTMLElement {
-    const el = document.createElement('div');
+    const el = document.createElement("div");
     el.dataset.id = line.id;
-    el.style.setProperty('--indent', String(line.indent));
-    const text = document.createElement('div');
-    text.className = 'line-text';
+    el.style.setProperty("--indent", String(line.indent));
+    const text = document.createElement("div");
+    text.className = "line-text";
     fillText(text, line.text);
     el.append(buildGutter(document, line, collapsed), text);
     return el;
   }
 
   private renderAll() {
-    this.root.replaceChildren(...this.lines.map((l) => this.renderLine(l, l.collapsed)));
+    this.root.replaceChildren(
+      ...this.lines.map((l) => this.renderLine(l, l.collapsed)),
+    );
     this.refreshDecor();
   }
 
@@ -119,9 +155,13 @@ class LineEditorCore {
     const els = this.root.children;
     this.lines.forEach((l, i) => {
       const el = els[i] as HTMLElement;
-      el.className = lineClass(l, { color: colors[i], hasChildren: hasChildren(this.lines, i), hidden: hidden[i] });
-      el.style.setProperty('--indent', String(l.indent));
-      const gutter = el.querySelector(':scope > .gutter');
+      el.className = lineClass(l, {
+        color: colors[i],
+        hasChildren: hasChildren(this.lines, i),
+        hidden: hidden[i],
+      });
+      el.style.setProperty("--indent", String(l.indent));
+      const gutter = el.querySelector(":scope > .gutter");
       gutter?.replaceWith(buildGutter(document, l, l.collapsed));
     });
   }
@@ -133,13 +173,18 @@ class LineEditorCore {
   // ---------- caret ----------
 
   private lineIndexOf(node: Node | null): number {
-    const el = (node instanceof Element ? node : node?.parentElement)?.closest('.line');
+    const el = (node instanceof Element ? node : node?.parentElement)?.closest(
+      ".line",
+    );
     return el ? Array.prototype.indexOf.call(this.root.children, el) : -1;
   }
 
   private offsetIn(index: number, node: Node, offset: number): number {
-    const text = this.root.children[index]?.querySelector('.line-text');
-    if (!text || !text.contains(node)) return node === this.root.children[index] && offset > 0 ? this.lines[index].text.length : 0;
+    const text = this.root.children[index]?.querySelector(".line-text");
+    if (!text || !text.contains(node))
+      return node === this.root.children[index] && offset > 0
+        ? this.lines[index].text.length
+        : 0;
     const r = document.createRange();
     r.selectNodeContents(text);
     r.setEnd(node, offset);
@@ -154,13 +199,19 @@ class LineEditorCore {
     const ei = this.lineIndexOf(r.endContainer);
     if (si < 0 || ei < 0) return null;
     return {
-      start: { index: si, offset: this.offsetIn(si, r.startContainer, r.startOffset) },
-      end: { index: ei, offset: this.offsetIn(ei, r.endContainer, r.endOffset) },
+      start: {
+        index: si,
+        offset: this.offsetIn(si, r.startContainer, r.startOffset),
+      },
+      end: {
+        index: ei,
+        offset: this.offsetIn(ei, r.endContainer, r.endOffset),
+      },
     };
   }
 
   private placeCaret({ index, offset }: Caret) {
-    const text = this.root.children[index]?.querySelector('.line-text');
+    const text = this.root.children[index]?.querySelector(".line-text");
     if (!text) return;
     const sel = document.getSelection();
     const r = document.createRange();
@@ -176,7 +227,13 @@ class LineEditorCore {
       remaining -= len;
       node = walker.nextNode();
     }
-    if (!node) r.setStart(text, text.childNodes.length && text.lastChild?.nodeName === 'BR' ? 0 : text.childNodes.length);
+    if (!node)
+      r.setStart(
+        text,
+        text.childNodes.length && text.lastChild?.nodeName === "BR"
+          ? 0
+          : text.childNodes.length,
+      );
     r.collapse(true);
     sel?.removeAllRanges();
     sel?.addRange(r);
@@ -197,7 +254,10 @@ class LineEditorCore {
     const snap = from.pop();
     if (!snap) return;
     const sel = this.readSelection();
-    to.push({ lines: this.lines.map((l) => ({ ...l })), caret: sel?.start ?? { index: 0, offset: 0 } });
+    to.push({
+      lines: this.lines.map((l) => ({ ...l })),
+      caret: sel?.start ?? { index: 0, offset: 0 },
+    });
     this.lines = snap.lines;
     this.lastTyping = 0;
     this.renderAll();
@@ -209,7 +269,8 @@ class LineEditorCore {
 
   /** Renumbers lists, keeping the numbers the user chose before this edit. */
   private renumber(): number[] {
-    const before = this.undoStack[this.undoStack.length - 1]?.lines ?? this.lines;
+    const before =
+      this.undoStack[this.undoStack.length - 1]?.lines ?? this.lines;
     return renumberLists(this.lines, listRestarts(before));
   }
 
@@ -229,13 +290,17 @@ class LineEditorCore {
   }
 
   private insertText(at: Caret, text: string): Caret {
-    const parts = text.replace(/\r\n?/g, '\n').split('\n');
+    const parts = text.replace(/\r\n?/g, "\n").split("\n");
     const line = this.lines[at.index];
     const tail = line.text.slice(at.offset);
     line.text = line.text.slice(0, at.offset) + parts[0];
     let caret: Caret = { index: at.index, offset: line.text.length };
     for (const part of parts.slice(1)) {
-      const fresh = newLine({ type: continuationType(line.type), indent: line.indent, text: part });
+      const fresh = newLine({
+        type: continuationType(line.type),
+        indent: line.indent,
+        text: part,
+      });
       this.lines.splice(caret.index + 1, 0, fresh);
       caret = { index: caret.index + 1, offset: part.length };
     }
@@ -246,19 +311,24 @@ class LineEditorCore {
   private enter(at: Caret) {
     const i = at.index;
     const line = this.lines[i];
-    if (!line.text && line.type !== 'text') {
+    if (!line.text && line.type !== "text") {
       if (line.indent > 0) this.shiftLines(i, i, -1, false);
-      else Object.assign(line, { type: 'text', state: 'open', ...NO_SIGNIFIERS });
+      else
+        Object.assign(line, { type: "text", state: "open", ...NO_SIGNIFIERS });
       return this.commit(at);
     }
     const num = numberPrefix(line.text);
     // Enter on an empty list item ("3. " alone) ends the list.
     if (num && line.text.trim() === num) {
-      line.text = '';
+      line.text = "";
       return this.commit({ index: i, offset: 0 });
     }
     if (at.offset === 0 && line.text) {
-      this.lines.splice(i, 0, newLine({ type: continuationType(line.type), indent: line.indent }));
+      this.lines.splice(
+        i,
+        0,
+        newLine({ type: continuationType(line.type), indent: line.indent }),
+      );
       return this.commit({ index: i + 1, offset: 0 });
     }
     const kids = hasChildren(this.lines, i);
@@ -267,10 +337,16 @@ class LineEditorCore {
     const asChild = kids && !line.collapsed;
     const at2 = asChild ? i + 1 : kids ? subtreeEnd(this.lines, i) : i + 1;
     const fresh = asChild
-      ? newLine({ type: this.lines[i + 1].type === 'heading' ? 'text' : this.lines[i + 1].type, indent: line.indent + 1 })
+      ? newLine({
+          type:
+            this.lines[i + 1].type === "heading"
+              ? "text"
+              : this.lines[i + 1].type,
+          indent: line.indent + 1,
+        })
       : newLine({ type: continuationType(line.type), indent: line.indent });
     // Next list number for a sibling ("2. …" → "3. ").
-    const prefix = num && !asChild ? `${nextNumber(num)} ` : '';
+    const prefix = num && !asChild ? `${nextNumber(num)} ` : "";
     fresh.text = prefix + line.text.slice(at.offset);
     line.text = line.text.slice(0, at.offset);
     this.lines.splice(at2, 0, fresh);
@@ -281,7 +357,7 @@ class LineEditorCore {
   private backspaceAtStart(at: Caret) {
     const line = this.lines[at.index];
     // A plain line can still carry a priority mark (older data); it must always be removable.
-    if ((line.type === 'text' || line.type === 'heading') && line.priority) {
+    if ((line.type === "text" || line.type === "heading") && line.priority) {
       line.priority = false;
       return this.commit(at);
     }
@@ -289,14 +365,17 @@ class LineEditorCore {
       this.shiftLines(at.index, at.index, -1, false);
       return this.commit(at);
     }
-    if (line.type !== 'text') {
-      Object.assign(line, { type: 'text', state: 'open', ...NO_SIGNIFIERS });
+    if (line.type !== "text") {
+      Object.assign(line, { type: "text", state: "open", ...NO_SIGNIFIERS });
       return this.commit(at);
     }
     if (at.index === 0) return;
     const prev = this.lines[at.index - 1];
     const offset = prev.text.length;
-    this.deleteRange({ index: at.index - 1, offset }, { index: at.index, offset: 0 });
+    this.deleteRange(
+      { index: at.index - 1, offset },
+      { index: at.index, offset: 0 },
+    );
     this.commit({ index: at.index - 1, offset });
   }
 
@@ -338,6 +417,15 @@ class LineEditorCore {
     this.updateById(id, (l) => ({ ...l, ...patch }));
   }
 
+  /** Marks one line > or <; marking it again takes it back to open. */
+  markLine(id: string, mark: Mark) {
+    const l = this.lineById(id);
+    if (!l || !hasStates(l.type, this.eventStates)) return;
+    const next = l.state === mark ? "open" : mark;
+    this.patchLine(id, { state: next });
+    this.onMark?.(next === "open" ? null : mark);
+  }
+
   shiftLine(id: string, delta: 1 | -1) {
     const i = this.lines.findIndex((l) => l.id === id);
     if (i < 0 || !shiftIndent(this.lines, i, i, delta)) return;
@@ -351,7 +439,8 @@ class LineEditorCore {
     if (i < 0) return;
     this.snapshot({ index: i, offset: 0 });
     const end = subtreeEnd(this.lines, i);
-    for (let j = i + 1; j < end; j++) this.lines[j].indent = Math.max(0, this.lines[j].indent - 1);
+    for (let j = i + 1; j < end; j++)
+      this.lines[j].indent = Math.max(0, this.lines[j].indent - 1);
     this.lines.splice(i, 1);
     if (!this.lines.length) this.lines.push(newLine());
     this.renumber();
@@ -374,17 +463,17 @@ class LineEditorCore {
     const collapsed = !multi && start.offset === end.offset;
 
     switch (e.inputType) {
-      case 'insertParagraph':
-      case 'insertLineBreak': {
+      case "insertParagraph":
+      case "insertLineBreak": {
         e.preventDefault();
         this.snapshot(start);
         const at = collapsed ? start : this.deleteRange(start, end);
         return this.enter(at);
       }
-      case 'deleteContentBackward':
-      case 'deleteWordBackward':
-      case 'deleteSoftLineBackward':
-      case 'deleteHardLineBackward':
+      case "deleteContentBackward":
+      case "deleteWordBackward":
+      case "deleteSoftLineBackward":
+      case "deleteHardLineBackward":
         if (multi) break;
         if (collapsed && start.offset === 0) {
           e.preventDefault();
@@ -393,10 +482,14 @@ class LineEditorCore {
         }
         this.snapshot(start, true);
         return;
-      case 'deleteContentForward':
-      case 'deleteWordForward':
+      case "deleteContentForward":
+      case "deleteWordForward":
         if (multi) break;
-        if (collapsed && start.offset === this.lines[start.index].text.length && start.index + 1 < this.lines.length) {
+        if (
+          collapsed &&
+          start.offset === this.lines[start.index].text.length &&
+          start.index + 1 < this.lines.length
+        ) {
           e.preventDefault();
           this.snapshot(start);
           this.deleteRange(start, { index: start.index + 1, offset: 0 });
@@ -404,11 +497,11 @@ class LineEditorCore {
         }
         this.snapshot(start, true);
         return;
-      case 'insertFromPaste':
-      case 'insertFromDrop':
-      case 'insertReplacementText': {
-        const text = e.dataTransfer?.getData('text/plain') ?? e.data ?? '';
-        if (!multi && !text.includes('\n')) {
+      case "insertFromPaste":
+      case "insertFromDrop":
+      case "insertReplacementText": {
+        const text = e.dataTransfer?.getData("text/plain") ?? e.data ?? "";
+        if (!multi && !text.includes("\n")) {
           this.snapshot(start);
           return; // single-line: let the browser do it
         }
@@ -416,15 +509,20 @@ class LineEditorCore {
         this.snapshot(start);
         return this.commit(this.insertText(this.deleteRange(start, end), text));
       }
-      case 'historyUndo':
+      case "historyUndo":
         e.preventDefault();
         return this.restore(this.undoStack, this.redoStack);
-      case 'historyRedo':
+      case "historyRedo":
         e.preventDefault();
         return this.restore(this.redoStack, this.undoStack);
-      case 'insertText':
+      case "insertText":
         // A space at the very start of a line indents it (the iPhone keyboard has no Tab).
-        if (collapsed && start.offset === 0 && e.data === ' ' && shiftIndent(this.lines, start.index, start.index, 1)) {
+        if (
+          collapsed &&
+          start.offset === 0 &&
+          e.data === " " &&
+          shiftIndent(this.lines, start.index, start.index, 1)
+        ) {
           e.preventDefault();
           this.snapshot(start);
           this.shiftLines(start.index, start.index, 1);
@@ -446,7 +544,8 @@ class LineEditorCore {
     e.preventDefault();
     this.snapshot(start);
     let at = this.deleteRange(start, end);
-    if (e.inputType.startsWith('insert') && e.data) at = this.insertText(at, e.data);
+    if (e.inputType.startsWith("insert") && e.data)
+      at = this.insertText(at, e.data);
     this.commit(at);
   };
 
@@ -456,22 +555,33 @@ class LineEditorCore {
     if (!sel) return;
     const i = sel.start.index;
     const el = this.root.children[i];
-    const text = (el?.querySelector('.line-text')?.textContent ?? '').replace(/ /g, ' ');
+    const text = (el?.querySelector(".line-text")?.textContent ?? "").replace(
+      / /g,
+      " ",
+    );
     const line = this.lines[i];
     line.text = text;
 
     // Rapid logging prefix typed at the start of the line.
-    const m = sel.start.offset <= 5 ? matchPrefix(text.slice(0, sel.start.offset)) : null;
+    const m =
+      sel.start.offset <= 5
+        ? matchPrefix(text.slice(0, sel.start.offset))
+        : null;
     // A lone "* " marks priority only on a line that already has a bullet;
     // on plain text it stays a typed asterisk.
-    const bulletless = line.type === 'text' || line.type === 'heading';
-    if (m && m.length === sel.start.offset && !(m.type === 'text' && bulletless)) {
+    const bulletless = line.type === "text" || line.type === "heading";
+    if (
+      m &&
+      m.length === sel.start.offset &&
+      !(m.type === "text" && bulletless)
+    ) {
       line.text = text.slice(m.length);
-      if (m.type !== 'text') Object.assign(line, { type: m.type, state: 'open' });
+      if (m.type !== "text")
+        Object.assign(line, { type: m.type, state: "open" });
       line.priority = m.priority || line.priority;
       return this.commit({ index: i, offset: 0 });
     }
-    const textEl = el?.querySelector<HTMLElement>('.line-text');
+    const textEl = el?.querySelector<HTMLElement>(".line-text");
     // A list number appeared, changed or went away: rebuild this line's text
     // (number span + rest), keep the caret, and recolor (children inherit).
     if (textEl && text && !textShapeMatches(textEl, text)) {
@@ -480,8 +590,8 @@ class LineEditorCore {
       this.refreshDecor();
     }
     // An emptied line can lose its <br>; keep it so the line keeps its height.
-    if (textEl && !text && !textEl.querySelector('br')) {
-      textEl.append(document.createElement('br'));
+    if (textEl && !text && !textEl.querySelector("br")) {
+      textEl.append(document.createElement("br"));
       this.refreshDecor();
     }
     this.emit();
@@ -490,8 +600,18 @@ class LineEditorCore {
   private onKeyDown = (e: KeyboardEvent) => {
     const sel = this.readSelection();
     if (!sel) return;
-    const atLineStart = sel.start.index === sel.end.index && sel.start.offset === 0 && sel.end.offset === 0;
-    if (e.key === 'Backspace' && atLineStart && !e.metaKey && !e.altKey && !e.ctrlKey && !this.composing) {
+    const atLineStart =
+      sel.start.index === sel.end.index &&
+      sel.start.offset === 0 &&
+      sel.end.offset === 0;
+    if (
+      e.key === "Backspace" &&
+      atLineStart &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !this.composing
+    ) {
       // Handled here rather than in beforeinput: at the very start of the
       // editor WebKit may not let beforeinput cancel the deletion, and would
       // move the caret into the gutter.
@@ -500,15 +620,28 @@ class LineEditorCore {
       this.backspaceAtStart(sel.start);
       return;
     }
-    if (e.code === 'Tab') {
+    if (e.code === "Tab") {
       e.preventDefault();
       this.snapshot(sel.start);
       this.shiftLines(sel.start.index, sel.end.index, e.shiftKey ? -1 : 1);
-    } else if (e.code === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    } else if (e.code === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       const l = this.lines[sel.start.index];
-      if (hasStates(l.type, this.eventStates)) this.updateById(l.id, (x) => ({ ...x, state: nextState(x.state) }));
-    } else if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
+      if (hasStates(l.type, this.eventStates))
+        this.updateById(l.id, (x) => ({ ...x, state: nextState(x.state) }));
+    } else if (
+      (e.code === "ArrowRight" || e.code === "ArrowLeft") &&
+      e.ctrlKey &&
+      e.altKey &&
+      !e.metaKey
+    ) {
+      // ⌃⌥→ migrate, ⌃⌥← schedule (⌥→ alone moves by word on the Mac).
+      e.preventDefault();
+      this.markLine(
+        this.lines[sel.start.index].id,
+        e.code === "ArrowRight" ? "migrated" : "scheduled",
+      );
+    } else if (e.code === "KeyZ" && (e.metaKey || e.ctrlKey)) {
       // Safari does not always send historyUndo for our custom edits.
       e.preventDefault();
       if (e.shiftKey) this.restore(this.redoStack, this.undoStack);
@@ -542,19 +675,28 @@ class LineEditorCore {
     if (!sel || !e.clipboardData) return;
     const { start, end } = sel;
     const line = this.lines[start.index];
-    const wholeCollapsed = line.collapsed && start.offset === 0 && end.offset >= line.text.length && subtreeEnd(this.lines, start.index) > start.index + 1;
+    const wholeCollapsed =
+      line.collapsed &&
+      start.offset === 0 &&
+      end.offset >= line.text.length &&
+      subtreeEnd(this.lines, start.index) > start.index + 1;
     if (start.index === end.index && !wholeCollapsed) return;
     const lines = this.selectedLines();
     if (!lines) return;
     e.preventDefault();
     const doc = selectionDoc(lines);
-    e.clipboardData.setData('text/plain', toPlain(doc));
-    e.clipboardData.setData('text/html', toHtml(doc));
+    e.clipboardData.setData("text/plain", toPlain(doc));
+    e.clipboardData.setData("text/html", toHtml(doc));
     e.clipboardData.setData(LINES_MIME, JSON.stringify(lines));
-    if (e.type === 'cut') {
+    if (e.type === "cut") {
       // Cut what was copied: hidden children of a collapsed last line go too.
-      const last = this.lines.findIndex((l) => l.id === lines[lines.length - 1].id);
-      const to = last > end.index ? { index: last, offset: this.lines[last].text.length } : end;
+      const last = this.lines.findIndex(
+        (l) => l.id === lines[lines.length - 1].id,
+      );
+      const to =
+        last > end.index
+          ? { index: last, offset: this.lines[last].text.length }
+          : end;
       this.snapshot(start);
       this.commit(this.deleteRange(start, to));
     }
@@ -565,20 +707,26 @@ class LineEditorCore {
     const data = e.clipboardData;
     const sel = this.readSelection();
     if (!data || !sel) return;
-    const pasted = linesFromJson(data.getData(LINES_MIME)) ?? linesFromText(data.getData('text/plain'));
+    const pasted =
+      linesFromJson(data.getData(LINES_MIME)) ??
+      linesFromText(data.getData("text/plain"));
     if (!pasted) return; // ordinary text: the regular paste below
     e.preventDefault();
     this.snapshot(sel.start);
     const at = this.deleteRange(sel.start, sel.end);
     const line = this.lines[at.index];
-    const fresh = pasted.map((p) => newLine({ ...p, indent: line.indent + p.indent, collapsed: false }));
+    const fresh = pasted.map((p) =>
+      newLine({ ...p, indent: line.indent + p.indent, collapsed: false }),
+    );
     const head = line.text.slice(0, at.offset);
     const tail = line.text.slice(at.offset);
     if (!line.text) this.lines.splice(at.index, 1, ...fresh);
     else if (!head) this.lines.splice(at.index, 0, ...fresh);
     else {
       line.text = head;
-      const rest = tail ? [newLine({ type: line.type, indent: line.indent, text: tail })] : [];
+      const rest = tail
+        ? [newLine({ type: line.type, indent: line.indent, text: tail })]
+        : [];
       this.lines.splice(at.index + 1, 0, ...fresh, ...rest);
     }
     const last = this.lines.indexOf(fresh[fresh.length - 1]);
@@ -588,18 +736,33 @@ class LineEditorCore {
   /** Safety net: the caret may only live inside a line's text, never in the gutter. */
   private onSelectionChange = () => {
     const sel = document.getSelection();
-    if (sel && !sel.isCollapsed && sel.anchorNode && this.root.contains(sel.anchorNode)) {
+    if (
+      sel &&
+      !sel.isCollapsed &&
+      sel.anchorNode &&
+      this.root.contains(sel.anchorNode)
+    ) {
       setSelection(this.selectedLines());
       return;
     }
-    if (!sel || !sel.isCollapsed || !sel.anchorNode || !this.root.contains(sel.anchorNode)) return;
+    if (
+      !sel ||
+      !sel.isCollapsed ||
+      !sel.anchorNode ||
+      !this.root.contains(sel.anchorNode)
+    )
+      return;
     // A caret back in the text (typing, tapping a line) ends the stored selection.
     setSelection(null);
     const node = sel.anchorNode;
     const el = node instanceof Element ? node : node.parentElement;
-    if (el?.closest('.line-text')) return;
+    if (el?.closest(".line-text")) return;
     let index = this.lineIndexOf(node);
-    if (index < 0) index = node === this.root ? Math.min(sel.anchorOffset, this.lines.length - 1) : 0;
+    if (index < 0)
+      index =
+        node === this.root
+          ? Math.min(sel.anchorOffset, this.lines.length - 1)
+          : 0;
     this.placeCaret({ index, offset: 0 });
   };
 
@@ -634,20 +797,44 @@ interface Props {
   eventStates?: boolean;
   /** Receives a function that places the caret at the end of a line (or of the page), for taps on empty space. */
   focusRef?: MutableRefObject<((lineId?: string) => void) | null>;
+  /** Settings › Reverse swipe directions. */
+  reverseSwipes?: boolean;
+  /** Suggested destination of a > or < mark on this page (read-only). */
+  destination?: (mark: Mark) => Destination;
 }
 
-export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef }: Props) {
+export function LineEditor({
+  initial,
+  onChange,
+  autoFocus,
+  className,
+  label,
+  eventStates = true,
+  focusRef,
+  reverseSwipes = false,
+  destination,
+}: Props) {
   const host = useRef<HTMLDivElement>(null);
   const core = useRef<LineEditorCore | null>(null);
-  const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);
+  const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(
+    null,
+  );
   const [toast, setToast] = useState(0);
+  const [marked, setMarked] = useState<{ n: number; mark: Mark | null } | null>(
+    null,
+  );
+  const dest = useRef(destination);
+  dest.current = destination;
 
   useEffect(() => {
     const c = new LineEditorCore(host.current!, initial, onChange, className);
     core.current = c;
     c.eventStates = eventStates;
+    c.reverseSwipes = reverseSwipes;
+    c.destination = (mark) => dest.current?.(mark) ?? { path: "", label: "" };
+    c.onMark = (mark) => setMarked((m) => ({ n: (m?.n ?? 0) + 1, mark }));
     c.onMenu = (id, anchor) => setMenu({ id, anchor });
-    if (label) host.current!.setAttribute('aria-label', label);
+    if (label) host.current!.setAttribute("aria-label", label);
     if (focusRef) focusRef.current = (lineId) => c.focusEnd(lineId);
     if (autoFocus) c.focusEnd();
     return () => {
@@ -661,14 +848,27 @@ export function LineEditor({ initial, onChange, autoFocus, className, label, eve
   useEffect(() => {
     if (core.current) core.current.eventStates = eventStates;
   }, [eventStates]);
+  useEffect(() => {
+    if (core.current) core.current.reverseSwipes = reverseSwipes;
+  }, [reverseSwipes]);
 
   const closeMenu = useCallback(() => setMenu(null), []);
   const hideToast = useCallback(() => setToast(0), []);
+  const hideMark = useCallback(() => setMarked(null), []);
   const line = menu ? core.current?.lineById(menu.id) : undefined;
   const actions = useMemo<MenuActions | null>(
     () =>
       menu && {
-        patch: (patch) => core.current?.patchLine(menu.id, patch),
+        patch: (patch) => {
+          const before = core.current?.lineById(menu.id)?.state;
+          core.current?.patchLine(menu.id, patch);
+          const mark =
+            patch.state === "migrated" || patch.state === "scheduled"
+              ? patch.state
+              : null;
+          if (mark && before !== mark)
+            setMarked((m) => ({ n: (m?.n ?? 0) + 1, mark }));
+        },
         shift: (delta) => core.current?.shiftLine(menu.id, delta),
         remove: () => {
           core.current?.deleteLine(menu.id);
@@ -682,8 +882,29 @@ export function LineEditor({ initial, onChange, autoFocus, className, label, eve
   return (
     <>
       <div ref={host} />
-      {menu && line && actions && <BulletMenu line={line} anchor={menu.anchor} eventStates={eventStates} actions={actions} />}
-      {toast > 0 && <UndoToast key={toast} onUndo={() => core.current?.undo()} onDone={hideToast} />}
+      {menu && line && actions && (
+        <BulletMenu
+          line={line}
+          anchor={menu.anchor}
+          eventStates={eventStates}
+          actions={actions}
+        />
+      )}
+      {toast > 0 && (
+        <UndoToast
+          key={toast}
+          onUndo={() => core.current?.undo()}
+          onDone={hideToast}
+        />
+      )}
+      {marked && destination && (
+        <MarkToast
+          key={marked.n}
+          mark={marked.mark}
+          destination={marked.mark ? destination(marked.mark) : null}
+          onDone={hideMark}
+        />
+      )}
     </>
   );
 }

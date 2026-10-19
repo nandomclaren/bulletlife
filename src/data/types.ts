@@ -32,6 +32,8 @@ export interface Log {
   title: string;
   periodStart?: string;
   periodEnd?: string;
+  /** A period page set up explicitly ("Set up week"): the time log it stands for, e.g. 'weekly:2026-W43'. */
+  periodLogId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,10 +46,24 @@ export interface Settings {
   markdownGlyphs?: 'checkboxes' | 'dots';
   /** When everything was last exported to a file on this device (ISO). */
   lastExportAt?: string;
+  /** Settings › Reverse swipe directions: swipe left marks > and right marks <. */
+  reverseSwipes: boolean;
+  /** Settings › "Week 43 isn't set up yet" banner. */
+  setupBanner: boolean;
+  /** Settings › Close the day banner, and from what time ('HH:MM'). */
+  closeDay: boolean;
+  closeDayAt: string;
+  /** Settings › number on the Open items button. */
+  openCount: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   activeLogs: { monthly: true, weekly: true, daily: true },
   eventStates: true,
   firstDayOfWeek: 1,
+  reverseSwipes: false,
+  setupBanner: true,
+  closeDay: true,
+  closeDayAt: '20:00',
+  openCount: true,
 };

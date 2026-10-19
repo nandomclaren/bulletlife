@@ -8,6 +8,8 @@ import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
 import { PageMenu } from '../export/PageMenu';
+import { Banners } from '../open/Banners';
+import { OpenItemsButton } from '../open/OpenItemsButton';
 
 /** Month: a fixed calendar rendered from the date (never stored) plus "Month tasks". */
 export function MonthPage({ ym }: { ym: string }) {
@@ -35,9 +37,11 @@ export function MonthPage({ ym }: { ym: string }) {
   return (
     <main className="page page-time page-month">
       <TimeHeader level="month" periodKey={ym} anchor={anchor} />
+      <Banners current={isCurrent} />
       <p className="eyebrow">{fmt(`${ym}-01`, { month: 'long' })}</p>
       <div className="title-row">
         <h1>{isCurrent ? t.pages.thisMonth : fmt(`${ym}-01`, { month: 'long', year: 'numeric' })}</h1>
+        <OpenItemsButton />
         <PageMenu page={{ kind: 'monthly', key: ym }} />
       </div>
       <div className="month-spread">
@@ -105,6 +109,7 @@ export function YearPage({ year }: { year: string }) {
       <TimeHeader level="year" periodKey={year} anchor={anchor} />
       <div className="title-row">
         <h1>{year}</h1>
+        <OpenItemsButton />
         <PageMenu page={{ kind: 'future', key: year }} />
       </div>
       {months.map((ym) => (

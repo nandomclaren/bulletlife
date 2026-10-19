@@ -91,3 +91,19 @@ export function flash(id: string) {
     window.setTimeout(() => el.classList.remove('flash'), 1200);
   }, 60);
 }
+
+/** After opening an entry's page (from Open items): scroll to the entry and flash it. */
+export function flashEntry(id: string) {
+  const until = Date.now() + 2000;
+  const attempt = () => {
+    const el = document.querySelector<HTMLElement>(`.line[data-id="${CSS.escape(id)}"]`);
+    if (!el || el.offsetParent === null) {
+      if (Date.now() < until) window.setTimeout(attempt, 80);
+      return;
+    }
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add('flash');
+    window.setTimeout(() => el.classList.remove('flash'), 1400);
+  };
+  window.setTimeout(attempt, 80);
+}
