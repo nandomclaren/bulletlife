@@ -59,3 +59,10 @@ describe('backup', () => {
     expect(snapshotsToPrune(ids)).toEqual(['2026-09-03', '2026-09-02', '2026-09-01']);
   });
 });
+
+describe('backup file name', () => {
+  it('is recognizable: BulletLife_YYYYMMDD', async () => {
+    const { backupFileName } = await import('./backup');
+    expect(backupFileName(new Date(2026, 9, 19, 23, 5))).toBe('BulletLife_20261019.json');
+  });
+});

@@ -261,3 +261,4 @@ Short log of technical decisions. Newest last.
 
 - Tapping an open item on a wide screen opens its page as the second page (split view opens if closed) and flashes the entry there; the main page stays where you are writing and the panel stays open. `flashEntry` takes a scope so it flashes inside the second page. On the iPhone nothing changes: the main page goes to the item and the sheet closes.
 - Settings: the chosen option is shown with a radio mark at the right instead of a ✓ after its title (in Done mark the ✓ read as part of the option).
+- Backup file names are now `BulletLife_YYYYMMDD.json` (and `.md` for the Markdown export), at Fernando's request; a second export on the same day gets the usual " 2" from Files/Finder.

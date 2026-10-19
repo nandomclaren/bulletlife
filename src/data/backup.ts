@@ -86,5 +86,5 @@ export function exportReminderDue(lastExportAt: string | undefined, now: Date, h
 
 export function backupFileName(now: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
-  return `bullet-life-${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}.json`;
+  return `BulletLife_${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}.json`;
 }
