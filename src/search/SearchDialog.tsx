@@ -110,7 +110,9 @@ function Dialog() {
                 ) : (
                   <>
                     <span className={`search-glyph g-${r.entry.type} gs-${r.entry.state}`} aria-hidden>
-                      {r.entry.type === 'text' || r.entry.type === 'heading' ? '' : glyph(r.entry.type, r.entry.state, true)}
+                      {r.entry.type === 'text' || r.entry.type === 'heading'
+                        ? ''
+                        : glyph(r.entry.type, r.entry.state, true).replace('×', settings.doneMark === 'check' ? '✓' : '×')}
                     </span>
                     <span className={`search-text${r.entry.state === 'cancelled' ? ' is-cancelled' : ''}`}>{highlight(r.entry.text, r.ranges)}</span>
                     <span className="search-origin">

@@ -149,6 +149,21 @@ export function SettingsPage() {
       </section>
 
       <section className="setting">
+        <h2 id="done-mark-label">{t.settings.doneMark}</h2>
+        <div className="options" role="radiogroup" aria-labelledby="done-mark-label">
+          {(['cross', 'check'] as const).map((m) => (
+            <button key={m} role="radio" aria-checked={settings.doneMark === m} className="option" onClick={() => void updateSettings({ doneMark: m })}>
+              <span className={`chip-glyph c-task g-cross done-preview-${m}`} aria-hidden />
+              <span className="option-text">
+                <span className="option-title">{t.settings.doneMarks[m]}</span>
+                <span className="option-hint">{t.settings.doneMarkHints[m]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="setting">
         <h2 id="date-format-label">{t.settings.dateFormat}</h2>
         <div className="options" role="radiogroup" aria-labelledby="date-format-label">
           {(['dmy', 'mdy'] as const).map((o) => (

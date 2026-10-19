@@ -235,3 +235,7 @@ Short log of technical decisions. Newest last.
 
 - **Split view (Mac, ≥ 1000 px):** a button between Open items and "…" opens a second notebook page on the right; both are editable. Pages now navigate through a pane context (`src/pages/pane.tsx`): the main pane uses the window history; the second pane keeps its own path (remembered on the device, Index by default), anchor date, "came from" highlight, back stack and scroll. Columns: main | second | Open items (docked), via `--split-w` / `--panel-w`. Banners show only in the main pane. The same page open on both sides is fine: each editor writes only what it changed and picks up the other's edits after a typing pause.
 - **Sort by date** is offered only when two or more dated items in a list are out of order among themselves; a single date, or undated items in between, no longer show the mark.
+
+## 2026-10-19 · Done mark: cross or check
+
+- Settings › Done mark: **Cross** (default, the original method) or **Check**. The check is drawn in CSS like the ×: same 1.6 px stroke, same height on the baseline, same color (the item's bullet color), so only the shape changes. Switches the page, menu chips, Open items and search together. Exports keep `[x]` / `×` (the stored state is the same).

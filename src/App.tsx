@@ -36,6 +36,8 @@ function Routes() {
     // How due dates are read and shown, for every editor.
     dueView.order = settings.dateOrder;
     dueView.firstDay = settings.firstDayOfWeek as Weekday;
+    // Settings › Done mark: drawn in CSS (editor.css), switched for the whole app.
+    document.documentElement.classList.toggle('done-check', settings.doneMark === 'check');
   }
   useEffect(restoreScroll, [path]);
   useShortcuts(path, settings);

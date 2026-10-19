@@ -691,3 +691,34 @@
     animation: none;
   }
 }
+
+/* Settings › Done mark › Check: a drawn check instead of ×, same stroke
+   weight (1.6 px), size and color. The page, the menu chips and Open items
+   all switch together. */
+html.done-check .bullet.cross::before,
+html.done-check .g-cross::before {
+  width: 10px;
+  height: 8px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'%3E%3Cpath d='M0.9 4.1 3.7 6.9 9.1 1' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'%3E%3Cpath d='M0.9 4.1 3.7 6.9 9.1 1' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Settings previews show each mark regardless of the current choice. */
+.done-preview-cross::before {
+  width: 8px !important;
+  height: 8px !important;
+  -webkit-mask: none !important;
+  mask: none !important;
+  background:
+    linear-gradient(45deg, transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px), currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px)),
+    linear-gradient(-45deg, transparent calc(50% - 0.8px), currentColor calc(50% - 0.8px), currentColor calc(50% + 0.8px), transparent calc(50% + 0.8px)) !important;
+}
+
+.done-preview-check::before {
+  width: 10px;
+  height: 8px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'%3E%3Cpath d='M0.9 4.1 3.7 6.9 9.1 1' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'%3E%3Cpath d='M0.9 4.1 3.7 6.9 9.1 1' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}

@@ -44,6 +44,8 @@ export interface Settings {
   activeLogs: { monthly: boolean; weekly: boolean; daily: boolean };
   eventStates: boolean;
   firstDayOfWeek: 0 | 1;
+  /** Settings › Done mark: × (the original method) or a check. */
+  doneMark: 'cross' | 'check';
   /** Settings › Date format: day or month first (due dates). */
   dateOrder: 'dmy' | 'mdy';
   /** Settings › Markdown glyph style. */
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   eventStates: true,
   firstDayOfWeek: 1,
   dateOrder: 'dmy',
+  doneMark: 'cross',
   reverseSwipes: false,
   setupBanner: true,
   closeDay: true,
