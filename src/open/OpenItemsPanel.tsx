@@ -2,46 +2,24 @@
 // the page it came from, oldest first. It shows and asks; the only writes are
 // single-entry state marks and "I wrote it there". No bulk actions, no copy,
 // no drag to a page: rewriting by hand is the point.
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { entriesToLines } from "../data/convert";
-import {
-  ageLabel,
-  groupItems,
-  groupLabel,
-  sourcePath,
-  stateful,
-  suggestDestination,
-  withKept,
-  type Mark,
-  type OpenItem,
-} from "../data/openItems";
-import {
-  confirmPlaced,
-  markEntry,
-  useCollections,
-  useSettings,
-} from "../data/repo";
-import type { Entry, Settings } from "../data/types";
-import { BulletMenu, type MenuActions } from "../editor/BulletMenu";
-import { attachGutter } from "../editor/gutter";
-import { nextState, type Line } from "../editor/lines";
-import { buildGutter, lineClass } from "../editor/render";
-import { attachSwipe } from "../editor/swipe";
-import { t } from "../i18n/en";
-import { flashEntry } from "../pages/nav";
-import { navigate } from "../router";
-import { MarkToast } from "./MarkToast";
-import { closePanel, setPanelFilter, usePanel } from "./panelStore";
-import { useOpenItems, useToday } from "./useOpenItems";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { entriesToLines } from '../data/convert';
+import { ageLabel, groupItems, groupLabel, sourcePath, stateful, suggestDestination, withKept, type Mark, type OpenItem } from '../data/openItems';
+import { confirmPlaced, markEntry, useCollections, useSettings } from '../data/repo';
+import type { Entry, Settings } from '../data/types';
+import { BulletMenu, type MenuActions } from '../editor/BulletMenu';
+import { attachGutter } from '../editor/gutter';
+import { nextState, type Line } from '../editor/lines';
+import { buildGutter, lineClass } from '../editor/render';
+import { attachSwipe } from '../editor/swipe';
+import { t } from '../i18n/en';
+import { flashEntry } from '../pages/nav';
+import { navigate } from '../router';
+import { MarkToast } from './MarkToast';
+import { closePanel, setPanelFilter, usePanel } from './panelStore';
+import { useOpenItems, useToday } from './useOpenItems';
 
-const DOCKED = "(min-width: 1000px)";
+const DOCKED = '(min-width: 1000px)';
 
 export function OpenItemsPanel() {
   const panel = usePanel();
@@ -63,19 +41,13 @@ function useDocked() {
   useEffect(() => {
     const mq = matchMedia(DOCKED);
     const on = () => setDocked(mq.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
   }, []);
   return docked;
 }
 
-function Panel({
-  closing,
-  filter,
-}: {
-  closing: boolean;
-  filter: "all" | "today";
-}) {
+function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' }) {
   const data = useOpenItems(filter);
   const settings = useSettings();
   const collections = useCollections();
@@ -84,9 +56,7 @@ function Panel({
   const list = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLElement>(null);
   const [kept, setKept] = useState(() => new Map<string, OpenItem>());
-  const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(
-    null,
-  );
+  const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [marked, setMarked] = useState<{
     n: number;
     mark: Mark | null;
@@ -96,30 +66,20 @@ function Panel({
   // Docked beside the page on a wide screen: the page stays visible and editable.
   useLayoutEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("panel-docked", docked && !closing);
-    return () => root.classList.remove("panel-docked");
+    root.classList.toggle('panel-docked', docked && !closing);
+    return () => root.classList.remove('panel-docked');
   }, [docked, closing]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) =>
-      e.key === "Escape" && !menu && closePanel();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !menu && closePanel();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [menu]);
 
-  const byId = useMemo(
-    () => new Map((data?.entries ?? []).map((e) => [e.id, e])),
-    [data],
-  );
-  const items = useMemo(
-    () => (data ? withKept(data.items, kept, byId) : []),
-    [data, kept, byId],
-  );
+  const byId = useMemo(() => new Map((data?.entries ?? []).map((e) => [e.id, e])), [data]);
+  const items = useMemo(() => (data ? withKept(data.items, kept, byId) : []), [data, kept, byId]);
   const groups = useMemo(() => groupItems(items), [items]);
-  const titles = useMemo(
-    () => new Map((collections ?? []).map((c) => [c.id, c.title])),
-    [collections],
-  );
+  const titles = useMemo(() => new Map((collections ?? []).map((c) => [c.id, c.title])), [collections]);
 
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -129,19 +89,18 @@ function Panel({
     const item = itemsRef.current.find((i) => i.entry.id === id);
     if (item) setKept((k) => (k.has(id) ? k : new Map(k).set(id, item)));
   }, []);
-  const entryOf = (id: string) =>
-    itemsRef.current.find((i) => i.entry.id === id)?.entry;
+  const entryOf = (id: string) => itemsRef.current.find((i) => i.entry.id === id)?.entry;
 
   const mark = useCallback(
     (id: string, m: Mark) => {
       const e = entryOf(id);
       if (!e || !stateful(e, settingsRef.current.eventStates)) return;
       keep(id);
-      const next = e.state === m ? "open" : m;
+      const next = e.state === m ? 'open' : m;
       void markEntry(id, next);
       setMarked((x) => ({
         n: (x?.n ?? 0) + 1,
-        mark: next === "open" ? null : m,
+        mark: next === 'open' ? null : m,
         entry: e,
       }));
     },
@@ -170,9 +129,7 @@ function Panel({
       current: (id) => entryOf(id)?.state,
       destination: (id, m) => {
         const e = entryOf(id);
-        return e
-          ? suggestDestination(e, m, settingsRef.current, today).label
-          : "";
+        return e ? suggestDestination(e, m, settingsRef.current, today).label : '';
       },
       commit: mark,
       reverse: () => settingsRef.current.reverseSwipes,
@@ -189,36 +146,31 @@ function Panel({
     if (!el || docked) return;
     let start: { x: number; y: number; id: number } | null = null;
     const down = (e: PointerEvent) => {
-      if (
-        e.pointerType !== "touch" ||
-        (e.target as Element).closest(".open-row, button")
-      )
-        return;
+      if (e.pointerType !== 'touch' || (e.target as Element).closest('.open-row, button')) return;
       start = { x: e.clientX, y: e.clientY, id: e.pointerId };
     };
     const move = (e: PointerEvent) => {
       if (!start || e.pointerId !== start.id) return;
       const dx = e.clientX - start.x;
-      if (Math.abs(e.clientY - start.y) > Math.abs(dx))
-        return void ((start = null), el.style.removeProperty("transform"));
+      if (Math.abs(e.clientY - start.y) > Math.abs(dx)) return void ((start = null), el.style.removeProperty('transform'));
       if (dx > 0) el.style.transform = `translateX(${dx}px)`;
     };
     const up = (e: PointerEvent) => {
       if (!start || e.pointerId !== start.id) return;
       const dx = e.clientX - start.x;
       start = null;
-      el.style.removeProperty("transform");
+      el.style.removeProperty('transform');
       if (dx > 80) closePanel();
     };
-    el.addEventListener("pointerdown", down);
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
     return () => {
-      el.removeEventListener("pointerdown", down);
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
     };
   }, [docked]);
 
@@ -235,7 +187,7 @@ function Panel({
         patch: (p) => {
           if (!p.state) return;
           const e = entryOf(menu.id);
-          if (p.state === "migrated" || p.state === "scheduled") {
+          if (p.state === 'migrated' || p.state === 'scheduled') {
             if (e?.state !== p.state) mark(menu.id, p.state);
           } else {
             keep(menu.id);
@@ -252,50 +204,21 @@ function Panel({
 
   return (
     <>
-      {!docked && (
-        <div
-          className={`open-backdrop${closing ? " closing" : ""}`}
-          onClick={closePanel}
-        />
-      )}
-      <aside
-        ref={sheet}
-        className={`open-panel${docked ? " docked" : " sheet"}${closing ? " closing" : ""}`}
-        aria-label={t.open.title}
-      >
+      {!docked && <div className={`open-backdrop${closing ? ' closing' : ''}`} onClick={closePanel} />}
+      <aside ref={sheet} className={`open-panel${docked ? ' docked' : ' sheet'}${closing ? ' closing' : ''}`} aria-label={t.open.title}>
         <header className="open-head">
-          <h2>{filter === "today" ? t.open.today : t.open.title}</h2>
-          <button
-            className="icon-btn-quiet open-close"
-            aria-label={t.open.close}
-            onClick={closePanel}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden
-            >
+          <h2>{filter === 'today' ? t.open.today : t.open.title}</h2>
+          <button className="icon-btn-quiet open-close" aria-label={t.open.close} onClick={closePanel}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
         </header>
         <div className="open-body">
-          {data && !items.length && (
-            <p className="open-empty">
-              {filter === "today" ? t.open.emptyToday : t.open.empty}
-            </p>
-          )}
+          {data && !items.length && <p className="open-empty">{filter === 'today' ? t.open.emptyToday : t.open.empty}</p>}
           <div ref={list} className="editor open-list">
             {groups.map((g) => {
-              const age =
-                g.source.kind === "collection"
-                  ? ""
-                  : ageLabel(g.source.end, today);
+              const age = g.source.kind === 'collection' ? '' : ageLabel(g.source.end, today);
               return (
                 <section key={g.id} className="open-group">
                   <h3 className="open-group-title">
@@ -319,34 +242,21 @@ function Panel({
               );
             })}
           </div>
-          {filter === "today" && (
-            <button
-              className="link open-all"
-              onClick={() => setPanelFilter("all")}
-            >
+          {filter === 'today' && (
+            <button className="link open-all" onClick={() => setPanelFilter('all')}>
               {t.open.showAll}
             </button>
           )}
         </div>
       </aside>
       {menu && menuEntry && menuActions && (
-        <BulletMenu
-          line={toLine(menuEntry)}
-          anchor={menu.anchor}
-          eventStates={settings.eventStates}
-          actions={menuActions}
-          statesOnly
-        />
+        <BulletMenu line={toLine(menuEntry)} anchor={menu.anchor} eventStates={settings.eventStates} actions={menuActions} statesOnly />
       )}
       {marked && (
         <MarkToast
           key={marked.n}
           mark={marked.mark}
-          destination={
-            marked.mark
-              ? suggestDestination(marked.entry, marked.mark, settings, today)
-              : null
-          }
+          destination={marked.mark ? suggestDestination(marked.entry, marked.mark, settings, today) : null}
           onDone={hideMark}
         />
       )}
@@ -354,45 +264,21 @@ function Panel({
   );
 }
 
-function Row({
-  item,
-  today,
-  settings,
-  onOpen,
-  onWrote,
-}: {
-  item: OpenItem;
-  today: string;
-  settings: Settings;
-  onOpen: () => void;
-  onWrote: () => void;
-}) {
+function Row({ item, today, settings, onOpen, onWrote }: { item: OpenItem; today: string; settings: Settings; onOpen: () => void; onWrote: () => void }) {
   const line = toLine(item.entry);
   const { state } = item.entry;
-  const unplaced =
-    (state === "migrated" || state === "scheduled") &&
-    item.entry.placement?.status === "pending";
-  const placed = item.entry.placement?.status === "placed";
+  const unplaced = (state === 'migrated' || state === 'scheduled') && item.entry.placement?.status === 'pending';
+  const placed = item.entry.placement?.status === 'placed';
   return (
-    <div
-      className={`${lineClass(line, { color: line.type, hasChildren: false, hidden: false })} open-row`}
-      data-id={line.id}
-    >
-      <span
-        className="gutter-host"
-        ref={(el) => el?.replaceChildren(buildGutter(document, line, false))}
-      />
+    <div className={`${lineClass(line, { color: line.type, hasChildren: false, hidden: false })} open-row`} data-id={line.id}>
+      <span className="gutter-host" ref={(el) => el?.replaceChildren(buildGutter(document, line, false))} />
       <div className="line-text">
         <button className="open-text" onClick={onOpen}>
-          {line.text || "…"}
+          {line.text || '…'}
         </button>
         {unplaced && (
           <span className="open-meta">
-            {t.open.notWritten[state as Mark]} ·{" "}
-            {
-              suggestDestination(item.entry, state as Mark, settings, today)
-                .label
-            }
+            {t.open.notWritten[state as Mark]} · {suggestDestination(item.entry, state as Mark, settings, today).label}
             <button className="open-wrote" onClick={onWrote}>
               {t.open.wroteIt}
             </button>

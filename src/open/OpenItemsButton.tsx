@@ -1,9 +1,9 @@
 // Permanent, quiet way into Open items: a small button with a plain count
 // (no red badge, no alarm), hidden count if the user prefers (Settings).
-import { useSettings } from "../data/repo";
-import { t } from "../i18n/en";
-import { togglePanel, usePanel } from "./panelStore";
-import { useOpenItems } from "./useOpenItems";
+import { useSettings } from '../data/repo';
+import { t } from '../i18n/en';
+import { togglePanel, usePanel } from './panelStore';
+import { useOpenItems } from './useOpenItems';
 
 export function OpenItemsButton() {
   const settings = useSettings();
@@ -13,24 +13,11 @@ export function OpenItemsButton() {
   return (
     <button
       className="open-btn"
-      aria-label={
-        settings.openCount
-          ? `${t.open.title}, ${t.open.count(n)}`
-          : t.open.title
-      }
+      aria-label={settings.openCount ? `${t.open.title}, ${t.open.count(n)}` : t.open.title}
       aria-expanded={panel.open}
       onClick={togglePanel}
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        aria-hidden
-      >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
         <circle cx="5" cy="7" r="1.6" fill="currentColor" stroke="none" />
         <path d="M10 7h10" />
         <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />

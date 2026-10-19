@@ -1,30 +1,24 @@
 // Quiet in-app banners (CLAUDE.md 5): the set-up banner for this week or
 // month, and Close the day in the evening. Both are dismissible and only
 // open things up; nothing is written except the explicit "Set up".
-import { useEffect, useState } from "react";
-import { addDays, fmt, monthOf, weekKey, type Weekday } from "../dates";
-import {
-  periodLog,
-  setUpPeriod,
-  usePeriodsSetUp,
-  useSettings,
-  type LogRef,
-} from "../data/repo";
-import { t } from "../i18n/en";
-import { navigate } from "../router";
-import { openPanel } from "./panelStore";
-import { useToday } from "./useOpenItems";
+import { useEffect, useState } from 'react';
+import { addDays, fmt, monthOf, weekKey, type Weekday } from '../dates';
+import { periodLog, setUpPeriod, usePeriodsSetUp, useSettings, type LogRef } from '../data/repo';
+import { t } from '../i18n/en';
+import { navigate } from '../router';
+import { openPanel } from './panelStore';
+import { useToday } from './useOpenItems';
 
 const read = (k: string) => {
   try {
-    return localStorage.getItem(k) === "1";
+    return localStorage.getItem(k) === '1';
   } catch {
     return false;
   }
 };
 const write = (k: string) => {
   try {
-    localStorage.setItem(k, "1");
+    localStorage.setItem(k, '1');
   } catch {
     // dismissed for this session only
   }
@@ -35,10 +29,10 @@ function useNow(): string {
   useEffect(() => {
     const tick = () => setNow(new Date().toTimeString().slice(0, 5));
     const id = window.setInterval(tick, 30_000);
-    document.addEventListener("visibilitychange", tick);
+    document.addEventListener('visibilitychange', tick);
     return () => {
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
+      document.removeEventListener('visibilitychange', tick);
     };
   }, []);
   return now;
@@ -53,49 +47,31 @@ export function Banners({ current }: { current: boolean }) {
   const [dismissed, setDismissed] = useState(0);
 
   const candidates: LogRef[] = [];
-  if (settings.activeLogs.monthly)
-    candidates.push(periodLog("monthly", monthOf(today), firstDay));
-  if (settings.activeLogs.weekly)
-    candidates.push(periodLog("weekly", weekKey(today, firstDay), firstDay));
+  if (settings.activeLogs.monthly) candidates.push(periodLog('monthly', monthOf(today), firstDay));
+  if (settings.activeLogs.weekly) candidates.push(periodLog('weekly', weekKey(today, firstDay), firstDay));
   const setUp = usePeriodsSetUp(candidates.map((c) => c.id));
   void dismissed;
 
   if (!current || !setUp) return null;
 
-  const pendingSetup = settings.setupBanner
-    ? candidates.find((c) => !setUp.has(c.id) && !read(`banner.setup.${c.id}`))
-    : undefined;
+  const pendingSetup = settings.setupBanner ? candidates.find((c) => !setUp.has(c.id) && !read(`banner.setup.${c.id}`)) : undefined;
   const closeKey = `banner.closeDay.${today}`;
-  const showClose =
-    settings.closeDay &&
-    settings.activeLogs.daily &&
-    now >= settings.closeDayAt &&
-    !read(closeKey);
+  const showClose = settings.closeDay && settings.activeLogs.daily && now >= settings.closeDayAt && !read(closeKey);
 
   return (
     <>
       {pendingSetup && (
         <Banner
           text={
-            pendingSetup.kind === "weekly"
-              ? t.banners.weekNotSetUp(Number(pendingSetup.id.split("-W")[1]))
-              : t.banners.monthNotSetUp(
-                  fmt(`${monthOf(today)}-01`, { month: "long" }),
-                )
+            pendingSetup.kind === 'weekly'
+              ? t.banners.weekNotSetUp(Number(pendingSetup.id.split('-W')[1]))
+              : t.banners.monthNotSetUp(fmt(`${monthOf(today)}-01`, { month: 'long' }))
           }
-          action={
-            pendingSetup.kind === "weekly"
-              ? t.banners.setUpWeek
-              : t.banners.setUpMonth
-          }
+          action={pendingSetup.kind === 'weekly' ? t.banners.setUpWeek : t.banners.setUpMonth}
           onAction={async () => {
             await setUpPeriod(pendingSetup);
-            navigate(
-              pendingSetup.kind === "weekly"
-                ? `/week/${pendingSetup.id.slice("weekly:".length)}`
-                : `/month/${monthOf(today)}`,
-            );
-            openPanel("all");
+            navigate(pendingSetup.kind === 'weekly' ? `/week/${pendingSetup.id.slice('weekly:'.length)}` : `/month/${monthOf(today)}`);
+            openPanel('all');
           }}
           onDismiss={() => {
             write(`banner.setup.${pendingSetup.id}`);
@@ -111,7 +87,7 @@ export function Banners({ current }: { current: boolean }) {
             write(closeKey);
             setDismissed((n) => n + 1);
             navigate(`/day/${addDays(today, 1)}`);
-            openPanel("today");
+            openPanel('today');
           }}
           onDismiss={() => {
             write(closeKey);
@@ -123,38 +99,15 @@ export function Banners({ current }: { current: boolean }) {
   );
 }
 
-function Banner({
-  text,
-  action,
-  onAction,
-  onDismiss,
-}: {
-  text: string;
-  action: string;
-  onAction: () => void;
-  onDismiss: () => void;
-}) {
+function Banner({ text, action, onAction, onDismiss }: { text: string; action: string; onAction: () => void; onDismiss: () => void }) {
   return (
     <div className="banner" role="note">
       <span className="banner-text">{text}</span>
       <button className="banner-action" onClick={onAction}>
         {action}
       </button>
-      <button
-        className="banner-dismiss"
-        aria-label={t.banners.dismiss}
-        onClick={onDismiss}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          aria-hidden
-        >
+      <button className="banner-dismiss" aria-label={t.banners.dismiss} onClick={onDismiss}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
       </button>
