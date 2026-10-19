@@ -2,7 +2,7 @@
 <filter id="sh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="10" dy="16" stdDeviation="16" flood-color="#1b1a17" flood-opacity="0.26"/></filter>
 <filter id="sh2" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="6" dy="10" stdDeviation="10" flood-color="#1b1a17" flood-opacity="0.20"/></filter>
 <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FAF8F4"/><stop offset="1" stop-color="#EFECE5"/></linearGradient>
-</defs><rect width="1024" height="1024" fill="url(#bg)"/><g transform="translate(512 514) scale(1.17) translate(-512 -509)"><rect x="228.0" y="818.0" width="568.0" height="76" rx="38.0" fill="#2A9D8F" filter="url(#sh2)"/>
+</defs><rect width="1024" height="1024" fill="url(#bg)"/><g transform="translate(512 514) scale(1.12) translate(-512 -509)"><rect x="228.0" y="818.0" width="568.0" height="76" rx="38.0" fill="#2A9D8F" filter="url(#sh2)"/>
 <circle cx="512" cy="448" r="296" fill="none" stroke="#3B82C4" stroke-width="56" filter="url(#sh2)"/>
 <circle cx="512" cy="448" r="214" fill="#E0533D" filter="url(#sh)"/>
 </g></svg>
