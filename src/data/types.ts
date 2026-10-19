@@ -46,6 +46,8 @@ export interface Settings {
   firstDayOfWeek: 0 | 1;
   /** Settings › Done mark: × (the original method) or a check. */
   doneMark: 'cross' | 'check';
+  /** Settings › Done animation. */
+  doneAnimation: 'ink' | 'pop' | 'ripple' | 'sparks' | 'highlighter' | 'settle' | 'colorSparks';
   /** Settings › Date format: day or month first (due dates). */
   dateOrder: 'dmy' | 'mdy';
   /** Settings › Markdown glyph style. */
@@ -71,6 +73,7 @@ export const DEFAULT_SETTINGS: Settings = {
   firstDayOfWeek: 1,
   dateOrder: 'dmy',
   doneMark: 'cross',
+  doneAnimation: 'ink',
   reverseSwipes: false,
   setupBanner: true,
   closeDay: true,

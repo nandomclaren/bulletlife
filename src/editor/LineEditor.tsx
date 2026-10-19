@@ -8,6 +8,7 @@ import { selectionDoc, toHtml, toPlain } from '../export/format';
 import { setSelection } from '../export/selection';
 import { attachGutter } from './gutter';
 import { attachSwipe } from './swipe';
+import { playDoneFx } from './doneFx';
 import type { Mark } from '../data/openItems';
 import { MarkToast } from '../open/MarkToast';
 import { LINES_MIME, linesFromJson, linesFromText } from './paste';
@@ -390,11 +391,15 @@ class LineEditorCore {
   private updateById(id: string, fn: (l: Line) => Line | null) {
     const i = this.lines.findIndex((l) => l.id === id);
     if (i < 0) return;
-    const next = fn(this.lines[i]);
+    const prev = this.lines[i];
+    const next = fn(prev);
     if (!next) return;
     this.snapshot(this.readSelection()?.start ?? { index: i, offset: 0 });
     this.lines[i] = next;
     this.refreshDecor();
+    // Settings › Done animation: played on the user's own completion or cancellation.
+    if (next.state !== prev.state && (next.state === 'done' || next.state === 'cancelled'))
+      playDoneFx(this.root.children[i] as HTMLElement, next.state === 'done' ? 'done' : 'cancel');
     this.emit();
   }
 

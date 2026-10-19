@@ -12,6 +12,7 @@ import { attachGutter } from '../editor/gutter';
 import { nextState, type Line } from '../editor/lines';
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { attachSwipe } from '../editor/swipe';
+import { playDoneFx } from '../editor/doneFx';
 import { t } from '../i18n/en';
 import { flashEntry } from '../pages/nav';
 import { openSplitAt } from '../pages/splitStore';
@@ -117,7 +118,14 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
         const e = entryOf(id);
         if (!e || !stateful(e, settingsRef.current.eventStates)) return;
         keep(id);
-        void markEntry(id, nextState(e.state));
+        const next = nextState(e.state);
+        void markEntry(id, next).then(() => {
+          if (next !== 'done' && next !== 'cancelled') return;
+          // After the row re-renders with its new state.
+          requestAnimationFrame(() =>
+            playDoneFx(root.querySelector<HTMLElement>(`.open-row[data-id="${CSS.escape(id)}"]`), next === 'done' ? 'done' : 'cancel'),
+          );
+        });
       },
       chevron: () => {},
       menu: (id, anchor) => setMenu({ id, anchor }),

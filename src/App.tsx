@@ -38,6 +38,7 @@ function Routes() {
     dueView.firstDay = settings.firstDayOfWeek as Weekday;
     // Settings › Done mark: drawn in CSS (editor.css), switched for the whole app.
     document.documentElement.classList.toggle('done-check', settings.doneMark === 'check');
+    document.documentElement.dataset.doneAnim = settings.doneAnimation;
   }
   useEffect(restoreScroll, [path]);
   useShortcuts(path, settings);

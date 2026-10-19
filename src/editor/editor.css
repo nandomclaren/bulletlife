@@ -751,3 +751,187 @@ html.done-check .g-cross::before {
   color: var(--muted);
   opacity: 0.7;
 }
+
+/* ---------- Done animations (Settings › Done animation) ----------
+   html[data-done-anim] picks the style; .fx-done / .fx-cancel on a line plays
+   it once. Timings are the mockup's ×1.4 (Fernando). The mark is revealed
+   left to right with a clip, so it works for both the cross and the check.
+   Cancelling is a quieter version of each. */
+:root {
+  --fx: 1.4;
+}
+
+@keyframes fx-mark {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes fx-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(var(--pop, 1.45)); }
+  100% { transform: scale(1); }
+}
+@keyframes fx-ring {
+  0% { opacity: var(--ring-o, 0.55); transform: scale(1); }
+  100% { opacity: 0; transform: scale(var(--ring-s, 3.6)); }
+}
+@keyframes fx-spark {
+  0% { opacity: var(--spark-o, 0.9); transform: rotate(var(--a)) translateX(0) scale(1); }
+  100% { opacity: 0; transform: rotate(var(--a)) translateX(var(--spark-d, 16px)) scale(0.4); }
+}
+@keyframes fx-sweep {
+  0% { transform: scaleX(0); opacity: 1; }
+  55% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes fx-nudge {
+  0% { transform: translateX(0); }
+  40% { transform: translateX(var(--nudge, 5px)); }
+  100% { transform: translateX(0); }
+}
+@keyframes fx-strike {
+  from { text-decoration-color: transparent; }
+}
+
+/* The mark comes in on every style: the check is drawn left to right like a
+   pen stroke; the cross is stamped (a half-revealed × would read as ">"). */
+@keyframes fx-stamp {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+.fx-done .bullet.cross::before {
+  animation: fx-stamp calc(240ms * var(--fx)) calc(40ms * var(--fx)) var(--ease) both;
+}
+html.done-check .fx-done .bullet.cross::before {
+  animation: fx-mark calc(260ms * var(--fx)) calc(60ms * var(--fx)) var(--ease) both;
+}
+/* Cancelling: the strike-through fades in. */
+.fx-cancel .line-text {
+  animation: fx-strike calc(320ms * var(--fx)) var(--ease);
+}
+
+/* Pop */
+html[data-done-anim='pop'] .fx-done .bullet {
+  animation: fx-pop calc(320ms * var(--fx)) var(--ease);
+}
+html[data-done-anim='pop'] .fx-cancel .bullet {
+  --pop: 1.15;
+  animation: fx-pop calc(260ms * var(--fx)) var(--ease);
+}
+
+/* Ripple, Sparks, Colored sparks: extra shapes injected into the bullet. */
+.bullet .fx {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.fx-ring {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+  animation: fx-ring calc(520ms * var(--fx)) var(--ease);
+}
+.fx-cancel .fx-ring {
+  --ring-o: 0.3;
+  --ring-s: 2.4;
+}
+.bullet .fx i {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--c, currentColor);
+  opacity: 0;
+  animation: fx-spark calc(480ms * var(--fx)) var(--ease);
+}
+html[data-done-anim='colorSparks'] .bullet .fx i {
+  left: -2.5px;
+  top: -2.5px;
+  width: 5px;
+  height: 5px;
+}
+.fx-cancel .bullet .fx i {
+  --spark-o: 0.4;
+  --spark-d: 10px;
+}
+
+/* Highlighter: a soft swipe of the bullet color behind the text. */
+html[data-done-anim='highlighter'] .fx-done .line-text,
+html[data-done-anim='highlighter'] .fx-cancel .line-text {
+  position: relative;
+  isolation: isolate;
+  width: fit-content; /* the swipe covers the words, not the whole line */
+  max-width: 100%;
+}
+html[data-done-anim='highlighter'] .fx-done .line-text::before,
+html[data-done-anim='highlighter'] .fx-cancel .line-text::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: -4px;
+  right: -4px;
+  top: 12%;
+  bottom: 12%;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bullet) 22%, transparent);
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: fx-sweep calc(640ms * var(--fx)) var(--ease) forwards;
+  pointer-events: none;
+}
+html[data-done-anim='highlighter'] .fx-cancel .line-text::before {
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+/* Settle: the line takes a small breath to the right. */
+html[data-done-anim='settle'] .fx-done .line-text {
+  animation: fx-nudge calc(360ms * var(--fx)) var(--ease);
+}
+html[data-done-anim='settle'] .fx-cancel .line-text {
+  --nudge: 2px;
+  animation:
+    fx-nudge calc(300ms * var(--fx)) var(--ease),
+    fx-strike calc(320ms * var(--fx)) var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-done *,
+  .fx-done *::before,
+  .fx-cancel *,
+  .fx-cancel *::before,
+  .fx-done .line-text,
+  .fx-cancel .line-text {
+    animation: none !important;
+  }
+  .bullet .fx {
+    display: none;
+  }
+}
+
+/* Settings › Done animation: a bullet that plays the chosen style. */
+.anim-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--task);
+  --bullet: var(--task);
+}

@@ -262,3 +262,10 @@ Short log of technical decisions. Newest last.
 - Tapping an open item on a wide screen opens its page as the second page (split view opens if closed) and flashes the entry there; the main page stays where you are writing and the panel stays open. `flashEntry` takes a scope so it flashes inside the second page. On the iPhone nothing changes: the main page goes to the item and the sheet closes.
 - Settings: the chosen option is shown with a radio mark at the right instead of a ✓ after its title (in Done mark the ✓ read as part of the option).
 - Backup file names are now `BulletLife_YYYYMMDD.json` (and `.md` for the Markdown export), at Fernando's request; a second export on the same day gets the usual " 2" from Files/Finder.
+
+## 2026-10-19 · Done animations
+
+- Fernando picked from interactive mockups: Settings › Done animation offers **Ink** (default), Pop, Ripple, Sparks, Highlighter, Settle and Colored sparks (red, blue, green alternating). Ink + Ripple was left out. All timings are the mockup's × 1.4.
+- **Cancel** plays a quieter version of each: the strike-through fades in, plus a smaller pop (1.15), a fainter and shorter ring, fainter and shorter sparks, a gray swipe, or a 2 px nudge.
+- **Mark:** the check is drawn left to right (clip reveal); the cross is stamped in (scale + fade), because a half-revealed × reads as ">" (migrated).
+- `src/editor/doneFx.ts` adds `fx-done` / `fx-cancel` to the line (and injects the ring or spark dots into the bullet), cleaned up after 1.4 s; CSS in editor.css keyed on `html[data-done-anim]`. Played from the page editor (tap, ⌘↵, menu) and from the Open items panel. Settings shows a live preview on each option. `prefers-reduced-motion` turns them off.

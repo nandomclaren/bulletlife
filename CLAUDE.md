@@ -274,6 +274,7 @@ Objetivo: sensação de app de notas limpo para Apple, **sem copiar o Bear**.
 - **Escrever tem que ser prazeroso** (pedido do Fernando, subjetivo mas inegociável): a sensação de digitar deve ser tão boa quanto num editor de notas caprichado. Isso guia todas as decisões do editor: zero atraso ao digitar, nada pulando de lugar, transições suaves, tipografia generosa, foco no texto.
   - **O cursor piscante tem a cor do bullet da linha** (`caret-color` = cor do tipo do item, herdada do pai como os bullets; texto livre e títulos usam a cor de texto padrão).
 - Painel lateral: sombra suave, animação de 150–200 ms (respeitar `prefers-reduced-motion`).
+- **Animação de concluir (Ajustes › Done animation, escolha do Fernando):** Ink (padrão), Pop, Ripple, Sparks, Highlighter, Settle, Colored sparks; todas 40% mais lentas que o mockup; ao cancelar, uma versão mais quieta de cada. Funcionam com × e com ✓ (o ✓ é desenhado como traço; o × entra como carimbo, porque meio × parece `>`). Respeitam `prefers-reduced-motion`.
 - Acessibilidade: alvos de toque ≥ 44 px (a área clicável do bullet é maior que o glifo), rótulos de estado para VoiceOver, contraste AA.
 - Use a skill **frontend-design** ao construir a UI.
 

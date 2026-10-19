@@ -4,6 +4,7 @@ import { BackupSection } from './BackupSection';
 import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
+import { DONE_ANIMATIONS, playDoneFx } from './editor/doneFx';
 import { getTheme, setTheme, THEMES, type ThemePref } from './theme';
 
 const TIME_LOGS: TimeLog[] = ['monthly', 'weekly', 'daily'];
@@ -146,6 +147,35 @@ export function SettingsPage() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="setting">
+        <h2 id="done-anim-label">{t.settings.doneAnimation}</h2>
+        <div className="options" role="radiogroup" aria-labelledby="done-anim-label">
+          {DONE_ANIMATIONS.map((a) => (
+            <button
+              key={a}
+              role="radio"
+              aria-checked={settings.doneAnimation === a}
+              className="option"
+              onClick={(e) => {
+                // Preview right away, before the setting round-trips.
+                document.documentElement.dataset.doneAnim = a;
+                playDoneFx(e.currentTarget.querySelector<HTMLElement>('.anim-preview'), 'done');
+                void updateSettings({ doneAnimation: a });
+              }}
+            >
+              <span className="anim-preview line t-task c-task s-done" aria-hidden>
+                <span className="bullet drawn cross" />
+              </span>
+              <span className="option-text">
+                <span className="option-title">{t.settings.doneAnimations[a]}</span>
+                <span className="option-hint">{t.settings.doneAnimationHints[a]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="setting-hint">{t.settings.doneAnimationHint}</p>
       </section>
 
       <section className="setting">
