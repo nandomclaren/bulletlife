@@ -256,3 +256,7 @@ Short log of technical decisions. Newest last.
 - The editor shows the content formatted and **hides the markers, except on the run the caret is in or touching** (Fernando's request), so they can be edited where you write. The markers stay in the text (hidden with font-size 0), so the line reads back unchanged.
 - ⌘B, ⌘I, ⌘⇧H wrap or unwrap the selection (or insert the pair at the caret). On the iPhone, B / I in the text selection menu do the same; U is ignored.
 - Rich Text export: `<b>`, `<i>`, `<mark>`; Plain Text drops the markers; Markdown keeps them. The shape check that rebuilds a line now compares the whole rendered markup (ignoring what browsers add on their own: a trailing `<br>`, `&nbsp;`, the caret highlight class).
+
+## 2026-10-19 · Open items open beside the page (Mac)
+
+- Tapping an open item on a wide screen opens its page as the second page (split view opens if closed) and flashes the entry there; the main page stays where you are writing and the panel stays open. `flashEntry` takes a scope so it flashes inside the second page. On the iPhone nothing changes: the main page goes to the item and the sheet closes.

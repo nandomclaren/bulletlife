@@ -93,10 +93,10 @@ export function flash(id: string) {
 }
 
 /** After opening an entry's page (from Open items): scroll to the entry and flash it. */
-export function flashEntry(id: string) {
+export function flashEntry(id: string, scope: string = '#root') {
   const until = Date.now() + 2000;
   const attempt = () => {
-    let el = document.querySelector<HTMLElement>(`.line[data-id="${CSS.escape(id)}"]`);
+    let el = document.querySelector<HTMLElement>(`${scope} .line[data-id="${CSS.escape(id)}"]`);
     // Inside a collapsed item: point at the visible line that holds it (nothing is expanded).
     while (el?.classList.contains('is-hidden')) el = el.previousElementSibling as HTMLElement | null;
     if (!el || el.offsetParent === null) {

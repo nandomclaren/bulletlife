@@ -14,6 +14,7 @@ import { buildGutter, fillText, lineClass } from '../editor/render';
 import { attachSwipe } from '../editor/swipe';
 import { t } from '../i18n/en';
 import { flashEntry } from '../pages/nav';
+import { openSplitAt } from '../pages/splitStore';
 import { navigate } from '../router';
 import { MarkToast } from './MarkToast';
 import { closePanel, setPanelFilter, usePanel } from './panelStore';
@@ -170,10 +171,17 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
     };
   }, [docked]);
 
+  // Mac: the item's page opens as the second page, beside the one being written.
+  // iPhone: no room for two pages, so the main page goes there and the sheet closes.
   const open = (item: OpenItem) => {
-    navigate(sourcePath(item.source));
-    flashEntry(item.entry.id);
-    if (!docked) closePanel();
+    if (docked) {
+      openSplitAt(sourcePath(item.source));
+      flashEntry(item.entry.id, '.split-pane');
+    } else {
+      navigate(sourcePath(item.source));
+      flashEntry(item.entry.id);
+      closePanel();
+    }
   };
 
   const menuEntry = menu ? entryOf(menu.id) : undefined;

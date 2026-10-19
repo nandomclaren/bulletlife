@@ -29,6 +29,12 @@ export const setSplitPath = (path: string) => {
   set({ ...state, path });
 };
 
+/** Opens the second page at a path (e.g. an open item's page, from the panel). */
+export const openSplitAt = (path: string) => {
+  setSplitPath(path);
+  set({ ...state, open: true });
+};
+
 export function useSplit() {
   return useSyncExternalStore(
     (cb) => {

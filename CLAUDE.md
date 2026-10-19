@@ -139,7 +139,7 @@ Excluir: concluídas, canceladas e as com `placement.status = placed`.
 - Abre por: (a) a faixa de montagem da semana/mês, (b) o fluxo "Fechar o dia", (c) um botão permanente discreto com contador. Setting para esconder o contador. Sem badge vermelho e sem tom de alarme.
 - Itens agrupados por **log de origem**, mais antigos primeiro, com rótulo de origem e idade ("Wk 41 · Mon Oct 5 · 2 weeks ago").
 - Cada linha usa os mesmos bullets, cores e gestos da página (seção 6).
-- Tocar no texto da linha leva à página de origem, com a entrada destacada. O painel permanece aberto no Mac.
+- Tocar no texto da linha abre a página de origem com a entrada destacada. **No Mac, ela abre na segunda página** (seção 5, duas páginas abertas), ao lado da página em que se está escrevendo, e o painel permanece aberto. No iPhone, abre na página principal e a folha fecha.
 
 ### 4.3 Ações permitidas no painel (sempre uma entrada por vez)
 
