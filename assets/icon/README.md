@@ -1,6 +1,6 @@
 # Bullet Life — app icon
 
-Concept: a hollow blue ball (event bullet) and a coral ball (task bullet) rolling up a teal ramp (note dash), on warm off-white. Same-size balls; the coral ball is in front, covering about half of the blue one, with a soft shadow. Colors match the bullet colors in CLAUDE.md section 3.3 (coral #E0533D, blue #3B82C4, teal #2A9D8F). Original artwork, no third-party marks.
+Concept (v2, chosen by Fernando on 2026-10-19): a large coral ball (task bullet) in the center, circled by a hollow blue ring (event bullet), with a straight teal bar beneath it like a subscript (note dash), on warm off-white. Soft shadows. Colors match the bullet colors in CLAUDE.md section 3.3 (coral #E0533D, blue #3B82C4, teal #2A9D8F). Original artwork, no third-party marks. The first icon (two balls rolling up a ramp) is in the git history.
 
 | File | Use |
 |---|---|

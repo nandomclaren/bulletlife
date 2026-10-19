@@ -471,7 +471,7 @@ Quando houver código nativo (iOS/macOS):
 9. Monthly: texto livre por dia (método purista); a fonte encolhe até 85% e depois a linha quebra e cresce.
 10. Navegação: trilha tocável + faixa de 7 dias + botão Hoje, sem swipe lateral (seção 5.1).
 11. Nome **Bullet Life**, com as ressalvas de marca da seção 14.
-12. Ícone oficial (escolhido pelo Fernando): duas bolas do mesmo tamanho, uma azul vazada e uma vermelha, rolando por cima de uma rampa verde que sobe para a direita, em fundo off-white. Arquivos em `assets/icon/` (ver README); pode ser trocado sem impacto no código.
+12. Ícone oficial (v2, escolhido pelo Fernando): bola vermelha grande no centro, circulada por um anel azul vazado, com uma barra verde reta logo abaixo, como um subscrito; fundo off-white. (O v1, duas bolas numa rampa, está no histórico do git.) Arquivos em `assets/icon/` (ver README); pode ser trocado sem impacto no código.
 
 ---
 
