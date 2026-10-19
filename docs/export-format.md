@@ -37,3 +37,8 @@ Nested lists with colored, semi-bold bullet glyphs (task `#E0533D`, event `#3B82
 
 - The page menu "…" exports the page you are on (Day, Week, Month with its day rows and Month tasks, Year with its months, a collection), or only the selected lines when there is a selection (with their collapsed children).
 - Settings › Backup › Export everything as Markdown writes every page into one file, Years first, then Months, Weeks, Days, then collections.
+
+## Inline formatting
+
+- Text is stored as typed, with Markdown markers: `**bold**`, `*italic*`, `==highlight==`. Markdown export keeps them as they are.
+- Rich Text turns them into `<b>`, `<i>` and `<mark>`; Plain Text drops the markers.

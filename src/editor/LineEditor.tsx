@@ -495,6 +495,13 @@ class LineEditorCore {
         this.snapshot(start);
         return this.commit(this.insertText(this.deleteRange(start, end), text));
       }
+      // iPhone: B / I in the text selection menu write the Markdown markers.
+      case 'formatBold':
+      case 'formatItalic':
+      case 'formatUnderline':
+        e.preventDefault();
+        if (e.inputType !== 'formatUnderline') this.wrap(e.inputType === 'formatBold' ? '**' : '*');
+        return;
       case 'historyUndo':
         e.preventDefault();
         return this.restore(this.undoStack, this.redoStack);
@@ -598,6 +605,11 @@ class LineEditorCore {
       // ⌃⌥→ migrate, ⌃⌥← schedule (⌥→ alone moves by word on the Mac).
       e.preventDefault();
       this.markLine(this.lines[sel.start.index].id, e.code === 'ArrowRight' ? 'migrated' : 'scheduled');
+    } else if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.code === 'KeyB' || e.code === 'KeyI' || (e.code === 'KeyH' && e.shiftKey))) {
+      // ⌘B bold, ⌘I italic, ⌘⇧H highlight: written as Markdown markers around the selection.
+      if (e.shiftKey !== (e.code === 'KeyH')) return;
+      e.preventDefault();
+      this.wrap(e.code === 'KeyB' ? '**' : e.code === 'KeyI' ? '*' : '==');
     } else if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
       // Safari does not always send historyUndo for our custom edits.
       e.preventDefault();
@@ -679,7 +691,41 @@ class LineEditorCore {
   };
 
   /** Safety net: the caret may only live inside a line's text, never in the gutter. */
+  /**
+   * Markdown markers (**, *, ==) are hidden except on the formatted run the
+   * caret is in or touching, so they can be edited where you are writing.
+   */
+  private activeMarks: Element[] = [];
+  private updateActiveMarks() {
+    const sel = document.getSelection();
+    const next: Element[] = [];
+    if (sel?.rangeCount && sel.anchorNode && this.root.contains(sel.anchorNode)) {
+      const r = sel.getRangeAt(0);
+      const add = (el: Element | null | undefined) => {
+        for (let e = el?.closest?.('.md-b, .md-i, .md-h') ?? null; e && this.root.contains(e); e = e.parentElement?.closest('.md-b, .md-i, .md-h') ?? null)
+          if (!next.includes(e)) next.push(e);
+      };
+      for (const [node, offset] of [
+        [r.startContainer, r.startOffset],
+        [r.endContainer, r.endOffset],
+      ] as const) {
+        const el = node instanceof Element ? node : node.parentElement;
+        add(el);
+        // Right before or after a run counts as touching it.
+        const len = node.nodeType === Node.TEXT_NODE ? (node.textContent?.length ?? 0) : node.childNodes.length;
+        const before = node instanceof Element ? node.childNodes[offset - 1] : offset === 0 ? node.previousSibling : null;
+        const after = node instanceof Element ? node.childNodes[offset] : offset === len ? node.nextSibling : null;
+        if (before instanceof Element) add(before.matches('.md-b, .md-i, .md-h') ? before : before.querySelector('.md-b, .md-i, .md-h'));
+        if (after instanceof Element) add(after.matches('.md-b, .md-i, .md-h') ? after : after.querySelector('.md-b, .md-i, .md-h'));
+      }
+    }
+    for (const e of this.activeMarks) if (!next.includes(e)) e.classList.remove('md-active');
+    for (const e of next) e.classList.add('md-active');
+    this.activeMarks = next;
+  }
+
   private onSelectionChange = () => {
+    this.updateActiveMarks();
     const sel = document.getSelection();
     if (sel && !sel.isCollapsed && sel.anchorNode && this.root.contains(sel.anchorNode)) {
       setSelection(this.selectedLines());
@@ -699,6 +745,50 @@ class LineEditorCore {
   private onCompStart = () => {
     this.composing = true;
   };
+  /**
+   * Wraps the selection (within one line) in a Markdown marker, or unwraps it
+   * if it is already wrapped. With no selection, inserts the pair and puts the
+   * caret between them.
+   */
+  private wrap(mark: string) {
+    const sel = this.readSelection();
+    if (!sel || sel.start.index !== sel.end.index) return;
+    const i = sel.start.index;
+    const line = this.lines[i];
+    const { offset: a } = sel.start;
+    const { offset: b } = sel.end;
+    const t = line.text;
+    const n = mark.length;
+    this.snapshot(sel.start);
+    let range: [number, number];
+    if (t.slice(a - n, a) === mark && t.slice(b, b + n) === mark && (n > 1 || (t[a - n - 1] !== '*' && t[b + n] !== '*'))) {
+      line.text = t.slice(0, a - n) + t.slice(a, b) + t.slice(b + n);
+      range = [a - n, b - n];
+    } else {
+      line.text = t.slice(0, a) + mark + t.slice(a, b) + mark + t.slice(b);
+      range = [a + n, b + n];
+    }
+    const textEl = this.root.children[i]?.querySelector<HTMLElement>('.line-text');
+    if (textEl) fillText(textEl, line.text);
+    this.refreshDecor();
+    this.selectRange(i, range[0], range[1]);
+    this.emit();
+  }
+
+  private selectRange(index: number, from: number, to: number) {
+    this.placeCaret({ index, offset: to });
+    const sel = document.getSelection();
+    const end = sel?.rangeCount ? sel.getRangeAt(0) : null;
+    if (!end || from === to) return;
+    this.placeCaret({ index, offset: from });
+    const start = sel!.getRangeAt(0);
+    const r = document.createRange();
+    r.setStart(start.startContainer, start.startOffset);
+    r.setEnd(end.startContainer, end.startOffset);
+    sel!.removeAllRanges();
+    sel!.addRange(r);
+  }
+
   /** Resolves finished due expressions up to `upTo` in one line; returns where `upTo` moved, or null. */
   private resolveDueAt(index: number, upTo: number): number | null {
     const line = this.lines[index];

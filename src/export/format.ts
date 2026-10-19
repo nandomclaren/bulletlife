@@ -1,6 +1,7 @@
 // Export formats (CLAUDE.md 7, contract in docs/export-format.md). Pure and
 // unit tested. Works on the line model, so collapsed children are always
 // included: collapsing never changes what is exported.
+import { inlineHtml, stripInline } from '../editor/inline';
 import type { Line } from '../editor/lines';
 
 export type Format = 'markdown' | 'rich' | 'plain';
@@ -61,11 +62,11 @@ const strike = (s: string) => [...s].map((c) => c + '̶').join('');
 
 function plainLine(l: Line): string {
   const pad = INDENT.repeat(l.indent);
-  if (l.type === 'heading') return l.text.toUpperCase();
-  if (l.type === 'text') return `${pad}${l.text}`;
+  if (l.type === 'heading') return stripInline(l.text).toUpperCase();
+  if (l.type === 'text') return `${pad}${stripInline(l.text)}`;
   const glyph =
     l.type === 'note' ? '–' : l.state === 'done' ? '×' : l.state === 'migrated' ? '>' : l.state === 'scheduled' ? '<' : l.type === 'event' ? '○' : '•';
-  const text = signifiers(l) + l.text;
+  const text = signifiers(l) + stripInline(l.text);
   return `${pad}${glyph} ${l.state === 'cancelled' && l.type !== 'note' ? strike(text) : text}`;
 }
 
@@ -101,7 +102,7 @@ function listHtml(lines: Line[], inSection: boolean): string {
     if (l.type === 'heading') {
       html += '</li></ul>'.repeat(depth + 1);
       depth = -1;
-      html += `<h${inSection ? 3 : 2}>${esc(l.text)}</h${inSection ? 3 : 2}>`;
+      html += `<h${inSection ? 3 : 2}>${inlineHtml(l.text, esc)}</h${inSection ? 3 : 2}>`;
       continue;
     }
     if (l.indent > depth) html += '<ul style="list-style:none;padding-left:1.2em;margin:0">'.repeat(l.indent - depth);
@@ -117,11 +118,11 @@ function listHtml(lines: Line[], inSection: boolean): string {
 }
 
 function itemHtml(l: Line): string {
-  if (l.type === 'text') return esc(l.text);
+  if (l.type === 'text') return inlineHtml(l.text, esc);
   const color = l.type === 'note' ? COLORS.note : l.type === 'event' ? COLORS.event : COLORS.task;
   const glyph =
     l.type === 'note' ? '–' : l.state === 'done' ? '×' : l.state === 'migrated' ? '&gt;' : l.state === 'scheduled' ? '&lt;' : l.type === 'event' ? '○' : '•';
-  const text = esc(signifiers(l) + l.text);
+  const text = esc(signifiers(l)) + inlineHtml(l.text, esc);
   const muted = l.type !== 'note' && l.state !== 'open';
   const body = l.state === 'cancelled' && l.type !== 'note' ? `<s>${text}</s>` : text;
   return `<span style="color:${color};font-weight:600">${glyph}</span> ${muted ? `<span style="color:${COLORS.muted}">${body}</span>` : body}`;

@@ -2,6 +2,7 @@
 import { t } from '../i18n/en';
 import { todayIso, type Weekday } from '../dates';
 import { DUE_TOKEN, dueLabel, dueStatus, type DateOrder } from './due';
+import { parseInline, type Inline } from './inline';
 import { glyph, hasStates, numberPrefix, type Line, type LineType } from './lines';
 
 /** How due dates are read and shown (Settings › Date format, First day of week); set by the app. */
@@ -105,12 +106,29 @@ export function fillText(el: HTMLElement, text: string) {
   }
   let last = 0;
   for (const m of rest.matchAll(DUE_TOKEN)) {
-    if (m.index > last) parts.push(rest.slice(last, m.index));
+    if (m.index > last) parts.push(...inline(doc, parseInline(rest.slice(last, m.index))));
     parts.push(pill(doc, m[0], m[1]));
     last = m.index + m[0].length;
   }
-  if (last < rest.length) parts.push(rest.slice(last));
+  if (last < rest.length) parts.push(...inline(doc, parseInline(rest.slice(last))));
   el.replaceChildren(...parts);
+}
+
+/** **bold**, *italic*, ==highlight==: the markers stay in the text (faint), the content is formatted. */
+function inline(doc: Document, nodes: Inline[]): Array<Node | string> {
+  return nodes.map((n) => {
+    if (typeof n === 'string') return n;
+    const span = doc.createElement('span');
+    span.className = `md-${n.kind}`;
+    const mark = () => {
+      const m = doc.createElement('span');
+      m.className = 'md-mark';
+      m.textContent = n.mark;
+      return m;
+    };
+    span.append(mark(), ...inline(doc, n.children), mark());
+    return span;
+  });
 }
 
 function pill(doc: Document, raw: string, iso: string) {
@@ -129,12 +147,13 @@ function pill(doc: Document, raw: string, iso: string) {
 
 /** Whether the text element's DOM already matches how fillText would build it. */
 export function textShapeMatches(el: Element, text: string) {
-  const num = numberPrefix(text);
-  const span = el.querySelector('.num');
-  if (num ? !span || el.firstChild !== span || span.textContent !== num : span) return false;
-  const pills = [...el.querySelectorAll<HTMLElement>('.due')];
-  const tokens = [...text.matchAll(DUE_TOKEN)];
-  if (pills.length !== tokens.length) return false;
-  const today = todayIso();
-  return tokens.every((m, i) => pills[i].textContent === m[0] && pills[i].dataset.label === dueLabel(m[1], today, dueView.order));
+  const fresh = el.ownerDocument.createElement('div');
+  fillText(fresh, text);
+  // Ignore what browsers add on their own while typing (a trailing <br>, &nbsp;).
+  const norm = (h: string) =>
+    h
+      .replace(/ md-active/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/<br>$/, '');
+  return norm(fresh.innerHTML) === norm(el.innerHTML);
 }
