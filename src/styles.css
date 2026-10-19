@@ -528,9 +528,21 @@ h1 {
   background: var(--surface);
 }
 
-.option[aria-checked='true'] .option-title::after {
-  content: ' ✓';
-  color: var(--accent);
+/* Chosen option: a radio mark at the right (a ✓ read as part of the option,
+   e.g. in Settings › Done mark). */
+.option[role='radio']::after {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border: 1.5px solid var(--rule);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.option[role='radio'][aria-checked='true']::after {
+  border: 5.5px solid var(--accent);
 }
 
 .option-text {
