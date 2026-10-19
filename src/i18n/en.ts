@@ -169,6 +169,12 @@ export const en = {
     unmarked: 'Back to open',
     count: (n: number) => `${n} open ${n === 1 ? 'item' : 'items'}`,
   },
+  link: {
+    prompt: (text: string, origin: string) => `Looks like the open item “${text}” (${origin}).`,
+    action: 'Link it',
+    linked: 'Linked. The original is marked as written here.',
+    dismiss: 'Not this one',
+  },
   due: {
     today: 'Today',
     tomorrow: 'Tomorrow',

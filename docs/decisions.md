@@ -205,3 +205,9 @@ Short log of technical decisions. Newest last.
 ## 2026-10-19 · Phase 4 accepted
 
 - Fernando confirmed on the iPhone and Mac: Open items panel, swipe marks (Touch Events), mark toast with Undo, banners, due dates and sorting by date. CLAUDE.md updated (gesture table shortcuts, swipe direction confirmed, section 3.7 on due dates).
+
+## 2026-10-19 · Phase 4b: recognizing a rewritten item (trial; remove if noisy)
+
+- When a task or event line is finished (Enter, or leaving the editor), its text is compared with the open items on other pages (`src/data/similar.ts`, tested): lowercase, no accents, no punctuation, no `due:` dates, English and Portuguese stopwords removed; a match is the same words, or ≥ 2 shared words with Dice ≥ 0.7. It errs on the side of silence.
+- A strong match shows a quiet chip under the line: "Looks like the open item “…” (Mon, Oct 12)." with **Link it** and ×. Nothing is linked without the tap. Link it sets the original to `>` if it was still open and `placement = placed` with `placedEntryId` = the new line. × remembers the pair on this device and never suggests it again. Editing the line removes the chip.
+- Local only, no AI, no network.

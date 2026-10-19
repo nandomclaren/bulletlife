@@ -641,3 +641,53 @@
   opacity: 1;
   color: var(--text);
 }
+
+/* Phase 4b: "Looks like the open item … Link it?" under a finished line. */
+.link-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 2px 0 6px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-user-select: none;
+  user-select: none;
+  animation: menu-in 160ms var(--ease);
+}
+
+.link-text {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.link-chip button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-chip .link-dismiss {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link-chip {
+    animation: none;
+  }
+}

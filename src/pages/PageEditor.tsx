@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { LineEditor } from '../editor/LineEditor';
 import type { Line } from '../editor/lines';
-import { registerFlush } from './flush';
-import { loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
+import { flushAll, registerFlush } from './flush';
+import { dismissLink, findRewriteOf, linkRewrite, loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
+import { sourceLabel } from '../data/openItems';
+import { t } from '../i18n/en';
 
 const SAVE_DELAY = 400;
 /** Remote changes wait until the user has stopped typing for this long. */
@@ -123,6 +125,19 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
         eventStates={eventStates}
         focusRef={focusAt}
         reverseSwipes={settings.reverseSwipes}
+        findRewrite={async (line) => {
+          const found = await findRewriteOf(line.id, line.text, log.id, settings);
+          if (!found) return null;
+          const { item, collectionTitle } = found;
+          const origin = sourceLabel(item.source, item.entry.slot, collectionTitle);
+          const plain = item.entry.text.replace(/\s*due:\d{4}-\d{2}-\d{2}/g, '').trim();
+          const short = plain.length > 48 ? `${plain.slice(0, 46)}…` : plain;
+          return { sourceId: item.entry.id, text: t.link.prompt(short, origin) };
+        }}
+        onLinkAnswer={(lineId, sourceId, link) => {
+          if (link) void flushAll().then(() => linkRewrite(sourceId, lineId));
+          else dismissLink(lineId, sourceId);
+        }}
         onChange={(lines) => {
           shown.current = lines;
           lastInput.current = Date.now();

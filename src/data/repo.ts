@@ -7,6 +7,8 @@ import type { Line } from '../editor/lines';
 import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune, type Backup } from './backup';
 import { backupDb, type Snapshot } from './backupDb';
 import { diffEntries, entriesToLines } from './convert';
+import { openItems, type OpenItem } from './openItems';
+import { bestMatch } from './similar';
 import { db } from './db';
 import { DEFAULT_SETTINGS, type Entry, type EntryState, type Log, type LogKind, type Settings } from './types';
 
@@ -309,5 +311,55 @@ export async function setUpPeriod(log: LogRef): Promise<void> {
     periodLogId: log.id,
     createdAt: now,
     updatedAt: now,
+  });
+}
+
+// ---------- Phase 4b: linking a rewritten item ----------
+
+const dismissedKey = 'link.dismissed';
+function dismissedLinks(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(dismissedKey) ?? '[]') as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** "Not this one": the same pair is never suggested again on this device. */
+export function dismissLink(lineId: string, sourceId: string) {
+  const all = [...dismissedLinks(), `${lineId}:${sourceId}`].slice(-500);
+  try {
+    localStorage.setItem(dismissedKey, JSON.stringify(all));
+  } catch {
+    // forgotten after this session
+  }
+}
+
+/**
+ * An open item (from another page) that the text just written looks like a
+ * rewrite of, or null. Only a suggestion: nothing is linked without a tap.
+ */
+export async function findRewriteOf(lineId: string, text: string, logId: string, s: Settings): Promise<{ item: OpenItem; collectionTitle?: string } | null> {
+  const entries = await db.entries.toArray();
+  const dismissed = dismissedLinks();
+  const candidates = openItems(entries, s, todayIso())
+    .filter((i) => i.entry.id !== lineId && i.source.logId !== logId && !dismissed.has(`${lineId}:${i.entry.id}`))
+    .map((i) => ({ ...i, text: i.entry.text }));
+  const item = bestMatch(text, candidates);
+  if (!item) return null;
+  return { item, collectionTitle: item.source.kind === 'collection' ? (await db.logs.get(item.source.logId))?.title : undefined };
+}
+
+/**
+ * "Link it": the user confirms the new line is the rewrite of an open item.
+ * The original gets its > (if it was still open) and is marked as written there.
+ */
+export async function linkRewrite(sourceId: string, placedEntryId: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction('rw', db.entries, async () => {
+    const e = await db.entries.get(sourceId);
+    if (!e) return;
+    const state = e.state === 'migrated' || e.state === 'scheduled' ? e.state : 'migrated';
+    await db.entries.put({ ...e, state, placement: { status: 'placed', placedEntryId, confirmedAt: now }, updatedAt: now });
   });
 }

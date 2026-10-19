@@ -57,6 +57,11 @@ class LineEditorCore {
   eventStates = true;
   /** Settings › Reverse swipe directions. */
   reverseSwipes = false;
+  /** A task or event line was finished (Enter or leaving the editor): a chance to suggest a link (Phase 4b). */
+  onLineDone: ((line: Line) => void) | null = null;
+  /** The user answered a link suggestion. */
+  onLinkAnswer: ((lineId: string, sourceId: string, link: boolean) => void) | null = null;
+  private suggestions = new Map<string, { sourceId: string; text: string }>();
   /** A line was marked > or < (or the mark was taken back: null). */
   onMark: ((mark: Mark | null) => void) | null = null;
   /** Opens the bullet menu (set by the React wrapper). */
@@ -131,6 +136,8 @@ class LineEditorCore {
     text.className = 'line-text';
     fillText(text, line.text);
     el.append(buildGutter(document, line, collapsed), text);
+    const s = this.suggestions.get(line.id);
+    if (s) el.append(linkChip(s.text));
     return el;
   }
 
@@ -303,6 +310,7 @@ class LineEditorCore {
     // A due date finished by Enter becomes a pill too.
     const resolved = this.resolveDueAt(at.index, at.offset);
     if (resolved !== null) at = { index: at.index, offset: resolved };
+    this.lineDone(this.lines[at.index]);
     const i = at.index;
     const line = this.lines[i];
     if (!line.text && line.type !== 'text') {
@@ -529,6 +537,7 @@ class LineEditorCore {
     const el = this.root.children[i];
     const text = (el?.querySelector('.line-text')?.textContent ?? '').replace(/ /g, ' ');
     const line = this.lines[i];
+    if (line.text !== text && this.suggestions.has(line.id)) this.setSuggestion(line.id, null);
     line.text = text;
 
     // Rapid logging prefix typed at the start of the line.
@@ -696,8 +705,24 @@ class LineEditorCore {
     return upTo + r.shift;
   }
 
+  private lineDone(line: Line | undefined) {
+    if (line && (line.type === 'task' || line.type === 'event') && line.text.trim().length >= 3) this.onLineDone?.({ ...line });
+  }
+
+  /** Shows (or with null removes) the "Link it?" chip under a line. */
+  setSuggestion(lineId: string, s: { sourceId: string; text: string } | null) {
+    const i = this.lines.findIndex((l) => l.id === lineId);
+    const el = this.root.children[i] as HTMLElement | undefined;
+    el?.querySelector(':scope > .link-chip')?.remove();
+    if (!s || i < 0) return void this.suggestions.delete(lineId);
+    this.suggestions.set(lineId, s);
+    el?.append(linkChip(s.text));
+  }
+
   /** Leaving the editor finishes any due date still being written. */
   private onBlur = () => {
+    const sel = this.readSelection();
+    if (sel) this.lineDone(this.lines[sel.start.index]);
     let changed = false;
     this.lines.forEach((l, i) => {
       if (this.resolveDueAt(i, l.text.length) !== null) changed = true;
@@ -708,11 +733,21 @@ class LineEditorCore {
   };
 
   private onDecorDown = (e: MouseEvent) => {
-    if ((e.target as Element).closest?.('.due, .sort-btn')) e.preventDefault();
+    if ((e.target as Element).closest?.('.due, .sort-btn, .link-chip')) e.preventDefault();
   };
 
   private onDecorClick = (e: MouseEvent) => {
     const target = e.target as Element;
+    const answer = target.closest?.<HTMLElement>('.link-chip [data-act]');
+    if (answer) {
+      e.preventDefault();
+      const id = answer.closest<HTMLElement>('.line')?.dataset.id;
+      const s = id && this.suggestions.get(id);
+      if (!id || !s) return;
+      this.setSuggestion(id, null);
+      this.onLinkAnswer?.(id, s.sourceId, answer.dataset.act === 'link');
+      return;
+    }
     const pill = target.closest?.<HTMLElement>('.due');
     const sort = target.closest?.('.sort-btn');
     if (!pill && !sort) return;
@@ -799,13 +834,22 @@ interface Props {
   focusRef?: MutableRefObject<((lineId?: string) => void) | null>;
   /** Settings › Reverse swipe directions. */
   reverseSwipes?: boolean;
+  /** Phase 4b: an open item this finished line looks like a rewrite of (suggestion only). */
+  findRewrite?: (line: Line) => Promise<{ sourceId: string; text: string } | null>;
+  /** The user tapped "Link it" (true) or dismissed the suggestion (false). */
+  onLinkAnswer?: (lineId: string, sourceId: string, link: boolean) => void;
 }
 
-export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef, reverseSwipes = false }: Props) {
+export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef, reverseSwipes = false, findRewrite, onLinkAnswer }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const core = useRef<LineEditorCore | null>(null);
   const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [toast, setToast] = useState(0);
+  const [linked, setLinked] = useState(0);
+  const find = useRef(findRewrite);
+  find.current = findRewrite;
+  const answer = useRef(onLinkAnswer);
+  answer.current = onLinkAnswer;
   const [marked, setMarked] = useState<{ n: number; mark: Mark | null } | null>(null);
 
   useEffect(() => {
@@ -813,6 +857,14 @@ export function LineEditor({ initial, onChange, autoFocus, className, label, eve
     core.current = c;
     c.eventStates = eventStates;
     c.reverseSwipes = reverseSwipes;
+    c.onLineDone = (line) =>
+      void find.current?.(line).then((s) => {
+        if (s && core.current === c) c.setSuggestion(line.id, s);
+      });
+    c.onLinkAnswer = (lineId, sourceId, link) => {
+      answer.current?.(lineId, sourceId, link);
+      if (link) setLinked((n) => n + 1);
+    };
     c.onMark = (mark) => setMarked((m) => ({ n: (m?.n ?? 0) + 1, mark }));
     c.onMenu = (id, anchor) => setMenu({ id, anchor });
     if (label) host.current!.setAttribute('aria-label', label);
@@ -861,6 +913,7 @@ export function LineEditor({ initial, onChange, autoFocus, className, label, eve
       <div ref={host} />
       {menu && line && actions && <BulletMenu line={line} anchor={menu.anchor} eventStates={eventStates} actions={actions} />}
       {toast > 0 && <UndoToast key={toast} onUndo={() => core.current?.undo()} onDone={hideToast} />}
+      {linked > 0 && <StatusToast key={linked} text={t.link.linked} onDone={() => setLinked(0)} />}
       {marked && <MarkToast key={marked.n} mark={marked.mark} onUndo={() => core.current?.undo()} onDone={hideMark} />}
     </>
   );
@@ -876,4 +929,40 @@ function sortButton(): HTMLElement {
   b.innerHTML =
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M13 6h8M13 11h6M13 16h4"/></svg>';
   return b;
+}
+
+/** "Looks like the open item … Link it?": a quiet, dismissible suggestion under a line (Phase 4b). */
+function linkChip(text: string): HTMLElement {
+  const chip = document.createElement('div');
+  chip.className = 'link-chip';
+  chip.contentEditable = 'false';
+  chip.setAttribute('role', 'group');
+  const label = document.createElement('span');
+  label.className = 'link-text';
+  label.textContent = text;
+  const link = document.createElement('button');
+  link.type = 'button';
+  link.dataset.act = 'link';
+  link.textContent = t.link.action;
+  const no = document.createElement('button');
+  no.type = 'button';
+  no.dataset.act = 'dismiss';
+  no.className = 'link-dismiss';
+  no.setAttribute('aria-label', t.link.dismiss);
+  no.innerHTML =
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  chip.append(label, link, no);
+  return chip;
+}
+
+function StatusToast({ text, onDone }: { text: string; onDone: () => void }) {
+  useEffect(() => {
+    const id = window.setTimeout(onDone, 3000);
+    return () => window.clearTimeout(id);
+  }, [onDone]);
+  return (
+    <div className="undo-toast" role="status">
+      <span>{text}</span>
+    </div>
+  );
 }
