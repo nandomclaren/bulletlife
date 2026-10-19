@@ -92,6 +92,13 @@ Os prefixos devem ser configuráveis. A conversão de tipo também é possível 
 - **Colapsar nunca afeta exportação, cópia ou busca**: tudo continua incluído (seção 7).
 - Nível de aninhamento sem limite rígido (testar até 6 níveis).
 
+### 3.7 Datas com `due:` (pedido do Fernando)
+
+- Escrever `due:` + data em qualquer entrada: `AAAA-MM-DD`, forma curta deste ano (`23/10`; o ajuste de formato de data decide dia ou mês primeiro), ou palavras (`today`, `tomorrow`, `yesterday`, `fri`, `next monday`, `next week`, `in 3 days`).
+- Ao terminar a palavra, grava-se `due:AAAA-MM-DD` no texto (uma data escrita como "tomorrow" não pode mudar sozinha) e a UI mostra uma **pílula** com calendário e "Today"/"Tomorrow"/"Yesterday" ou "23 Oct", com cor pela urgência. Tocar na pílula troca a data.
+- Tarefas/eventos abertos com data de hoje ou atrasada entram no grupo **Due** do painel Open items, de qualquer página.
+- **Ordenar por data só a pedido:** listas de 2+ bullets irmãos com datas fora de ordem oferecem um botão discreto; o app nunca reordena sozinho. Sem data vai para o fim; riscados ordenam como os outros.
+
 ### 3.6 Layouts fixos: Monthly e Ano
 
 **Referência visual:** a tela "This Month" do app de Hamish Johnson que o Fernando testou (screenshot dele). Estrutura: rótulo pequeno em versalete com o mês, título grande, e uma lista vertical com **todos os dias do mês**, cada linha com o **número do dia** e a **inicial do dia da semana**, com uma **linha fina divisória entre semanas**. Copiar a *ideia de layout*; **não** copiar textos, assets, nome ou identidade desse app. O Fernando diz que o app dele fez concessões demais e virou "só mais um app de tarefas"; este não deve ir por esse caminho.
@@ -209,8 +216,8 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 | Concluir tarefa ou evento | 1 toque no bullet | clique no bullet · ⌘↵ |
 | Cancelar (riscar) | 2º toque num bullet **já concluído** | clique de novo · ⌘↵ de novo |
 | Voltar a aberta | 3º toque no riscado | clique de novo |
-| Marcar `>` (migrar) | swipe **→** (esquerda para direita) | menu / ⌥→ |
-| Marcar `<` (agendar) | swipe **←** (direita para esquerda) | menu / ⌥← |
+| Marcar `>` (migrar) | swipe **→** (esquerda para direita) | menu / ⌃⌥→ |
+| Marcar `<` (agendar) | swipe **←** (direita para esquerda) | menu / ⌃⌥← |
 | Menu do bullet | pressionar e segurar o bullet | clique direito, Ctrl+clique ou clicar e segurar |
 | Prioridade `*` | menu do bullet · prefixo `*` | atalho (a definir) · menu · prefixo `*` |
 | Indentar / desindentar | espaço / Backspace no início da linha | Tab / ⇧Tab |
@@ -219,7 +226,7 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 - **Eventos** usam o mesmo ciclo de toque e os mesmos swipes/menu das tarefas (`×`, riscado, `>`, `<`). Se o ajuste "Estados em eventos" estiver desligado, o toque e o swipe no bullet do evento não fazem nada.
 - **Notas** nunca têm estado: toque e swipe no bullet da nota não fazem nada. O tipo muda pelo menu.
 - **Ciclo de toque**: aberta → concluída → riscada → aberta.
-- **Direção dos swipes (recomendação, a confirmar com o Fernando):** `>` fica no swipe para a direita e `<` no swipe para a esquerda, porque a direção do gesto espelha o glifo. Ele sugeriu o contrário (direita→esquerda = `>`), então **crie um ajuste "Inverter direção dos swipes"**.
+- **Direção dos swipes (confirmada pelo Fernando):** `>` no swipe para a direita e `<` no swipe para a esquerda; ajuste "Inverter direção dos swipes" para quem preferir o contrário. No Mac, ⌥→/⌥← ficam com o sistema (andar por palavra); os atalhos são ⌃⌥→/⌃⌥←.
 - Ao revelar o swipe, mostrar o glifo (`>` ou `<`) e a ação ("Migrate"/"Schedule"); ao soltar, aviso com Undo.
 - Menu do bullet (submenu): Tipo (tarefa/evento/nota), Estado, Prioridade, Inspiração, Explorar, Indentar/Desindentar, Copiar como…, Apagar (com desfazer).
 

@@ -201,3 +201,7 @@ Short log of technical decisions. Newest last.
 
 - **Swipe did not work on iOS.** Inside editable text iOS Safari takes over a horizontal pointer gesture and cancels the pointer, so the swipe now uses Touch Events: a mostly horizontal touchmove is claimed (`preventDefault`) before Safari decides, a vertical one is left to scrolling, and the end of a swipe is cancelled so it does not place the caret. Pills, the sort mark and buttons do not start a swipe. Tested with real touch input (CDP) in Chromium; to confirm on the iPhone.
 - **No suggested destination.** Showing "Migrated · Tomorrow" suggested the app had done something it did not. After a mark the toast says only "Migrated" / "Scheduled" with **Undo**; the swipe reveals the glyph and "Migrate" / "Schedule". The destination logic, its tests and the Horizon setting are gone (CLAUDE.md updated).
+
+## 2026-10-19 · Phase 4 accepted
+
+- Fernando confirmed on the iPhone and Mac: Open items panel, swipe marks (Touch Events), mark toast with Undo, banners, due dates and sorting by date. CLAUDE.md updated (gesture table shortcuts, swipe direction confirmed, section 3.7 on due dates).
