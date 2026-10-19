@@ -4,6 +4,8 @@
 // intercepted in `beforeinput` and applied to the model, then re-rendered.
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { BulletMenu, UndoToast, type MenuActions } from './BulletMenu';
+import { selectionDoc, toHtml, toPlain } from '../export/format';
+import { setSelection } from '../export/selection';
 import { attachGutter } from './gutter';
 import {
   colorTypes,
@@ -67,6 +69,8 @@ class LineEditorCore {
     root.addEventListener('compositionstart', this.onCompStart);
     root.addEventListener('compositionend', this.onCompEnd);
     document.addEventListener('selectionchange', this.onSelectionChange);
+    root.addEventListener('copy', this.onCopy);
+    root.addEventListener('cut', this.onCopy);
     this.detachGutter = attachGutter(root, {
       bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, this.eventStates) ? { ...l, state: nextState(l.state) } : null)),
       chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
@@ -82,6 +86,8 @@ class LineEditorCore {
     this.root.removeEventListener('compositionstart', this.onCompStart);
     this.root.removeEventListener('compositionend', this.onCompEnd);
     document.removeEventListener('selectionchange', this.onSelectionChange);
+    this.root.removeEventListener('copy', this.onCopy);
+    this.root.removeEventListener('cut', this.onCopy);
     this.detachGutter();
   }
 
@@ -507,10 +513,59 @@ class LineEditorCore {
     }
   };
 
+  /**
+   * Whole lines covered by the current selection, plus the hidden children of
+   * a collapsed last line: exports and copies always carry collapsed content.
+   */
+  selectedLines(): Line[] | null {
+    const sel = this.readSelection();
+    if (!sel) return null;
+    const { start, end } = sel;
+    if (start.index === end.index && start.offset === end.offset) return null;
+    let last = end.index;
+    // A selection that ends at the very start of a line does not include it.
+    if (end.offset === 0 && end.index > start.index) last--;
+    if (this.lines[last].collapsed) last = subtreeEnd(this.lines, last) - 1;
+    return this.lines.slice(start.index, last + 1).map((l) => ({ ...l }));
+  }
+
+  /**
+   * ⌘C / iOS "Copy" over several lines, or over the whole text of a collapsed
+   * parent: copy from the model, including collapsed children. A few words
+   * inside one line keep the native copy.
+   */
+  private onCopy = (e: ClipboardEvent) => {
+    const sel = this.readSelection();
+    if (!sel || !e.clipboardData) return;
+    const { start, end } = sel;
+    const line = this.lines[start.index];
+    const wholeCollapsed = line.collapsed && start.offset === 0 && end.offset >= line.text.length && subtreeEnd(this.lines, start.index) > start.index + 1;
+    if (start.index === end.index && !wholeCollapsed) return;
+    const lines = this.selectedLines();
+    if (!lines) return;
+    e.preventDefault();
+    const doc = selectionDoc(lines);
+    e.clipboardData.setData('text/plain', toPlain(doc));
+    e.clipboardData.setData('text/html', toHtml(doc));
+    if (e.type === 'cut') {
+      // Cut what was copied: hidden children of a collapsed last line go too.
+      const last = this.lines.findIndex((l) => l.id === lines[lines.length - 1].id);
+      const to = last > end.index ? { index: last, offset: this.lines[last].text.length } : end;
+      this.snapshot(start);
+      this.commit(this.deleteRange(start, to));
+    }
+  };
+
   /** Safety net: the caret may only live inside a line's text, never in the gutter. */
   private onSelectionChange = () => {
     const sel = document.getSelection();
+    if (sel && !sel.isCollapsed && sel.anchorNode && this.root.contains(sel.anchorNode)) {
+      setSelection(this.selectedLines());
+      return;
+    }
     if (!sel || !sel.isCollapsed || !sel.anchorNode || !this.root.contains(sel.anchorNode)) return;
+    // A caret back in the text (typing, tapping a line) ends the stored selection.
+    setSelection(null);
     const node = sel.anchorNode;
     const el = node instanceof Element ? node : node.parentElement;
     if (el?.closest('.line-text')) return;

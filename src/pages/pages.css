@@ -119,8 +119,46 @@
   color: var(--text);
 }
 
-.page-time > h1 {
+.page-time > h1,
+.title-row > h1 {
   margin-bottom: 4px;
+}
+
+/* Page title with the "…" menu beside it. */
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.title-row > h1,
+.title-row > .title-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-menu-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -2px -12px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.page-menu-btn:hover,
+.page-menu-btn[aria-expanded='true'] {
+  color: var(--text);
+}
+
+.page-menu .menu-actions button {
+  font-weight: 600;
 }
 
 .page-time > .eyebrow {

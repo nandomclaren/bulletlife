@@ -7,6 +7,7 @@ import { fitDayRows } from './fitText';
 import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
+import { PageMenu } from '../export/PageMenu';
 
 /** Month: a fixed calendar rendered from the date (never stored) plus "Month tasks". */
 export function MonthPage({ ym }: { ym: string }) {
@@ -35,7 +36,10 @@ export function MonthPage({ ym }: { ym: string }) {
     <main className="page page-time page-month">
       <TimeHeader level="month" periodKey={ym} anchor={anchor} />
       <p className="eyebrow">{fmt(`${ym}-01`, { month: 'long' })}</p>
-      <h1>{isCurrent ? t.pages.thisMonth : fmt(`${ym}-01`, { month: 'long', year: 'numeric' })}</h1>
+      <div className="title-row">
+        <h1>{isCurrent ? t.pages.thisMonth : fmt(`${ym}-01`, { month: 'long', year: 'numeric' })}</h1>
+        <PageMenu page={{ kind: 'monthly', key: ym }} />
+      </div>
       <div className="month-spread">
         <ol className="month-days" ref={daysRef}>
           {days.map((iso, i) => {
@@ -99,7 +103,10 @@ export function YearPage({ year }: { year: string }) {
   return (
     <main className="page page-time page-year">
       <TimeHeader level="year" periodKey={year} anchor={anchor} />
-      <h1>{year}</h1>
+      <div className="title-row">
+        <h1>{year}</h1>
+        <PageMenu page={{ kind: 'future', key: year }} />
+      </div>
       {months.map((ym) => (
         <section key={ym} id={`year-month-${ym}`} className={`year-month${ym === currentMonth ? ' is-current' : ''}`}>
           <h2 className="year-month-title">

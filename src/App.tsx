@@ -8,6 +8,7 @@ import { IndexPage } from './pages/IndexPage';
 import { MonthPage, YearPage } from './pages/MonthYearPages';
 import { activeLevels, anchorWithin, finestLevel, pathFor, type Level } from './pages/nav';
 import { replace, restoreScroll, usePath } from './router';
+import { setSelection } from './export/selection';
 import { SettingsPage } from './SettingsPage';
 import { SpikePage } from './spike/SpikePage';
 
@@ -15,6 +16,8 @@ export function App() {
   const path = usePath();
   const settings = useLoadedSettings();
   useEffect(restoreScroll, [path]);
+  // A selection belongs to the page it was made on.
+  useEffect(() => setSelection(null), [path]);
 
   let m: RegExpMatchArray | null;
   if ((m = path.match(/^\/day\/(\d{4}-\d{2}-\d{2})$/))) {

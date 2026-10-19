@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LineEditor } from '../editor/LineEditor';
 import type { Line } from '../editor/lines';
+import { registerFlush } from './flush';
 import { loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
 
 const SAVE_DELAY = 400;
@@ -37,7 +38,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
   const save = (lines: Line[]) => {
     const from = base.current;
     base.current = lines;
-    void saveLines(logRef.current, slot, lines, from);
+    return saveLines(logRef.current, slot, lines, from);
   };
 
   useEffect(() => {
@@ -54,19 +55,21 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
   }, [log.id, slot]);
 
   useEffect(() => {
-    const flush = () => {
+    const flush = async () => {
       window.clearTimeout(timer.current);
       const lines = pending.current;
       pending.current = null;
-      if (lines) save(lines);
+      if (lines) await save(lines);
     };
+    const unregister = registerFlush(flush);
     const onHide = () => document.visibilityState === 'hidden' && flush();
     window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', onHide);
     return () => {
       window.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', onHide);
-      flush();
+      unregister();
+      void flush();
     };
   }, [slot]);
 
@@ -125,7 +128,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
           window.clearTimeout(timer.current);
           timer.current = window.setTimeout(() => {
             pending.current = null;
-            save(lines);
+            void save(lines);
           }, SAVE_DELAY);
         }}
       />

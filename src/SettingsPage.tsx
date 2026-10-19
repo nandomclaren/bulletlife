@@ -107,6 +107,26 @@ export function SettingsPage() {
       </section>
 
       <section className="setting">
+        <h2 id="glyph-label">{t.settings.glyphStyle}</h2>
+        <div className="options" role="radiogroup" aria-labelledby="glyph-label">
+          {(['checkboxes', 'dots'] as const).map((g) => (
+            <button
+              key={g}
+              role="radio"
+              aria-checked={(settings.markdownGlyphs ?? 'checkboxes') === g}
+              className="option"
+              onClick={() => void updateSettings({ markdownGlyphs: g })}
+            >
+              <span className="option-text">
+                <span className="option-title">{t.settings.glyphStyles[g]}</span>
+                <span className="option-hint">{t.settings.glyphHints[g]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="setting">
         <h2 id="theme-label">{t.settings.theme}</h2>
         <div className="options" role="radiogroup" aria-labelledby="theme-label">
           {THEMES.map((th) => (

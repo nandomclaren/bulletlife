@@ -5,6 +5,7 @@ import { t } from '../i18n/en';
 import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
+import { PageMenu } from '../export/PageMenu';
 // Week strip hidden at Fernando's request (felt like a digital note taker). Kept for later.
 // import { WeekStrip } from './WeekStrip';
 
@@ -19,7 +20,10 @@ export function DayPage({ iso }: { iso: string }) {
       <TimeHeader level="day" periodKey={iso} anchor={iso} />
       {/* <WeekStrip weekKey={weekKey(iso, firstDay)} firstDay={firstDay} selected={iso} /> */}
       <p className="eyebrow">{isToday ? t.pages.today : fmt(iso, { weekday: 'long' })}</p>
-      <h1>{fmt(iso, isToday ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })}</h1>
+      <div className="title-row">
+        <h1>{fmt(iso, isToday ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })}</h1>
+        <PageMenu page={{ kind: 'daily', key: iso }} />
+      </div>
       <PageEditor key={log.id} log={log} autoFocus label={log.title} />
       <PageFooter />
     </main>
@@ -48,7 +52,10 @@ export function WeekPage({ weekKey: key }: { weekKey: string }) {
       <p className="eyebrow">
         {t.pages.week} {Number(key.split('-W')[1])}
       </p>
-      <h1>{range}</h1>
+      <div className="title-row">
+        <h1>{range}</h1>
+        <PageMenu page={{ kind: 'weekly', key }} />
+      </div>
       <PageEditor key={log.id} log={log} autoFocus label={log.title} />
       <PageFooter />
     </main>

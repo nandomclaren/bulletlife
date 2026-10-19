@@ -241,3 +241,9 @@ export async function exportEverything(): Promise<{ name: string; text: string }
   await updateSettings({ lastExportAt: data.createdAt });
   return { name: backupFileName(new Date()), text: JSON.stringify(data, null, 1) };
 }
+
+/** Every page that has something written: log ids with entries, plus the collections. */
+export async function writtenPages(): Promise<{ logIds: string[]; collections: Log[] }> {
+  const [logIds, collections] = await Promise.all([db.entries.orderBy('logId').uniqueKeys(), db.logs.toArray()]);
+  return { logIds: logIds as string[], collections };
+}

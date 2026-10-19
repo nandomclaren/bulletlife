@@ -153,5 +153,17 @@ Short log of technical decisions. Newest last.
 - **Daily snapshots:** once a day (3 s after launch and when the app returns to the foreground) a full copy of entries and collections goes into a separate local database, `bullet-life-backups`, which is never synced. The 30 newest are kept. Each device has its own.
 - **Restore** (from a snapshot or a file) replaces the current content exactly, and first saves a "Before restore" snapshot of the current state (5 newest kept), so a restore can be undone. Confirmation is inline.
 - **Export everything:** a JSON file (`bullet-life-YYYY-MM-DD-HHMM.json`, format 1) with entries and collections, without the sync service's fields (`realmId`, `owner`). iPhone: share sheet (Save to Files / iCloud Drive); Mac: download. "Last export" shown in Settings. **Restore from a file** validates the file first and refuses anything that is not a backup from this app (or from a newer format).
-- The full Markdown export arrives with Phase 3's formatter.
+- The full Markdown export arrived with Phase 3 (see below).
 - Pure rules in `src/data/backup.ts`, unit tested.
+
+## 2026-10-19 · Phase 3: Export, Copy As, Share
+
+- **Where:** a "…" button on the title row of every page (Day, Week, Month, Year, collection). The time header is already full at iPhone width, so the menu sits beside the title instead.
+- **Menu:** one panel, no submenus. Scope (Whole page / Selection · N lines, only when there is a selection), format chips (Markdown / Rich Text / Plain Text, the last choice remembered on the device), then Copy, Export, Share. Copying a page in Markdown is 2 taps ("…", Copy).
+- **Built from the model, never the screen:** the document is read from the stored entries (`src/export/pageDoc.ts`), so collapsed children are always included. The Month exports its written day rows as `## 18 Sun` sections plus Month tasks; the Year exports its written months. Empty sections are left out; the layout itself is not "content".
+- **Prepared on open:** Safari only allows clipboard and share right after a tap, so opening the menu flushes pending edits (`src/pages/flush.ts`) and builds the document; the buttons then run synchronously inside the tap.
+- **Copy:** `ClipboardItem` with `text/html` + `text/plain` for Rich Text (plain fallback for apps that only take text); fallback to a `copy` event with `DataTransfer`. **Export:** iPhone opens the share sheet with the file (Save to Files), Mac downloads it. **Share:** `navigator.share` with text; hidden where it does not exist.
+- **Selection:** stored on every `selectionchange` as whole lines (with the collapsed children of a collapsed last line) because tapping "…" on iOS can clear the native selection; cleared on navigation. A selection exports as bare lines without the page title, the same as ⌘C.
+- **⌘C / iOS Copy / cut** are intercepted when the selection spans lines or covers the whole text of a collapsed parent: the clipboard gets plain text and HTML from the model, children included. A few words inside one line keep the native copy. Cut removes what it copied, hidden children included.
+- **Settings:** Markdown glyph style (Checkboxes / Dot notation). Backup › Export everything as Markdown: every written page in one `.md` file (Years, Months, Weeks, Days oldest first, then collections by name). The JSON file stays the restorable backup.
+- To validate on the iPhone: rich-text paste into Notes/Mail, the share sheet, and the selection surviving a tap on "…".

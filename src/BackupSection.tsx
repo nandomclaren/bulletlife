@@ -1,10 +1,12 @@
 // Settings › Backup: export to a file, restore from a file, daily snapshots.
 import { useRef, useState } from 'react';
-import { BackupError } from './data/backup';
+import { BackupError, backupFileName } from './data/backup';
 import { exportEverything, restoreFromFile, restoreSnapshot, useSettings, useSnapshots } from './data/repo';
+import type { Weekday } from './dates';
+import { exportFile } from './export/actions';
+import { everythingMarkdown } from './export/everything';
 import { t } from './i18n/en';
 
-const coarse = () => window.matchMedia('(pointer: coarse)').matches;
 const when = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const rel = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
@@ -15,25 +17,6 @@ function ago(iso: string) {
   if (minutes > -60) return rel.format(minutes, 'minute');
   if (minutes > -24 * 60) return rel.format(Math.round(minutes / 60), 'hour');
   return rel.format(Math.round(minutes / (24 * 60)), 'day');
-}
-
-/** iPhone: the share sheet (Save to Files, iCloud Drive). Mac: a download. */
-async function saveFile(name: string, text: string) {
-  const file = new File([text], name, { type: 'application/json' });
-  if (coarse() && navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: name });
-      return;
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') return;
-    }
-  }
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function BackupSection() {
@@ -59,7 +42,7 @@ export function BackupSection() {
           className="option"
           onClick={async () => {
             const { name, text } = await exportEverything();
-            await saveFile(name, text);
+            await exportFile(name, text, 'application/json');
           }}
         >
           <span className="option-text">
@@ -67,6 +50,18 @@ export function BackupSection() {
             <span className="option-hint">
               {t.backup.lastExport}: {settings.lastExportAt ? ago(settings.lastExportAt) : t.backup.never}
             </span>
+          </span>
+        </button>
+        <button
+          className="option"
+          onClick={async () => {
+            const text = await everythingMarkdown(settings.markdownGlyphs ?? 'checkboxes', settings.firstDayOfWeek as Weekday);
+            await exportFile(backupFileName(new Date()).replace(/\.json$/, '.md'), text, 'text/markdown');
+          }}
+        >
+          <span className="option-text">
+            <span className="option-title">{t.backup.exportMarkdown}</span>
+            <span className="option-hint">{t.backup.exportMarkdownHint}</span>
           </span>
         </button>
         <button className="option" onClick={() => fileInput.current?.click()}>

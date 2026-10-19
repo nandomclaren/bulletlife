@@ -40,6 +40,8 @@ export interface Settings {
   activeLogs: { monthly: boolean; weekly: boolean; daily: boolean };
   eventStates: boolean;
   firstDayOfWeek: 0 | 1;
+  /** Settings › Markdown glyph style. */
+  markdownGlyphs?: 'checkboxes' | 'dots';
   /** When everything was last exported to a file on this device (ISO). */
   lastExportAt?: string;
 }
