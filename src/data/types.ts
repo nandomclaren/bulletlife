@@ -34,6 +34,8 @@ export interface Log {
   periodEnd?: string;
   /** A period page set up explicitly ("Set up week"): the time log it stands for, e.g. 'weekly:2026-W43'. */
   periodLogId?: string;
+  /** A collection pinned to the top of the Index. */
+  pinned?: boolean;
   createdAt: string;
   updatedAt: string;
 }

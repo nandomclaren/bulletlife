@@ -9,6 +9,7 @@ import './styles.css';
 import './editor/editor.css';
 import './pages/pages.css';
 import './open/open.css';
+import './search/search.css';
 
 applyTheme();
 registerSW({ immediate: true });

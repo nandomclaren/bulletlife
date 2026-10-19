@@ -1,0 +1,224 @@
+/* Global search (⌘K) */
+
+.search-backdrop {
+  position: fixed;
+  z-index: 45;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(10vh, env(safe-area-inset-top)) 12px 12px;
+  background: rgb(0 0 0 / 0.18);
+  animation: fade-in 140ms var(--ease);
+}
+
+.search-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: min(70vh, 640px);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow:
+    0 20px 48px rgb(0 0 0 / 0.18),
+    0 2px 8px rgb(0 0 0 / 0.08);
+  overflow: hidden;
+  animation: menu-in 160ms var(--ease);
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search-cancel {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.search-results {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.search-empty {
+  padding: 14px 12px;
+  color: var(--muted);
+}
+
+.search-hit {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 0 10px;
+  align-items: baseline;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.search-hit[aria-selected='true'] {
+  background: var(--surface);
+}
+
+.search-glyph {
+  text-align: center;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.search-glyph.g-task {
+  color: var(--task);
+}
+.search-glyph.g-event {
+  color: var(--event);
+}
+.search-glyph.g-note {
+  color: var(--note);
+}
+
+.search-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.search-text.is-cancelled {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.search-text mark {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+}
+
+.search-due {
+  margin: 0 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.search-hit[aria-selected='true'] .search-due {
+  background: var(--bg);
+}
+
+.search-origin {
+  grid-column: 2;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Index: pin a collection to the top */
+.index-row {
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--rule);
+}
+
+.index-list li.index-row:last-child {
+  border-bottom: 0;
+}
+
+.index-row .index-link {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+/* Centered on the first text line; the 44 px target overhangs below. */
+.pin-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px -8px 0;
+  opacity: 0.45;
+}
+
+.pin-btn.is-pinned {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.index-row:hover .pin-btn,
+.pin-btn:focus-visible {
+  opacity: 1;
+}
+
+/* Settings › Keyboard */
+.shortcuts {
+  margin: 0;
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.shortcut {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  padding: 8px 16px;
+  border-top: 1px solid var(--rule);
+}
+
+.shortcut:first-child {
+  border-top: 0;
+}
+
+.shortcut dt {
+  flex: none;
+  width: 108px;
+}
+
+.shortcut dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+kbd {
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-backdrop,
+  .search-dialog {
+    animation: none;
+  }
+}

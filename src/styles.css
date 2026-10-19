@@ -4,7 +4,7 @@
   --bg: #faf8f4;
   --surface: #f3f0ea;
   --text: #1f1d1a;
-  --muted: #8a857c;
+  --muted: #726d65; /* AA on --bg and --surface */
   --rule: #e6e1d8;
   --accent: #e0533d;
 

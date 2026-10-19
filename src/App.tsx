@@ -10,6 +10,8 @@ import { activeLevels, anchorWithin, finestLevel, pathFor, type Level } from './
 import { replace, restoreScroll, usePath } from './router';
 import { setSelection } from './export/selection';
 import { OpenItemsPanel } from './open/OpenItemsPanel';
+import { SearchDialog } from './search/SearchDialog';
+import { useShortcuts } from './pages/shortcuts';
 import { dueView } from './editor/render';
 import { SettingsPage } from './SettingsPage';
 import { SpikePage } from './spike/SpikePage';
@@ -19,6 +21,7 @@ export function App() {
     <>
       <Routes />
       <OpenItemsPanel />
+      <SearchDialog />
     </>
   );
 }
@@ -32,6 +35,7 @@ function Routes() {
     dueView.firstDay = settings.firstDayOfWeek as Weekday;
   }
   useEffect(restoreScroll, [path]);
+  useShortcuts(path, settings);
   // A selection belongs to the page it was made on.
   useEffect(() => setSelection(null), [path]);
 

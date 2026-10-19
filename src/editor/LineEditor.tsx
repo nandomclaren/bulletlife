@@ -840,7 +840,18 @@ interface Props {
   onLinkAnswer?: (lineId: string, sourceId: string, link: boolean) => void;
 }
 
-export function LineEditor({ initial, onChange, autoFocus, className, label, eventStates = true, focusRef, reverseSwipes = false, findRewrite, onLinkAnswer }: Props) {
+export function LineEditor({
+  initial,
+  onChange,
+  autoFocus,
+  className,
+  label,
+  eventStates = true,
+  focusRef,
+  reverseSwipes = false,
+  findRewrite,
+  onLinkAnswer,
+}: Props) {
   const host = useRef<HTMLDivElement>(null);
   const core = useRef<LineEditorCore | null>(null);
   const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);

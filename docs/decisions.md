@@ -211,3 +211,12 @@ Short log of technical decisions. Newest last.
 - When a task or event line is finished (Enter, or leaving the editor), its text is compared with the open items on other pages (`src/data/similar.ts`, tested): lowercase, no accents, no punctuation, no `due:` dates, English and Portuguese stopwords removed; a match is the same words, or ≥ 2 shared words with Dice ≥ 0.7. It errs on the side of silence.
 - A strong match shows a quiet chip under the line: "Looks like the open item “…” (Mon, Oct 12)." with **Link it** and ×. Nothing is linked without the tap. Link it sets the original to `>` if it was still open and `placement = placed` with `placedEntryId` = the new line. × remembers the pair on this device and never suggests it again. Editing the line removes the chip.
 - Local only, no AI, no network.
+
+## 2026-10-19 · Phase 5: search, Index, shortcuts, accessibility
+
+- **Search (⌘K, or the search button in the Index header):** every entry on every page, collapsed children included, and collection names (`src/data/search.ts`, tested). Case- and accent-insensitive; every word typed must appear; newest change first. Each result shows its bullet, the text with the words marked (dates as their short label) and the page it lives on; ↑ ↓ Enter, Esc. Opening a result goes to its page and flashes the entry; inside a collapsed item it flashes the visible parent (search never expands or changes anything).
+- **Index:** collections can be pinned (pin button on each row; `Log.pinned`, synced). Pinned ones sit under the Year at the top.
+- **Mac shortcuts** (event.code; ⌃⌘ avoids Safari and macOS text keys): ⌘K search, ⌃⌘T today, ⌃⌘↑/↓ up/down a level at the anchor date, ⌃⌘←/→ previous/next period, ⌃⌘O Open items. Listed in Settings › Keyboard with the editor keys (⌘↵, ⌃⌥→/←, Tab/⇧Tab).
+- **Accessibility:** Paper's secondary text color darkened from #8a857c (3.5:1) to #726d65 (≥ 4.5:1 on background and surfaces, AA); the dark themes already passed. Bullet colors pass the 3:1 for graphics. The search dialog is a modal with focus moved in and restored, combobox/listbox roles and active descendant. Toasts are status regions; bullets and pills carry labels.
+- Themes: Paper, Graphite and Night were already in place; import/export everything (JSON, Markdown) was done before Phase 3.
+- **Still open from Phase 5:** the automatic off-device copy (needs a decision and credentials from Fernando).

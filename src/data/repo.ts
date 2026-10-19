@@ -69,13 +69,10 @@ export async function saveLines(log: LogRef, slot: string, lines: Line[], base?:
 /** Which of these log ids have at least one written entry. */
 export function useLogsWithContent(logIds: string[]): Set<string> {
   return (
-    useLiveQuery(
-      async () => {
-        const entries = await db.entries.where('logId').anyOf(logIds).toArray();
-        return new Set(entries.filter((e) => e.text.trim() || e.type !== 'text').map((e) => e.logId));
-      },
-      [logIds.join()],
-    ) ?? new Set()
+    useLiveQuery(async () => {
+      const entries = await db.entries.where('logId').anyOf(logIds).toArray();
+      return new Set(entries.filter((e) => e.text.trim() || e.type !== 'text').map((e) => e.logId));
+    }, [logIds.join()]) ?? new Set()
   );
 }
 
@@ -115,6 +112,11 @@ export async function renameCollection(id: string, title: string) {
 
 export function useLog(id: string): Log | null | undefined {
   return useLiveQuery(async () => (await db.logs.get(id)) ?? null, [id]);
+}
+
+/** Pins a collection to the top of the Index, or unpins it (synced). */
+export async function setCollectionPinned(id: string, pinned: boolean) {
+  await db.logs.update(id, { pinned, updatedAt: new Date().toISOString() });
 }
 
 export function useCollections(): Log[] | undefined {
@@ -282,17 +284,14 @@ export async function confirmPlaced(id: string): Promise<void> {
 
 /** Which of these period logs are set up: explicitly ("Set up week") or by having entries. */
 export function usePeriodsSetUp(logIds: string[]): Set<string> | undefined {
-  return useLiveQuery(
-    async () => {
-      const [marks, entries] = await Promise.all([
-        db.logs.where('kind').anyOf(['daily', 'weekly', 'monthly']).toArray(),
-        db.entries.where('logId').anyOf(logIds).toArray(),
-      ]);
-      const ids = new Set(logIds);
-      return new Set([...marks.map((l) => l.periodLogId ?? ''), ...entries.map((e) => e.logId)].filter((id) => ids.has(id)));
-    },
-    [logIds.join()],
-  );
+  return useLiveQuery(async () => {
+    const [marks, entries] = await Promise.all([
+      db.logs.where('kind').anyOf(['daily', 'weekly', 'monthly']).toArray(),
+      db.entries.where('logId').anyOf(logIds).toArray(),
+    ]);
+    const ids = new Set(logIds);
+    return new Set([...marks.map((l) => l.periodLogId ?? ''), ...entries.map((e) => e.logId)].filter((id) => ids.has(id)));
+  }, [logIds.join()]);
 }
 
 /**

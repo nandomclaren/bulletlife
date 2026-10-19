@@ -182,6 +182,21 @@ export function SettingsPage() {
       </section>
 
       <section className="setting">
+        <h2>{t.settings.keyboard}</h2>
+        <dl className="shortcuts">
+          {t.settings.shortcuts.map(([keys, what]) => (
+            <div key={keys} className="shortcut">
+              <dt>
+                <kbd>{keys}</kbd>
+              </dt>
+              <dd>{what}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="setting-hint">{t.settings.keyboardHint}</p>
+      </section>
+
+      <section className="setting">
         <h2 id="theme-label">{t.settings.theme}</h2>
         <div className="options" role="radiogroup" aria-labelledby="theme-label">
           {THEMES.map((th) => (

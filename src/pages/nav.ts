@@ -96,7 +96,9 @@ export function flash(id: string) {
 export function flashEntry(id: string) {
   const until = Date.now() + 2000;
   const attempt = () => {
-    const el = document.querySelector<HTMLElement>(`.line[data-id="${CSS.escape(id)}"]`);
+    let el = document.querySelector<HTMLElement>(`.line[data-id="${CSS.escape(id)}"]`);
+    // Inside a collapsed item: point at the visible line that holds it (nothing is expanded).
+    while (el?.classList.contains('is-hidden')) el = el.previousElementSibling as HTMLElement | null;
     if (!el || el.offsetParent === null) {
       if (Date.now() < until) window.setTimeout(attempt, 80);
       return;

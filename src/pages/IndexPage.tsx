@@ -1,7 +1,10 @@
 // Index (CLAUDE.md 3.1): always on. The current Year and the collections.
 import { useState } from 'react';
 import { todayIso, yearOf, type Weekday } from '../dates';
-import { createCollection, useCollections, useSettings } from '../data/repo';
+import { createCollection, setCollectionPinned, useCollections, useSettings } from '../data/repo';
+import type { Log } from '../data/types';
+import { openSearch } from '../search/store';
+import { SearchIcon } from '../search/SearchDialog';
 import { t } from '../i18n/en';
 import { navigate } from '../router';
 import { finestLevel, pathFor, setAnchor } from './nav';
@@ -14,6 +17,8 @@ export function IndexPage() {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const year = yearOf(todayIso());
+  const pinned = (collections ?? []).filter((c) => c.pinned);
+  const others = (collections ?? []).filter((c) => !c.pinned);
 
   const goTo = (iso: string) => {
     setAnchor(iso);
@@ -30,7 +35,9 @@ export function IndexPage() {
         </button>
         <div className="crumbs" />
         <div className="header-actions">
-          <span className="icon-btn-quiet" aria-hidden />
+          <button className="icon-btn-quiet" aria-label={t.index.search} onClick={openSearch}>
+            <SearchIcon />
+          </button>
           <button className="today-btn" onClick={() => goTo(todayIso())}>
             {t.nav.today}
           </button>
@@ -54,18 +61,17 @@ export function IndexPage() {
             {year}
           </button>
         </li>
+        {pinned.map((c) => (
+          <CollectionRow key={c.id} c={c} />
+        ))}
       </ul>
 
       <section className="index-section">
         <h2 className="section-title">{t.index.collections}</h2>
         {collections?.length === 0 && !naming && <p className="muted">{t.index.noCollections}</p>}
         <ul className="index-list">
-          {collections?.map((c) => (
-            <li key={c.id}>
-              <button className="index-link" onClick={() => navigate(`/collection/${encodeURIComponent(c.id)}`)}>
-                {c.title || t.index.untitled}
-              </button>
-            </li>
+          {others.map((c) => (
+            <CollectionRow key={c.id} c={c} />
           ))}
         </ul>
         {naming ? (
@@ -107,5 +113,27 @@ export function IndexPage() {
         </button>
       </footer>
     </main>
+  );
+}
+
+function CollectionRow({ c }: { c: Log }) {
+  const name = c.title || t.index.untitled;
+  return (
+    <li className="index-row">
+      <button className="index-link" onClick={() => navigate(`/collection/${encodeURIComponent(c.id)}`)}>
+        {c.pinned && <span className="index-kind">{t.index.pinned}</span>}
+        {name}
+      </button>
+      <button
+        className={`icon-btn-quiet pin-btn${c.pinned ? ' is-pinned' : ''}`}
+        aria-label={c.pinned ? t.index.unpin(name) : t.index.pin(name)}
+        aria-pressed={!!c.pinned}
+        onClick={() => void setCollectionPinned(c.id, !c.pinned)}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden>
+          <path d="M9 3h6l-1 6 4 4H6l4-4-1-6ZM12 13v8" strokeLinecap="round" />
+        </svg>
+      </button>
+    </li>
   );
 }
