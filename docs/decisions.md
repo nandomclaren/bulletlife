@@ -220,3 +220,9 @@ Short log of technical decisions. Newest last.
 - **Accessibility:** Paper's secondary text color darkened from #8a857c (3.5:1) to #726d65 (≥ 4.5:1 on background and surfaces, AA); the dark themes already passed. Bullet colors pass the 3:1 for graphics. The search dialog is a modal with focus moved in and restored, combobox/listbox roles and active descendant. Toasts are status regions; bullets and pills carry labels.
 - Themes: Paper, Graphite and Night were already in place; import/export everything (JSON, Markdown) was done before Phase 3.
 - **Still open from Phase 5:** the automatic off-device copy (needs a decision and credentials from Fernando).
+
+## 2026-10-19 · Off-device copy: export reminder (Fernando chose option b)
+
+- No automatic off-device job for now. A quiet banner on current-period pages says "No full export on this device yet." or "Last full export: 9 days ago." with **Export now** (the same JSON as Settings › Backup › Export everything: share sheet on iPhone → Save to Files / iCloud Drive; download on Mac). It shows when something is written and the last export is 7+ days old; × waits 3 days. Settings › Backup › Remind me to export turns it off. Per device (the date of the last export is a device setting).
+- A scheduled export on Railway (Dexie Cloud export into a volume) stays possible later, once the sync plan is decided.
+- Phase 5 is complete apart from Fernando's checks.

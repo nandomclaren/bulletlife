@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BackupError, buildBackup, parseBackup, planRestore, snapshotsToPrune } from './backup';
+import { BackupError, buildBackup, exportReminderDue, parseBackup, planRestore, snapshotsToPrune } from './backup';
 import type { Entry, Log } from './types';
 
 const NOW = '2026-10-19T10:00:00.000Z';
@@ -44,6 +44,14 @@ describe('backup', () => {
     expect(plan.putEntries.map((e) => e.text)).toEqual(['Pay rent']);
     expect(plan.removeEntries).toEqual(['e2']);
     expect(plan.removeLogs).toEqual(['collection:02B']);
+  });
+
+  it('reminds to export after a week, or when never exported, only if there is something written', () => {
+    const now = new Date('2026-10-19T10:00:00Z');
+    expect(exportReminderDue(undefined, now, true)).toBe(true);
+    expect(exportReminderDue(undefined, now, false)).toBe(false);
+    expect(exportReminderDue('2026-10-15T10:00:00Z', now, true)).toBe(false);
+    expect(exportReminderDue('2026-10-12T09:00:00Z', now, true)).toBe(true);
   });
 
   it('keeps the 30 newest daily snapshots', () => {

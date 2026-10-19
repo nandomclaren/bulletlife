@@ -1,7 +1,7 @@
 // Settings › Backup: export to a file, restore from a file, daily snapshots.
 import { useRef, useState } from 'react';
 import { BackupError, backupFileName } from './data/backup';
-import { exportEverything, restoreFromFile, restoreSnapshot, useSettings, useSnapshots } from './data/repo';
+import { exportEverything, restoreFromFile, updateSettings, restoreSnapshot, useSettings, useSnapshots } from './data/repo';
 import type { Weekday } from './dates';
 import { exportFile } from './export/actions';
 import { everythingMarkdown } from './export/everything';
@@ -103,6 +103,20 @@ export function BackupSection() {
         }}
       />
       <p className="setting-hint">{t.backup.exportHint}</p>
+      <div className="options">
+        <button
+          role="switch"
+          aria-checked={settings.exportReminder}
+          className="option switch-row"
+          onClick={() => void updateSettings({ exportReminder: !settings.exportReminder })}
+        >
+          <span className="option-text">
+            <span className="option-title">{t.backup.reminder}</span>
+            <span className="option-hint">{t.backup.reminderHint}</span>
+          </span>
+          <span className="switch" aria-hidden />
+        </button>
+      </div>
 
       <h3 className="setting-sub">{t.backup.snapshots}</h3>
       <div className="options">

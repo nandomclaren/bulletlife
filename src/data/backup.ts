@@ -68,6 +68,22 @@ export function snapshotsToPrune(ids: string[], keep = KEEP_SNAPSHOTS): string[]
   return [...ids].sort().reverse().slice(keep);
 }
 
+/** Days a full export may age before the reminder shows (Settings › Backup). */
+export const EXPORT_REMINDER_DAYS = 7;
+
+/** Whole days since the last full export, or null if there never was one. */
+export function daysSinceExport(lastExportAt: string | undefined, now: Date): number | null {
+  if (!lastExportAt) return null;
+  return Math.floor((now.getTime() - Date.parse(lastExportAt)) / 86_400_000);
+}
+
+/** The reminder shows when there is something to lose and no export from the last week. */
+export function exportReminderDue(lastExportAt: string | undefined, now: Date, hasEntries: boolean): boolean {
+  if (!hasEntries) return false;
+  const days = daysSinceExport(lastExportAt, now);
+  return days === null || days >= EXPORT_REMINDER_DAYS;
+}
+
 export function backupFileName(now: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `bullet-life-${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}.json`;

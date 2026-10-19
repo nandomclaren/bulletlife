@@ -57,6 +57,8 @@ export interface Settings {
   /** Settings › Close the day banner, and from what time ('HH:MM'). */
   closeDay: boolean;
   closeDayAt: string;
+  /** Settings › Backup: a reminder when the last full export is over a week old. */
+  exportReminder: boolean;
   /** Settings › number on the Open items button. */
   openCount: boolean;
 }
@@ -71,4 +73,5 @@ export const DEFAULT_SETTINGS: Settings = {
   closeDay: true,
   closeDayAt: '20:00',
   openCount: true,
+  exportReminder: true,
 };

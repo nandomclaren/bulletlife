@@ -239,6 +239,11 @@ export async function restoreFromFile(text: string): Promise<void> {
   await restoreBackup(parseBackup(text));
 }
 
+/** Whether anything has been written at all (for the export reminder). */
+export function useHasEntries(): boolean | undefined {
+  return useLiveQuery(async () => (await db.entries.limit(1).count()) > 0);
+}
+
 /** Everything as a JSON file (name + contents), and remembers when this device last exported. */
 export async function exportEverything(): Promise<{ name: string; text: string }> {
   const data = await currentBackup();

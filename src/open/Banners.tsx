@@ -3,7 +3,9 @@
 // open things up; nothing is written except the explicit "Set up".
 import { useEffect, useState } from 'react';
 import { addDays, fmt, monthOf, weekKey, type Weekday } from '../dates';
-import { periodLog, setUpPeriod, usePeriodsSetUp, useSettings, type LogRef } from '../data/repo';
+import { daysSinceExport, exportReminderDue } from '../data/backup';
+import { exportEverything, periodLog, setUpPeriod, useHasEntries, usePeriodsSetUp, useSettings, type LogRef } from '../data/repo';
+import { exportFile } from '../export/actions';
 import { t } from '../i18n/en';
 import { navigate } from '../router';
 import { openPanel } from './panelStore';
@@ -52,7 +54,18 @@ export function Banners({ current }: { current: boolean }) {
   const setUp = usePeriodsSetUp(candidates.map((c) => c.id));
   void dismissed;
 
+  const hasEntries = useHasEntries();
   if (!current || !setUp) return null;
+
+  // Backup reminder: a full export to keep off the device (iCloud Drive). Dismissing waits 3 days.
+  const snoozed = (() => {
+    try {
+      return Number(localStorage.getItem('banner.export.snoozedUntil') ?? 0) > Date.now();
+    } catch {
+      return false;
+    }
+  })();
+  const showExport = settings.exportReminder && !snoozed && exportReminderDue(settings.lastExportAt, new Date(), !!hasEntries);
 
   const pendingSetup = settings.setupBanner ? candidates.find((c) => !setUp.has(c.id) && !read(`banner.setup.${c.id}`)) : undefined;
   const closeKey = `banner.closeDay.${today}`;
@@ -75,6 +88,24 @@ export function Banners({ current }: { current: boolean }) {
           }}
           onDismiss={() => {
             write(`banner.setup.${pendingSetup.id}`);
+            setDismissed((n) => n + 1);
+          }}
+        />
+      )}
+      {showExport && (
+        <Banner
+          text={t.banners.exportStale(daysSinceExport(settings.lastExportAt, new Date()))}
+          action={t.banners.exportNow}
+          onAction={async () => {
+            const { name, text } = await exportEverything();
+            await exportFile(name, text, 'application/json');
+          }}
+          onDismiss={() => {
+            try {
+              localStorage.setItem('banner.export.snoozedUntil', String(Date.now() + 3 * 86_400_000));
+            } catch {
+              // shown again next time
+            }
             setDismissed((n) => n + 1);
           }}
         />
