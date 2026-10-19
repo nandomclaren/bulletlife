@@ -146,3 +146,12 @@ Short log of technical decisions. Newest last.
 - Fernando signed in on iPhone and Mac with the same email: entries written on one appear on the other, including entries written offline and synced after reconnecting (Phase 2 acceptance criterion).
 - Icons and manifest already use the final files from `assets/icon/` (manifest icons incl. maskable, apple-touch-icon, favicons).
 - Still per device: Settings (theme, active logs, first day of week).
+
+## 2026-10-19 · Backup (before Phase 3, at Fernando's request)
+
+- Sync is replication, not backup: a deletion or a bug spreads to every copy. Two protections added now; an automatic off-device copy (Dexie Cloud export on the Mac, or a small service on Railway) is planned for Phase 5.
+- **Daily snapshots:** once a day (3 s after launch and when the app returns to the foreground) a full copy of entries and collections goes into a separate local database, `bullet-life-backups`, which is never synced. The 30 newest are kept. Each device has its own.
+- **Restore** (from a snapshot or a file) replaces the current content exactly, and first saves a "Before restore" snapshot of the current state (5 newest kept), so a restore can be undone. Confirmation is inline.
+- **Export everything:** a JSON file (`bullet-life-YYYY-MM-DD-HHMM.json`, format 1) with entries and collections, without the sync service's fields (`realmId`, `owner`). iPhone: share sheet (Save to Files / iCloud Drive); Mac: download. "Last export" shown in Settings. **Restore from a file** validates the file first and refuses anything that is not a backup from this app (or from a newer format).
+- The full Markdown export arrives with Phase 3's formatter.
+- Pure rules in `src/data/backup.ts`, unit tested.

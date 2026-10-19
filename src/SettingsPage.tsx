@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { BackupSection } from './BackupSection';
 import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
@@ -48,6 +49,8 @@ export function SettingsPage() {
           </div>
         )}
       </section>
+
+      <BackupSection />
 
       <section className="setting">
         <h2>{t.settings.logs}</h2>

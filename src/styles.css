@@ -641,3 +641,36 @@ h1 {
   border: 1.5px solid var(--muted);
   background: var(--bg);
 }
+
+/* Backup */
+
+.setting-sub {
+  margin: 20px 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.snapshot + .snapshot {
+  border-top: 1px solid var(--rule);
+}
+
+.snapshot .option {
+  width: 100%;
+  border-top: 0;
+}
+
+.confirm-row {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  background: var(--surface);
+  cursor: default;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-actions .btn {
+  margin-top: 0;
+}

@@ -2,8 +2,10 @@
 // means changing this file and db.ts, not the pages.
 import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { ulid } from 'ulid';
-import { addDays, daysInMonth, fmt, weekKeyStart, type Weekday } from '../dates';
+import { addDays, daysInMonth, fmt, todayIso, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
+import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune, type Backup } from './backup';
+import { backupDb, type Snapshot } from './backupDb';
 import { diffEntries, entriesToLines } from './convert';
 import { db } from './db';
 import { DEFAULT_SETTINGS, type Log, type LogKind, type Settings } from './types';
@@ -165,4 +167,77 @@ export function useEntriesStamp(logId: string, slot = ''): string | undefined {
       .sort()
       .join('|');
   }, [logId, slot]);
+}
+
+// ---------- Backup ----------
+
+const BEFORE_RESTORE_KEEP = 5;
+
+async function currentBackup(): Promise<Backup> {
+  const [logs, entries] = await Promise.all([db.logs.toArray(), db.entries.toArray()]);
+  return buildBackup(logs, entries, new Date().toISOString());
+}
+
+async function storeSnapshot(id: string, kind: Snapshot['kind'], data: Backup) {
+  await backupDb.snapshots.put({ id, kind, createdAt: data.createdAt, entryCount: data.entries.length, collectionCount: data.logs.length, data });
+}
+
+/** Once a day (on launch and when the app comes back to the foreground): a full copy, kept for 30 days. */
+export async function takeDailySnapshot(): Promise<void> {
+  const id = todayIso();
+  if (await backupDb.snapshots.get(id)) return;
+  const data = await currentBackup();
+  if (!data.entries.length && !data.logs.length) return;
+  await storeSnapshot(id, 'daily', data);
+  const daily = await backupDb.snapshots.where('kind').equals('daily').primaryKeys();
+  await backupDb.snapshots.bulkDelete(snapshotsToPrune(daily));
+}
+
+export function startBackups() {
+  const run = () => void takeDailySnapshot().catch(() => {});
+  window.setTimeout(run, 3000);
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && run());
+}
+
+export type SnapshotInfo = Omit<Snapshot, 'data'>;
+
+export function useSnapshots(): SnapshotInfo[] | undefined {
+  return useLiveQuery(async () => {
+    const all = await backupDb.snapshots.orderBy('createdAt').reverse().toArray();
+    return all.map(({ data: _data, ...info }) => info);
+  });
+}
+
+/** Replaces everything with a backup. The current state is saved first, so a restore can be undone. */
+export async function restoreBackup(backup: Backup): Promise<void> {
+  const before = await currentBackup();
+  if (before.entries.length || before.logs.length) {
+    await storeSnapshot(`before-restore:${before.createdAt}`, 'before-restore', before);
+    const safety = await backupDb.snapshots.where('kind').equals('before-restore').primaryKeys();
+    await backupDb.snapshots.bulkDelete(snapshotsToPrune(safety, BEFORE_RESTORE_KEEP));
+  }
+  await db.transaction('rw', db.logs, db.entries, async () => {
+    const plan = planRestore({ logs: await db.logs.toArray(), entries: await db.entries.toArray() }, backup);
+    if (plan.removeEntries.length) await db.entries.bulkDelete(plan.removeEntries);
+    if (plan.removeLogs.length) await db.logs.bulkDelete(plan.removeLogs);
+    if (plan.putLogs.length) await db.logs.bulkPut(plan.putLogs);
+    if (plan.putEntries.length) await db.entries.bulkPut(plan.putEntries);
+  });
+}
+
+export async function restoreSnapshot(id: string): Promise<void> {
+  const snap = await backupDb.snapshots.get(id);
+  if (snap) await restoreBackup(snap.data);
+}
+
+/** Restores from an exported file. Throws BackupError when the file is not a backup. */
+export async function restoreFromFile(text: string): Promise<void> {
+  await restoreBackup(parseBackup(text));
+}
+
+/** Everything as a JSON file (name + contents), and remembers when this device last exported. */
+export async function exportEverything(): Promise<{ name: string; text: string }> {
+  const data = await currentBackup();
+  await updateSettings({ lastExportAt: data.createdAt });
+  return { name: backupFileName(new Date()), text: JSON.stringify(data, null, 1) };
 }

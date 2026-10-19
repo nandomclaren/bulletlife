@@ -40,6 +40,8 @@ export interface Settings {
   activeLogs: { monthly: boolean; weekly: boolean; daily: boolean };
   eventStates: boolean;
   firstDayOfWeek: 0 | 1;
+  /** When everything was last exported to a file on this device (ISO). */
+  lastExportAt?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
