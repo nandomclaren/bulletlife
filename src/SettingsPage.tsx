@@ -148,6 +148,20 @@ export function SettingsPage() {
       </section>
 
       <section className="setting">
+        <h2 id="date-format-label">{t.settings.dateFormat}</h2>
+        <div className="options" role="radiogroup" aria-labelledby="date-format-label">
+          {(['dmy', 'mdy'] as const).map((o) => (
+            <button key={o} role="radio" aria-checked={settings.dateOrder === o} className="option" onClick={() => void updateSettings({ dateOrder: o })}>
+              <span className="option-text">
+                <span className="option-title">{t.settings.dateFormats[o]}</span>
+                <span className="option-hint">{t.settings.dateFormatHints[o]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="setting">
         <h2 id="glyph-label">{t.settings.glyphStyle}</h2>
         <div className="options" role="radiogroup" aria-labelledby="glyph-label">
           {(['checkboxes', 'dots'] as const).map((g) => (

@@ -71,3 +71,18 @@ describe('saving only what the editor changed', () => {
     expect(remove).toEqual([base[0].id]);
   });
 });
+
+describe('reordering with a base', () => {
+  it('writes every line whose order key changed, so stored order matches the page', async () => {
+    const { newLine } = await import('../editor/lines');
+    const { diffEntries } = await import('./convert');
+    const lines = ['Pay', 'Call', 'Dentist', 'Gym', 'none'].map((text) => newLine({ type: 'task', text }));
+    const first = diffEntries(lines, [], 'daily:2026-10-19', '', 'T0');
+    const sorted = [lines[2], lines[0], lines[1], lines[3], lines[4]];
+    const { put } = diffEntries(sorted, first.put, 'daily:2026-10-19', '', 'T1', lines);
+    const stored = new Map(first.put.map((e) => [e.id, e]));
+    for (const e of put) stored.set(e.id, e);
+    const order = [...stored.values()].sort((a, b) => (a.order < b.order ? -1 : 1)).map((e) => e.text);
+    expect(order).toEqual(['Dentist', 'Pay', 'Call', 'Gym', 'none']);
+  });
+});

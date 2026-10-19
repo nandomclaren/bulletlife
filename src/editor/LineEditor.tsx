@@ -30,7 +30,10 @@ import {
   subtreeEnd,
   type Line,
 } from './lines';
-import { buildGutter, fillText, lineClass, textShapeMatches } from './render';
+import { buildGutter, dueView, fillText, lineClass, textShapeMatches } from './render';
+import { DUE_TOKEN, dateRuns, resolveDue, sortRun } from './due';
+import { todayIso } from '../dates';
+import { t } from '../i18n/en';
 
 interface Caret {
   index: number;
@@ -83,6 +86,9 @@ class LineEditorCore {
     root.addEventListener('copy', this.onCopy);
     root.addEventListener('cut', this.onCopy);
     root.addEventListener('paste', this.onPaste);
+    root.addEventListener('focusout', this.onBlur);
+    root.addEventListener('click', this.onDecorClick);
+    root.addEventListener('mousedown', this.onDecorDown);
     this.detachGutter = attachGutter(root, {
       bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, this.eventStates) ? { ...l, state: nextState(l.state) } : null)),
       chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
@@ -111,6 +117,9 @@ class LineEditorCore {
     this.root.removeEventListener('copy', this.onCopy);
     this.root.removeEventListener('cut', this.onCopy);
     this.root.removeEventListener('paste', this.onPaste);
+    this.root.removeEventListener('focusout', this.onBlur);
+    this.root.removeEventListener('click', this.onDecorClick);
+    this.root.removeEventListener('mousedown', this.onDecorDown);
     this.detachGutter();
     this.detachSwipe();
   }
@@ -148,7 +157,15 @@ class LineEditorCore {
       el.style.setProperty('--indent', String(l.indent));
       const gutter = el.querySelector(':scope > .gutter');
       gutter?.replaceWith(buildGutter(document, l, l.collapsed));
+      el.querySelector(':scope > .sort-btn')?.remove();
     });
+    // A list with due dates that is out of order offers to sort itself; it never does so on its own.
+    for (const run of dateRuns(this.lines)) {
+      if (run.sorted) continue;
+      const el = els[run.items[0]] as HTMLElement;
+      el.classList.add('has-sort');
+      el.append(sortButton());
+    }
   }
 
   private emit() {
@@ -201,7 +218,11 @@ class LineEditorCore {
     while (node) {
       const len = node.textContent?.length ?? 0;
       if (remaining <= len) {
-        r.setStart(node, remaining);
+        // Never inside a date pill: before it, or after it.
+        const pill = node.parentElement?.closest('.due');
+        if (pill && remaining === 0) r.setStartBefore(pill);
+        else if (pill) r.setStartAfter(pill);
+        else r.setStart(node, remaining);
         break;
       }
       remaining -= len;
@@ -282,6 +303,9 @@ class LineEditorCore {
   }
 
   private enter(at: Caret) {
+    // A due date finished by Enter becomes a pill too.
+    const resolved = this.resolveDueAt(at.index, at.offset);
+    if (resolved !== null) at = { index: at.index, offset: resolved };
     const i = at.index;
     const line = this.lines[i];
     if (!line.text && line.type !== 'text') {
@@ -521,14 +545,20 @@ class LineEditorCore {
       line.priority = m.priority || line.priority;
       return this.commit({ index: i, offset: 0 });
     }
-    const textEl = el?.querySelector<HTMLElement>('.line-text');
-    // A list number appeared, changed or went away: rebuild this line's text
-    // (number span + rest), keep the caret, and recolor (children inherit).
-    if (textEl && text && !textShapeMatches(textEl, text)) {
-      fillText(textEl, text);
-      this.placeCaret(sel.start);
-      this.refreshDecor();
+    // A due date just finished (a space typed after it): store it as due:YYYY-MM-DD.
+    let caret = sel.start;
+    if (/\s/.test(line.text[caret.offset - 1] ?? '')) {
+      const resolved = this.resolveDueAt(i, caret.offset - 1);
+      if (resolved !== null) caret = { index: i, offset: resolved + 1 };
     }
+    const textEl = el?.querySelector<HTMLElement>('.line-text');
+    // A list number or a date pill appeared, changed or went away: rebuild this
+    // line's text, keep the caret, and recolor (children inherit).
+    if (textEl && line.text && !textShapeMatches(textEl, line.text)) {
+      fillText(textEl, line.text);
+      this.placeCaret(caret);
+      this.refreshDecor();
+    } else if (caret !== sel.start) this.refreshDecor();
     // An emptied line can lose its <br>; keep it so the line keeps its height.
     if (textEl && !text && !textEl.querySelector('br')) {
       textEl.append(document.createElement('br'));
@@ -660,6 +690,88 @@ class LineEditorCore {
   private onCompStart = () => {
     this.composing = true;
   };
+  /** Resolves finished due expressions up to `upTo` in one line; returns where `upTo` moved, or null. */
+  private resolveDueAt(index: number, upTo: number): number | null {
+    const line = this.lines[index];
+    const r = resolveDue(line.text, todayIso(), dueView.order, dueView.firstDay, upTo);
+    if (!r) return null;
+    line.text = r.text;
+    return upTo + r.shift;
+  }
+
+  /** Leaving the editor finishes any due date still being written. */
+  private onBlur = () => {
+    let changed = false;
+    this.lines.forEach((l, i) => {
+      if (this.resolveDueAt(i, l.text.length) !== null) changed = true;
+    });
+    if (!changed) return;
+    this.renderAll();
+    this.emit();
+  };
+
+  private onDecorDown = (e: MouseEvent) => {
+    if ((e.target as Element).closest?.('.due, .sort-btn')) e.preventDefault();
+  };
+
+  private onDecorClick = (e: MouseEvent) => {
+    const target = e.target as Element;
+    const pill = target.closest?.<HTMLElement>('.due');
+    const sort = target.closest?.('.sort-btn');
+    if (!pill && !sort) return;
+    e.preventDefault();
+    const index = this.lineIndexOf(target);
+    if (index < 0) return;
+    if (sort) return this.sortAt(index);
+    this.pickDate(index, pill!);
+  };
+
+  /** Sorts the list starting at this line by date (the user's tap). Undo puts it back. */
+  private sortAt(index: number) {
+    const run = dateRuns(this.lines).find((r) => r.items[0] === index);
+    if (!run) return;
+    this.snapshot(this.readSelection()?.start ?? { index, offset: 0 });
+    this.lines = sortRun(this.lines, run);
+    this.renderAll();
+    this.emit();
+  }
+
+  /** Tapping a date pill opens the system date picker to change it. */
+  private pickDate(index: number, pill: HTMLElement) {
+    const id = this.lines[index].id;
+    const nth = [...(this.root.children[index]?.querySelectorAll('.due') ?? [])].indexOf(pill);
+    const r = pill.getBoundingClientRect();
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.className = 'due-picker';
+    input.value = pill.dataset.iso ?? '';
+    input.setAttribute('aria-label', t.due.change);
+    Object.assign(input.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    document.body.append(input);
+    input.addEventListener('change', () => input.value && this.setDue(id, nth, input.value));
+    input.addEventListener('blur', () => window.setTimeout(() => input.remove(), 0));
+    try {
+      input.focus();
+      input.showPicker();
+    } catch {
+      input.click();
+    }
+  }
+
+  private setDue(id: string, nth: number, iso: string) {
+    const i = this.lines.findIndex((l) => l.id === id);
+    if (i < 0) return;
+    let n = -1;
+    const text = this.lines[i].text.replace(DUE_TOKEN, (m) => (++n === nth ? `due:${iso}` : m));
+    if (text === this.lines[i].text) return;
+    this.snapshot({ index: i, offset: 0 });
+    this.lines[i] = { ...this.lines[i], text };
+    const textEl = this.root.children[i]?.querySelector<HTMLElement>('.line-text');
+    if (textEl) fillText(textEl, text);
+    this.refreshDecor();
+    this.emit();
+  }
+
   private onCompEnd = () => {
     this.composing = false;
     this.onInput();
@@ -760,4 +872,16 @@ export function LineEditor({ initial, onChange, autoFocus, className, label, eve
       {marked && destination && <MarkToast key={marked.n} mark={marked.mark} destination={marked.mark ? destination(marked.mark) : null} onDone={hideMark} />}
     </>
   );
+}
+
+function sortButton(): HTMLElement {
+  const b = document.createElement('span');
+  b.className = 'sort-btn';
+  b.contentEditable = 'false';
+  b.setAttribute('role', 'button');
+  b.setAttribute('aria-label', t.due.sort);
+  b.title = t.due.sort;
+  b.innerHTML =
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M13 6h8M13 11h6M13 16h4"/></svg>';
+  return b;
 }

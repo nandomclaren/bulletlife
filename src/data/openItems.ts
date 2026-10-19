@@ -3,10 +3,11 @@
 // Also the suggested destination of a > or < mark, shown read-only.
 // Pure and unit tested.
 import { addDays, addMonths, daysInMonth, fmt, fromIso, monthOf, weekKey, weekKeyStart, yearOf, type Weekday } from '../dates';
+import { dueOf } from '../editor/due';
 import { t } from '../i18n/en';
 import type { Entry, LogKind, Settings } from './types';
 
-export type OpenCategory = 'ended' | 'unplaced' | 'arrived';
+export type OpenCategory = 'due' | 'ended' | 'unplaced' | 'arrived';
 
 export interface Source {
   logId: string;
@@ -61,8 +62,11 @@ export function categoryOf(e: Entry, src: Source, s: Pick<Settings, 'eventStates
   // B. Marked > or < but not yet written at the destination.
   if ((e.state === 'migrated' || e.state === 'scheduled') && e.placement?.status === 'pending') return 'unplaced';
   if (e.state !== 'open') return null;
+  // Due today or overdue, on any page of the app.
+  const due = dueOf(e.text);
+  if (due && due <= today) return 'due';
   // C. A Year item whose month has come (or whose date has passed).
-  if (src.kind === 'future') return (e.slot && e.slot <= monthOf(today)) || (e.dueDate && e.dueDate <= today) ? 'arrived' : null;
+  if (src.kind === 'future') return e.slot && e.slot <= monthOf(today) ? 'arrived' : null;
   // A. Still open on a Day, Week or Month that has ended.
   if (src.kind !== 'collection' && src.end && src.end < today) return 'ended';
   return null;
@@ -92,9 +96,11 @@ export function openToday(entries: Entry[], s: Pick<Settings, 'eventStates' | 'f
 const KIND_RANK: Record<LogKind, number> = { future: 0, monthly: 1, weekly: 2, daily: 3, collection: 4 };
 
 function sortKey(i: OpenItem) {
+  // Due items first, by date.
+  if (i.category === 'due') return ['0', dueOf(i.entry.text), i.source.logId, i.entry.slot, i.entry.order].join('|');
   // Year items sort by their month; collections go last.
   const start = i.source.kind === 'future' ? `${i.entry.slot || i.source.key}-01` : (i.source.start ?? '9999');
-  return [start, KIND_RANK[i.source.kind], i.source.logId, i.entry.slot, i.entry.order].join('|');
+  return ['1', start, KIND_RANK[i.source.kind], i.source.logId, i.entry.slot, i.entry.order].join('|');
 }
 
 export function sortItems(items: OpenItem[]): OpenItem[] {
@@ -108,7 +114,7 @@ export function groupItems(items: OpenItem[]): OpenGroup[] {
   const groups: OpenGroup[] = [];
   for (const item of items) {
     const slot = item.source.kind === 'future' ? item.entry.slot : '';
-    const id = `${item.source.logId}|${slot}`;
+    const id = item.category === 'due' ? 'due' : `${item.source.logId}|${slot}`;
     const last = groups[groups.length - 1];
     if (last?.id === id) last.items.push(item);
     else groups.push({ id, source: item.source, slot, items: [item] });
@@ -145,8 +151,14 @@ export function ageLabel(end: string | undefined, today: string): string {
 }
 
 /** "Wk 41 · Oct 5 – 11", "Mon, Oct 5", "September 2026", "2026 · October", or the collection title. */
-export function groupLabel(g: Pick<OpenGroup, 'source' | 'slot'>, collectionTitle?: string): string {
-  const { kind, key, start, end } = g.source;
+export function groupLabel(g: Pick<OpenGroup, 'id' | 'source' | 'slot'>, collectionTitle?: string): string {
+  if (g.id === 'due') return t.open.due;
+  return sourceLabel(g.source, g.slot, collectionTitle);
+}
+
+/** Where an item comes from: "Wk 41 · Oct 5 – 11", "Mon, Oct 5", "September 2026", "2026 · October", a collection title. */
+export function sourceLabel(source: Source, slot = '', collectionTitle?: string): string {
+  const { kind, key, start, end } = source;
   switch (kind) {
     case 'daily':
       return fmt(key, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -158,7 +170,7 @@ export function groupLabel(g: Pick<OpenGroup, 'source' | 'slot'>, collectionTitl
     case 'monthly':
       return fmt(`${key}-01`, { month: 'long', year: 'numeric' });
     case 'future':
-      return g.slot ? `${key} · ${fmt(`${g.slot}-01`, { month: 'long' })}` : key;
+      return slot ? `${key} · ${fmt(`${slot}-01`, { month: 'long' })}` : key;
     default:
       return collectionTitle ?? '';
   }
@@ -206,20 +218,23 @@ function keyAt(level: Level, iso: string, firstDay: Weekday) {
   return level === 'day' ? iso : level === 'week' ? weekKey(iso, firstDay) : monthOf(iso);
 }
 
-
 function periodDestination(level: Level, key: string, today: string, firstDay: Weekday): Destination {
   switch (level) {
     case 'day':
       return {
         path: `/day/${key}`,
-        label: key === today ? t.open.dest.today : key === addDays(today, 1) ? t.open.dest.tomorrow : fmt(key, { weekday: 'short', month: 'short', day: 'numeric' }),
+        label:
+          key === today ? t.open.dest.today : key === addDays(today, 1) ? t.open.dest.tomorrow : fmt(key, { weekday: 'short', month: 'short', day: 'numeric' }),
       };
     case 'week':
       return { path: `/week/${key}`, label: key === weekKey(today, firstDay) ? t.open.dest.thisWeek : `${t.nav.weekShort} ${Number(key.split('-W')[1])}` };
     case 'month':
       return {
         path: `/month/${key}`,
-        label: key === monthOf(today) ? t.open.dest.thisMonth : fmt(`${key}-01`, yearOf(key) === yearOf(today) ? { month: 'long' } : { month: 'long', year: 'numeric' }),
+        label:
+          key === monthOf(today)
+            ? t.open.dest.thisMonth
+            : fmt(`${key}-01`, yearOf(key) === yearOf(today) ? { month: 'long' } : { month: 'long', year: 'numeric' }),
       };
   }
 }

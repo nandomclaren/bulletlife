@@ -75,6 +75,22 @@ describe('open items (derived, never stored)', () => {
     expect(groupItems(items).map((g) => groupLabel(g))).toEqual(['2026 · March', '2026 · October']);
   });
 
+  it('Due: any open task with a date today or earlier, on any page, first and by date', () => {
+    const entries = [
+      e('collection:01X', 'pay rent due:2026-10-19'),
+      e('daily:2026-10-25', 'future page, overdue due:2026-10-10'),
+      e('daily:2026-10-12', 'old, no date'),
+      e('weekly:2026-W44', 'later due:2026-10-30'),
+      e('daily:2026-10-12', 'done due:2026-10-01', { state: 'done' }),
+      e('daily:2026-10-12', 'note due:2026-10-01', { type: 'note' }),
+    ];
+    const groups = groupItems(openItems(entries, S, TODAY));
+    expect(groups.map((g) => [groupLabel(g), g.items.map((i) => i.entry.text)])).toEqual([
+      ['Due', ['future page, overdue due:2026-10-10', 'pay rent due:2026-10-19']],
+      ['Mon, Oct 12', ['old, no date']],
+    ]);
+  });
+
   it('groups by page, oldest first, with origin labels and age', () => {
     const items = openItems([e('daily:2026-10-05', 'b'), e('weekly:2026-W41', 'a'), e('daily:2026-10-05', 'c')], S, TODAY);
     const groups = groupItems(items);

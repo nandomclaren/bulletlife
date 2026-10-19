@@ -538,3 +538,106 @@
 .line.t-text.numbered {
   --caret: var(--bullet);
 }
+
+/* Due dates: "due:YYYY-MM-DD" shown as a small pill with a calendar mark.
+   The stored text stays inside (font-size 0) so the line reads back as typed;
+   the label comes from data-label. Tint by urgency, mixed with the theme. */
+.due {
+  --due: var(--event);
+  position: relative;
+  top: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  padding: 0 8px 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--due) 15%, var(--bg));
+  color: color-mix(in srgb, var(--due) 78%, var(--text));
+  font-size: 0;
+  line-height: 1;
+  vertical-align: baseline;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.due::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='3'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='3'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.due::after {
+  content: attr(data-label);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: 0.01em;
+}
+
+.due-today {
+  --due: #d98a1f;
+}
+
+.due-overdue {
+  --due: var(--task);
+}
+
+/* On a finished or cancelled item the date no longer asks for attention. */
+.s-done .due,
+.s-cancelled .due,
+.s-migrated .due,
+.s-scheduled .due {
+  --due: var(--muted);
+}
+
+.s-cancelled .due::after {
+  text-decoration: line-through;
+}
+
+/* The system date picker, opened over a tapped pill. */
+.due-picker {
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0.01;
+}
+
+/* "Sort by date": offered on the first line of a list whose dates are out of order. */
+.line.has-sort {
+  padding-right: 34px;
+}
+
+.sort-btn {
+  position: absolute;
+  top: var(--pad-top);
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 1.6em;
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sort-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px -2px;
+}
+
+.sort-btn:hover {
+  opacity: 1;
+  color: var(--text);
+}

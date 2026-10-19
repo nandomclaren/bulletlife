@@ -10,6 +10,7 @@ import { activeLevels, anchorWithin, finestLevel, pathFor, type Level } from './
 import { replace, restoreScroll, usePath } from './router';
 import { setSelection } from './export/selection';
 import { OpenItemsPanel } from './open/OpenItemsPanel';
+import { dueView } from './editor/render';
 import { SettingsPage } from './SettingsPage';
 import { SpikePage } from './spike/SpikePage';
 
@@ -25,6 +26,11 @@ export function App() {
 function Routes() {
   const path = usePath();
   const settings = useLoadedSettings();
+  if (settings) {
+    // How due dates are read and shown, for every editor.
+    dueView.order = settings.dateOrder;
+    dueView.firstDay = settings.firstDayOfWeek as Weekday;
+  }
   useEffect(restoreScroll, [path]);
   // A selection belongs to the page it was made on.
   useEffect(() => setSelection(null), [path]);

@@ -1,4 +1,5 @@
 // Editor lines <-> stored entries. Pure functions, unit tested.
+import { dueOf } from '../editor/due';
 import { parentIds, signifiersOf, type Line } from '../editor/lines';
 import { assignOrders } from './order';
 import type { Entry } from './types';
@@ -96,6 +97,10 @@ export function diffEntries(lines: Line[], existing: Entry[], logId: string, slo
     // Marked > or < : pending until the user confirms they wrote it at the destination (CLAUDE.md 4.3).
     if (migrating) next.placement = old?.placement ?? { status: 'pending' };
     else delete next.placement;
+    // The date written as "due:YYYY-MM-DD" in the text, kept as a field for queries.
+    const due = dueOf(l.text);
+    if (due) next.dueDate = due;
+    else delete next.dueDate;
     if (!old || changed(old, next)) put.push({ ...next, updatedAt: now });
   });
   const live = new Set(keep.map((l) => l.id));
@@ -103,7 +108,8 @@ export function diffEntries(lines: Line[], existing: Entry[], logId: string, slo
   const touched = touchedIds(keep, base);
   const known = new Set(base.map((l) => l.id));
   return {
-    put: put.filter((e) => touched.has(e.id)),
+    // Also lines whose order key had to change because others moved around them.
+    put: put.filter((e) => touched.has(e.id) || (byId.has(e.id) && byId.get(e.id)!.order !== e.order)),
     // Only what this editor knew and removed; entries that arrived from elsewhere stay.
     remove: existing.filter((e) => known.has(e.id) && !live.has(e.id)).map((e) => e.id),
   };
@@ -119,6 +125,7 @@ function changed(a: Entry, b: Entry) {
     a.collapsed !== b.collapsed ||
     a.slot !== b.slot ||
     a.signifiers.join() !== b.signifiers.join() ||
-    a.placement?.status !== b.placement?.status
+    a.placement?.status !== b.placement?.status ||
+    a.dueDate !== b.dueDate
   );
 }

@@ -186,3 +186,13 @@ Short log of technical decisions. Newest last.
 - **Set up banner:** on pages of the current period, "October isn't set up yet" / "Week 43 isn't set up yet" (month first). "Set up" records a small row (`setup:<ULID>`, `periodLogId`) so every device knows; the page stays empty; then it opens that page and the panel. Entries on the page also count as set up. Dismiss is per device and per period.
 - **Close the day:** from 20:00 by default (time and on/off in Settings), on current-period pages when Day is active. Opens tomorrow's page with the panel filtered to what is still open today ("Show all open items" removes the filter). Dismissed for the day once used.
 - **Count:** plain number beside the button (Settings › Show the count), no badge.
+
+## 2026-10-19 · Due dates (Fernando's request)
+
+- **Writing:** `due:` + `2026-10-23`, a short date (`23/10`, this year; Settings › Date format decides day or month first, and a date that only makes sense the other way round is read that way), `today`, `tomorrow`, `yesterday`, a weekday (`fri`: the coming one; `next fri`: strictly after today), `next week`, `next month`, `in 3 days/weeks/months`.
+- **Stored as typed text** `due:YYYY-MM-DD` once the word is finished (space, Enter, or leaving the editor): a written "tomorrow" must not drift. The text survives sync, copy/paste and Markdown export; `Entry.dueDate` is derived from it on save.
+- **Shown as a pill:** calendar mark + "Today" / "Tomorrow" / "Yesterday", else "23 Oct" (or "Oct 23"), with the year when not this one. Month names instead of numbers, so no one misreads it. Tint by urgency (overdue red, today amber, later blue), muted on finished items. The pill is atomic: the stored text sits inside, invisible, so the line reads back unchanged; tap it for the system date picker; Backspace removes it whole.
+- **Open items:** a **Due** group on top: any open task (or event with Event states) dated today or earlier, on any page, nearest date first, with the page it lives on.
+- **Sorting, on request only:** a list of two or more sibling bullets with at least one date that is out of order shows a small sort mark on its first line. A tap sorts it by date (cancelled ones too), undated items last in their order, children with their item; Undo puts it back. Reordering within the page is allowed by principle 1; the app never sorts on its own.
+- **Bug fixed on the way:** when lines moved, order keys of lines that did not move could be reassigned but not saved, so two lines could share a key and the stored order differed from the page. `diffEntries` now writes every line whose key changed (regression test).
+- Commercial note: the date format default should come from the device region; for now DD/MM per CLAUDE.md.

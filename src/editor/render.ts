@@ -1,6 +1,11 @@
 // Line markup shared by both editors, so they look and behave the same.
 import { t } from '../i18n/en';
+import { todayIso, type Weekday } from '../dates';
+import { DUE_TOKEN, dueLabel, dueStatus, type DateOrder } from './due';
 import { glyph, hasStates, numberPrefix, type Line, type LineType } from './lines';
+
+/** How due dates are read and shown (Settings › Date format, First day of week); set by the app. */
+export const dueView: { order: DateOrder; firstDay: Weekday } = { order: 'dmy', firstDay: 1 };
 
 // Display always shows a saved state, also on events when "Event states" is
 // off (CLAUDE.md 12: data is never hidden); only the interaction is gated.
@@ -79,25 +84,57 @@ function eye(doc: Document) {
   return m;
 }
 
-/** Fills a line's text element; a leading list number gets its own span (styled like a bullet). */
+/**
+ * Fills a line's text element: a leading list number gets its own span
+ * (styled like a bullet) and each "due:YYYY-MM-DD" becomes a pill. The pill
+ * keeps the stored text inside (so the line text reads back unchanged) and
+ * shows its label instead; the user cannot edit inside it, only around it.
+ */
 export function fillText(el: HTMLElement, text: string) {
+  const doc = el.ownerDocument;
+  if (!text) return el.replaceChildren(doc.createElement('br'));
+  const parts: Array<Node | string> = [];
   const num = numberPrefix(text);
+  let rest = text;
   if (num) {
-    const span = el.ownerDocument.createElement('span');
+    const span = doc.createElement('span');
     span.className = 'num';
     span.textContent = num;
-    el.replaceChildren(span, text.slice(num.length));
-  } else if (text) {
-    el.replaceChildren(text);
-  } else {
-    el.replaceChildren(el.ownerDocument.createElement('br'));
+    parts.push(span);
+    rest = text.slice(num.length);
   }
+  let last = 0;
+  for (const m of rest.matchAll(DUE_TOKEN)) {
+    if (m.index > last) parts.push(rest.slice(last, m.index));
+    parts.push(pill(doc, m[0], m[1]));
+    last = m.index + m[0].length;
+  }
+  if (last < rest.length) parts.push(rest.slice(last));
+  el.replaceChildren(...parts);
+}
+
+function pill(doc: Document, raw: string, iso: string) {
+  const today = todayIso();
+  const label = dueLabel(iso, today, dueView.order);
+  const span = doc.createElement('span');
+  span.className = `due due-${dueStatus(iso, today)}`;
+  span.contentEditable = 'false';
+  span.dataset.iso = iso;
+  span.dataset.label = label;
+  span.setAttribute('role', 'button');
+  span.setAttribute('aria-label', t.due.label(label));
+  span.textContent = raw;
+  return span;
 }
 
 /** Whether the text element's DOM already matches how fillText would build it. */
 export function textShapeMatches(el: Element, text: string) {
   const num = numberPrefix(text);
   const span = el.querySelector('.num');
-  if (!num) return !span;
-  return !!span && el.firstChild === span && span.textContent === num;
+  if (num ? !span || el.firstChild !== span || span.textContent !== num : span) return false;
+  const pills = [...el.querySelectorAll<HTMLElement>('.due')];
+  const tokens = [...text.matchAll(DUE_TOKEN)];
+  if (pills.length !== tokens.length) return false;
+  const today = todayIso();
+  return tokens.every((m, i) => pills[i].textContent === m[0] && pills[i].dataset.label === dueLabel(m[1], today, dueView.order));
 }

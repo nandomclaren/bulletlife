@@ -4,13 +4,13 @@
 // no drag to a page: rewriting by hand is the point.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { entriesToLines } from '../data/convert';
-import { ageLabel, groupItems, groupLabel, sourcePath, stateful, suggestDestination, withKept, type Mark, type OpenItem } from '../data/openItems';
+import { ageLabel, groupItems, groupLabel, sourceLabel, sourcePath, stateful, suggestDestination, withKept, type Mark, type OpenItem } from '../data/openItems';
 import { confirmPlaced, markEntry, useCollections, useSettings } from '../data/repo';
 import type { Entry, Settings } from '../data/types';
 import { BulletMenu, type MenuActions } from '../editor/BulletMenu';
 import { attachGutter } from '../editor/gutter';
 import { nextState, type Line } from '../editor/lines';
-import { buildGutter, lineClass } from '../editor/render';
+import { buildGutter, fillText, lineClass } from '../editor/render';
 import { attachSwipe } from '../editor/swipe';
 import { t } from '../i18n/en';
 import { flashEntry } from '../pages/nav';
@@ -218,7 +218,7 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
           {data && !items.length && <p className="open-empty">{filter === 'today' ? t.open.emptyToday : t.open.empty}</p>}
           <div ref={list} className="editor open-list">
             {groups.map((g) => {
-              const age = g.source.kind === 'collection' ? '' : ageLabel(g.source.end, today);
+              const age = g.id === 'due' || g.source.kind === 'collection' ? '' : ageLabel(g.source.end, today);
               return (
                 <section key={g.id} className="open-group">
                   <h3 className="open-group-title">
@@ -231,6 +231,7 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
                       item={item}
                       today={today}
                       settings={settings}
+                      origin={g.id === 'due' ? sourceLabel(item.source, item.entry.slot, titles.get(item.source.logId)) : undefined}
                       onOpen={() => open(item)}
                       onWrote={() => {
                         keep(item.entry.id);
@@ -264,7 +265,22 @@ function Panel({ closing, filter }: { closing: boolean; filter: 'all' | 'today' 
   );
 }
 
-function Row({ item, today, settings, onOpen, onWrote }: { item: OpenItem; today: string; settings: Settings; onOpen: () => void; onWrote: () => void }) {
+function Row({
+  item,
+  today,
+  settings,
+  origin,
+  onOpen,
+  onWrote,
+}: {
+  item: OpenItem;
+  today: string;
+  settings: Settings;
+  /** In the Due group: the page the item lives on. */
+  origin?: string;
+  onOpen: () => void;
+  onWrote: () => void;
+}) {
   const line = toLine(item.entry);
   const { state } = item.entry;
   const unplaced = (state === 'migrated' || state === 'scheduled') && item.entry.placement?.status === 'pending';
@@ -273,9 +289,14 @@ function Row({ item, today, settings, onOpen, onWrote }: { item: OpenItem; today
     <div className={`${lineClass(line, { color: line.type, hasChildren: false, hidden: false })} open-row`} data-id={line.id}>
       <span className="gutter-host" ref={(el) => el?.replaceChildren(buildGutter(document, line, false))} />
       <div className="line-text">
-        <button className="open-text" onClick={onOpen}>
-          {line.text || '…'}
-        </button>
+        <button
+          className="open-text"
+          onClick={onOpen}
+          ref={(el) => {
+            if (el) fillText(el, line.text || '…');
+          }}
+        />
+        {origin && <span className="open-meta">{origin}</span>}
         {unplaced && (
           <span className="open-meta">
             {t.open.notWritten[state as Mark]} · {suggestDestination(item.entry, state as Mark, settings, today).label}
