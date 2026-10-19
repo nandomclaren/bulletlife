@@ -661,7 +661,7 @@ class LineEditorCore {
     this.snapshot(sel.start);
     const at = this.deleteRange(sel.start, sel.end);
     const line = this.lines[at.index];
-    const fresh = pasted.map((p) => newLine({ ...p, indent: line.indent + p.indent, collapsed: false }));
+    const fresh = pasted.map((p) => newLine({ ...p, indent: line.indent + p.indent }));
     const head = line.text.slice(0, at.offset);
     const tail = line.text.slice(at.offset);
     if (!line.text) this.lines.splice(at.index, 1, ...fresh);
@@ -671,8 +671,11 @@ class LineEditorCore {
       const rest = tail ? [newLine({ type: line.type, indent: line.indent, text: tail })] : [];
       this.lines.splice(at.index + 1, 0, ...fresh, ...rest);
     }
-    const last = this.lines.indexOf(fresh[fresh.length - 1]);
-    this.commit({ index: last, offset: fresh[fresh.length - 1].text.length });
+    // Caret at the end of the last pasted line that is not folded away.
+    const hidden = hiddenMask(this.lines);
+    let last = this.lines.indexOf(fresh[fresh.length - 1]);
+    while (last > 0 && hidden[last]) last--;
+    this.commit({ index: last, offset: this.lines[last].text.length });
   };
 
   /** Safety net: the caret may only live inside a line's text, never in the gutter. */

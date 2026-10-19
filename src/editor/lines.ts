@@ -185,7 +185,10 @@ export function colorTypes(lines: Array<Pick<Line, 'type' | 'indent'> & { text?:
   const stack: Array<{ indent: number; color: LineType }> = [];
   return lines.map((l) => {
     while (stack.length && stack[stack.length - 1].indent >= l.indent) stack.pop();
-    const color = stack.length ? stack[0].color : ownColor(l);
+    // Inherited from the outermost bulleted ancestor; a heading or plain text
+    // above (e.g. items under a section title) gives no color.
+    const root = stack.find((s) => s.color === 'task' || s.color === 'event' || s.color === 'note');
+    const color = root ? root.color : ownColor(l);
     stack.push({ indent: l.indent, color });
     return color;
   });

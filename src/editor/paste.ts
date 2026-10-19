@@ -10,7 +10,17 @@ export const LINES_MIME = 'application/x-bullet-life-lines';
 
 type Pasted = Omit<Line, 'id'>;
 
-const blank = (p: Partial<Pasted>): Pasted => ({ type: 'text', state: 'open', indent: 0, collapsed: false, priority: false, inspiration: false, explore: false, text: '', ...p });
+const blank = (p: Partial<Pasted>): Pasted => ({
+  type: 'text',
+  state: 'open',
+  indent: 0,
+  collapsed: false,
+  priority: false,
+  inspiration: false,
+  explore: false,
+  text: '',
+  ...p,
+});
 
 export function linesFromJson(json: string): Pasted[] | null {
   if (!json) return null;
@@ -49,10 +59,24 @@ function item(type: LineType, state: LineState, indent: number, body: string): P
 
 const BOX: Record<string, LineState> = { ' ': 'open', x: 'done', X: 'done', '>': 'migrated', '<': 'scheduled' };
 const DOT: Record<string, LineState> = { x: 'done', '>': 'migrated', '<': 'scheduled' };
-const GLYPH: Record<string, [LineType, LineState]> = { '•': ['task', 'open'], '○': ['event', 'open'], '–': ['note', 'open'], '×': ['task', 'done'], '>': ['task', 'migrated'], '<': ['task', 'scheduled'] };
+const GLYPH: Record<string, [LineType, LineState]> = {
+  '•': ['task', 'open'],
+  '○': ['event', 'open'],
+  '–': ['note', 'open'],
+  '×': ['task', 'done'],
+  '>': ['task', 'migrated'],
+  '<': ['task', 'scheduled'],
+};
 
 /** One line of Markdown (checkboxes or dot notation) or of plain text with glyphs. */
 function parseLine(raw: string, glyphs: boolean): { line: Pasted; known: boolean } {
+  // Notes apps leave hidden markers; Bear marks a folded item with <!-- {"fold":true} -->.
+  const folded = /<!--[^>]*"fold"\s*:\s*true[^>]*-->/.test(raw);
+  const r = parseOne(raw.replace(/\s*<!--.*?-->/g, ''), glyphs);
+  return folded ? { ...r, line: { ...r.line, collapsed: true } } : r;
+}
+
+function parseOne(raw: string, glyphs: boolean): { line: Pasted; known: boolean } {
   const lead = raw.match(/^[ \t]*/)![0];
   const indent = Math.floor(lead.replace(/\t/g, '  ').length / 2);
   let s = raw.slice(lead.length);
@@ -84,6 +108,10 @@ function parseLine(raw: string, glyphs: boolean): { line: Pasted; known: boolean
     return { line: item('note', 'open', indent, s), known: true };
   }
 
+  // Arrows written as text: "-> item" migrated, "<- item" scheduled.
+  const arrow = s.match(/^(->|→|<-|←) (.*)$/);
+  if (arrow) return { line: item('task', arrow[1] === '->' || arrow[1] === '→' ? 'migrated' : 'scheduled', indent, arrow[2]), known: true };
+
   const g = s.match(/^([•○–×<>]) (.*)$/);
   if (g && (glyphs || !'<>'.includes(g[1]))) {
     const [type, state] = GLYPH[g[1]];
@@ -101,8 +129,27 @@ export function linesFromText(text: string): Pasted[] | null {
   const rows = text.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n');
   // ">" and "<" alone (email quotes) only count next to our other glyphs.
   const glyphs = rows.some((r) => /^[ \t]*[•○–×] /.test(r));
-  const parsed = rows.filter((r) => r.trim()).map((r) => parseLine(r, glyphs));
+  const kept = rows.filter((r) => r.trim());
+  // A pasted page starts with its title ("# Sunday, October 18"); the page here has its own.
+  if (kept.length > 1 && /^# \S/.test(kept[0])) kept.shift();
+  const parsed = kept.map((r) => parseLine(r, glyphs));
   if (!parsed.some((p) => p.known)) return null;
-  const min = Math.min(...parsed.map((p) => p.line.indent));
-  return parsed.map((p) => ({ ...p.line, indent: p.line.indent - min }));
+  // A heading starts a section: what follows is indented relative to the
+  // section, not nested under the title (Markdown from notes apps indents
+  // lists under "## Title" without meaning them as its children).
+  const out: Pasted[] = [];
+  let section: Pasted[] = [];
+  const flush = () => {
+    const min = Math.min(...section.map((l) => l.indent));
+    out.push(...section.map((l) => ({ ...l, indent: l.indent - min })));
+    section = [];
+  };
+  for (const { line } of parsed) {
+    if (line.type === 'heading') {
+      flush();
+      out.push(line);
+    } else section.push(line);
+  }
+  flush();
+  return out;
 }

@@ -239,3 +239,13 @@ Short log of technical decisions. Newest last.
 ## 2026-10-19 · Done mark: cross or check
 
 - Settings › Done mark: **Cross** (default, the original method) or **Check**. The check is drawn in CSS like the ×: same 1.6 px stroke, same height on the baseline, same color (the item's bullet color), so only the shape changes. Switches the page, menu chips, Open items and search together. Exports keep `[x]` / `×` (the stored state is the same).
+
+## 2026-10-19 · Pasting Markdown from a notes app (Bear)
+
+- Fernando pasted a day from Bear: items came in gray and the section titles became collapsible parents.
+- **Colors:** an item now inherits color only from a bulleted ancestor (task, event, note). A heading or plain text above it gives none, so items under a section title keep their own color. This also fixes pages pasted before.
+- **Sections:** a `#`–`######` heading starts a section; the lines after it are indented relative to the section, not nested under the title (notes apps indent lists under "## Title").
+- **Hidden markers:** `<!-- … -->` is removed; Bear's `<!-- {"fold":true} -->` makes the item come in folded. Pasting keeps folds.
+- **Arrows:** `-> item` / `→ item` comes in as a migrated task (`>`), `<- item` / `←` as scheduled (`<`).
+- **Title:** a pasted page's leading `# Title` is dropped (the page has its own title).
+- Inline Markdown (`**bold**`, `==highlight==`) stays as typed: the editor has no rich inline text yet.

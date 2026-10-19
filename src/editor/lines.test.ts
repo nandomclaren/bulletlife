@@ -150,3 +150,16 @@ describe('restartIfFirst', () => {
     expect(b[2].text).toBe('3. c');
   });
 });
+
+describe('colors under a heading', () => {
+  it('items under a section title keep their own color; children still inherit from a bullet', async () => {
+    const { colorTypes } = await import('./lines');
+    const lines = [
+      { type: 'heading' as const, indent: 0 },
+      { type: 'task' as const, indent: 1 },
+      { type: 'note' as const, indent: 2 },
+      { type: 'event' as const, indent: 1 },
+    ];
+    expect(colorTypes(lines)).toEqual(['heading', 'task', 'task', 'event']);
+  });
+});

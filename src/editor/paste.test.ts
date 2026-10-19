@@ -40,6 +40,38 @@ describe('paste', () => {
     expect(got[0]).not.toHaveProperty('id');
   });
 
+  it('Markdown from a notes app: sections, folded items, arrows, hidden markers', () => {
+    const bear = [
+      '# Sunday, October 18, 2026',
+      '',
+      '## Âncoras',
+      '  - [x] Devocional',
+      '  - [x] Exercício ',
+      '    - 15m Flow',
+      '## Priorities',
+      '  - [x] Hillsong<!-- {"fold":true} -->',
+      '    - A note under it',
+      '## Buffer',
+      '  -> Weekly Review',
+      '## Blurb',
+      '  A paragraph of free text.',
+    ].join('\n');
+    const got = linesFromText(bear)!.map((l) => [l.type, l.state, l.indent, l.text.trim(), l.collapsed]);
+    expect(got).toEqual([
+      ['heading', 'open', 0, 'Âncoras', false],
+      ['task', 'done', 0, 'Devocional', false],
+      ['task', 'done', 0, 'Exercício', false],
+      ['note', 'open', 1, '15m Flow', false],
+      ['heading', 'open', 0, 'Priorities', false],
+      ['task', 'done', 0, 'Hillsong', true],
+      ['note', 'open', 1, 'A note under it', false],
+      ['heading', 'open', 0, 'Buffer', false],
+      ['task', 'migrated', 0, 'Weekly Review', false],
+      ['heading', 'open', 0, 'Blurb', false],
+      ['text', 'open', 0, 'A paragraph of free text.', false],
+    ]);
+  });
+
   it('ordinary text stays ordinary', () => {
     expect(linesFromText('Dear Ana,\nsee you soon')).toBeNull();
     expect(linesFromText('> quoted\n> reply')).toBeNull();
