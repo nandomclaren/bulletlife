@@ -1,20 +1,21 @@
 import { useState, type ReactNode } from 'react';
+import { usePane } from './pages/pane';
 import { BackupSection } from './BackupSection';
 import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
-import { navigate } from './router';
 import { getTheme, setTheme, THEMES, type ThemePref } from './theme';
 
 const TIME_LOGS: TimeLog[] = ['monthly', 'weekly', 'daily'];
 
 export function SettingsPage() {
+  const { back } = usePane();
   const settings = useSettings();
   const [theme, setThemeState] = useState<ThemePref>(getTheme);
   const sync = useSync();
   return (
     <main className="page">
-      <button className="link" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>
+      <button className="link" onClick={back}>
         ‹ {t.nav.back}
       </button>
       <h1>{t.settings.title}</h1>

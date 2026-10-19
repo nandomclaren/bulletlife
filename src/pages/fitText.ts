@@ -14,7 +14,7 @@ function fit(el: HTMLElement) {
   el.style.whiteSpace = '';
   if (needed <= available || !available) return;
   const min = Math.max(base * MIN_SCALE, MIN_PX);
-  const size = Math.max(min, Math.floor((base * available) / needed * 10) / 10);
+  const size = Math.max(min, Math.floor(((base * available) / needed) * 10) / 10);
   if (size < base) el.style.fontSize = `${size}px`;
 }
 

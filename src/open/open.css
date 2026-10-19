@@ -62,8 +62,24 @@
   box-shadow: -8px 0 32px rgb(0 0 0 / 0.06);
 }
 
-html.panel-docked #root {
-  padding-right: 380px;
+/* Columns on a wide screen: main page | second page (split view) | Open items. */
+:root {
+  --panel-w: 0px;
+  --split-w: 0px;
+}
+
+html.panel-docked {
+  --panel-w: 380px;
+}
+
+@media (min-width: 1000px) {
+  html.split-open {
+    --split-w: calc((100vw - var(--panel-w)) / 2);
+  }
+}
+
+#root {
+  padding-right: calc(var(--panel-w) + var(--split-w));
 }
 
 /* iPhone: a sheet from the right, almost full screen. */
@@ -342,5 +358,67 @@ html.panel-docked #root {
   .line.swipe-return > .gutter,
   .line.swipe-return > .line-text {
     transition: none;
+  }
+}
+
+/* Split view: a second notebook page beside the main one. */
+.split-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 44px;
+  margin-top: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.split-btn:hover,
+.split-btn[aria-pressed='true'] {
+  color: var(--text);
+}
+
+.split-pane {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  right: var(--panel-w);
+  bottom: 0;
+  width: var(--split-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--rule);
+  background: var(--bg);
+  animation: fade-in 160ms var(--ease);
+}
+
+/* Room for the close button beside the page's own header. */
+.split-pane > .page {
+  padding-right: 52px;
+}
+
+.split-close {
+  position: fixed;
+  z-index: 21;
+  top: 10px;
+  right: calc(var(--panel-w) + 8px);
+  width: 40px;
+  height: 40px;
+}
+
+@media (max-width: 999px) {
+  .split-pane,
+  .split-btn {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-pane {
+    animation: none;
   }
 }

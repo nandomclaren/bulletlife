@@ -1,12 +1,15 @@
 // A collection: a free page the user created and named (CLAUDE.md 3.1).
+import { usePane } from './pane';
 import { useEffect, useState } from 'react';
 import { collectionRef, renameCollection, useLog } from '../data/repo';
 import { t } from '../i18n/en';
-import { navigate } from '../router';
 import { PageMenu } from '../export/PageMenu';
 import { PageEditor } from './PageEditor';
+import { OpenItemsButton } from '../open/OpenItemsButton';
+import { SplitButton } from './SplitPane';
 
 export function CollectionPage({ id }: { id: string }) {
+  const { navigate } = usePane();
   const log = useLog(id);
   const [title, setTitle] = useState('');
   useEffect(() => {
@@ -54,6 +57,8 @@ export function CollectionPage({ id }: { id: string }) {
           }}
           enterKeyHint="done"
         />
+        <OpenItemsButton />
+        <SplitButton />
         <PageMenu page={{ kind: 'collection', id: log.id, title: log.title }} />
       </div>
       <PageEditor key={log.id} log={collectionRef(log)} label={log.title} />

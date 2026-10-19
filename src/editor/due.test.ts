@@ -67,7 +67,12 @@ describe('sorting a list by date (on request)', () => {
     L('alone due:2026-10-01'),
   ];
 
-  it('finds runs of two or more sibling bullets with a date', () => {
+  it('a single dated item never offers sorting; undated items do not make a list unsorted', () => {
+    expect(dateRuns([L('Devocional'), L('Italiano'), L('Mercado due:2026-10-23')])).toEqual([]);
+    expect(dateRuns([L('a due:2026-10-20'), L('no date'), L('b due:2026-10-25')])[0].sorted).toBe(true);
+  });
+
+  it('finds runs of two or more sibling bullets with dates', () => {
     const runs = dateRuns(lines);
     expect(runs).toHaveLength(1);
     expect(runs[0]).toEqual({ items: [1, 3, 4, 5], sorted: false });

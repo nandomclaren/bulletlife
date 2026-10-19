@@ -175,6 +175,8 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 
 **A qualquer hora.** Busca global (⌘K) e Index. Menu "…" da página com Export / Copy As / Share (seção 7).
 
+**Duas páginas abertas (pedido do Fernando, Mac).** Um botão entre o de Open items e o "…" abre uma segunda página do caderno à direita, como o caderno aberto em duas páginas. As duas são editáveis e navegam de forma independente (a segunda guarda a última página aberta). As faixas (montagem, Fechar o dia, exportação) só aparecem na página principal. Em telas estreitas (iPhone) o botão não aparece.
+
 ### 5.1 Navegação entre Ano ↔ Mês ↔ Semana ↔ Dia
 
 **Objetivo (pedido do Fernando):** trocar de nível em **1 toque**, sem menu e sem perder o contexto, tanto para descer (Ano → Mês → Semana/Dia) quanto para subir (Dia → Semana/Mês/Ano). O app mantém uma **data âncora** (o dia que o usuário está olhando); mudar de nível leva ao período que **contém a âncora**.

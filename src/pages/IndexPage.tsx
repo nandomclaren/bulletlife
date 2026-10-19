@@ -1,4 +1,5 @@
 // Index (CLAUDE.md 3.1): always on. The current Year and the collections.
+import { usePane } from './pane';
 import { useState } from 'react';
 import { todayIso, yearOf, type Weekday } from '../dates';
 import { createCollection, setCollectionPinned, useCollections, useSettings } from '../data/repo';
@@ -6,11 +7,11 @@ import type { Log } from '../data/types';
 import { openSearch } from '../search/store';
 import { SearchIcon } from '../search/SearchDialog';
 import { t } from '../i18n/en';
-import { navigate } from '../router';
-import { finestLevel, pathFor, setAnchor } from './nav';
+import { finestLevel, pathFor } from './nav';
 import { CalendarIcon } from './TimeHeader';
 
 export function IndexPage() {
+  const { navigate, setAnchor, back } = usePane();
   const collections = useCollections();
   const settings = useSettings();
   const firstDay = settings.firstDayOfWeek as Weekday;
@@ -30,7 +31,7 @@ export function IndexPage() {
       {/* Same header as the time pages: Today and the calendar sit in the same
           place. The ‹ › slots are kept empty (there is no previous Index). */}
       <header className="time-header">
-        <button className="crumb index-back" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>
+        <button className="crumb index-back" onClick={back}>
           ‹ {t.nav.back}
         </button>
         <div className="crumbs" />
@@ -117,6 +118,7 @@ export function IndexPage() {
 }
 
 function CollectionRow({ c }: { c: Log }) {
+  const { navigate } = usePane();
   const name = c.title || t.index.untitled;
   return (
     <li className="index-row">

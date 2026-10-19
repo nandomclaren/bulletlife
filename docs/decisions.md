@@ -230,3 +230,8 @@ Short log of technical decisions. Newest last.
 ## 2026-10-19 · Smaller type on the Mac
 
 - Fernando compared with a desktop notes app: our Mac text read about 15% larger. Type sizes are now variables (`--fs-body`, `--fs-title`, `--fs-heading`, `--fs-section`); on a fine pointer with hover (the Mac) they are 15 / 28 / 18 / 17 px; the iPhone keeps 17 / 34 / 21 / 19 px. Bullets, day numbers, collection titles and Index rows follow the same variables.
+
+## 2026-10-19 · Two pages open (split view) and sort offer tweak
+
+- **Split view (Mac, ≥ 1000 px):** a button between Open items and "…" opens a second notebook page on the right; both are editable. Pages now navigate through a pane context (`src/pages/pane.tsx`): the main pane uses the window history; the second pane keeps its own path (remembered on the device, Index by default), anchor date, "came from" highlight, back stack and scroll. Columns: main | second | Open items (docked), via `--split-w` / `--panel-w`. Banners show only in the main pane. The same page open on both sides is fine: each editor writes only what it changed and picks up the other's edits after a typing pause.
+- **Sort by date** is offered only when two or more dated items in a list are out of order among themselves; a single date, or undated items in between, no longer show the mark.

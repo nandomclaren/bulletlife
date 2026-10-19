@@ -1,8 +1,8 @@
 import { fmt, monthOf, todayIso, weekKey, yearOf, type Weekday } from '../dates';
+import { usePane } from './pane';
 import { useSettings, useSync } from '../data/repo';
 import { t } from '../i18n/en';
-import { navigate } from '../router';
-import { activeLevels, goUp, pathFor, setAnchor, stepKey, type Level } from './nav';
+import { activeLevels, pathFor, stepKey, type Level } from './nav';
 
 const ORDER: Level[] = ['year', 'month', 'week', 'day'];
 
@@ -16,13 +16,13 @@ interface Props {
 
 /** Breadcrumb (every level is one tap away), ‹ ›, Today and a date picker. */
 export function TimeHeader({ level, periodKey, anchor }: Props) {
+  const { navigate, goUp, setAnchor } = usePane();
   const settings = useSettings();
   const sync = useSync();
   // Quiet: nothing when in sync or not signed in; a small ring only when offline or paused.
   const attention = sync.kind === 'offline' || sync.kind === 'error' ? sync.kind : null;
   const firstDay = settings.firstDayOfWeek as Weekday;
   const levels = activeLevels(settings);
-
 
   const label = (l: Level) => {
     switch (l) {
@@ -60,12 +60,12 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
       <nav className="crumbs" aria-label={t.nav.path}>
         {levels.map((l, i) => (
           <span key={l} className="crumb-wrap">
-            {i > 0 && <span className="crumb-sep" aria-hidden>›</span>}
-            <button
-              className={`crumb${l === level ? ' is-current' : ''}`}
-              aria-current={l === level ? 'page' : undefined}
-              onClick={() => go(l)}
-            >
+            {i > 0 && (
+              <span className="crumb-sep" aria-hidden>
+                ›
+              </span>
+            )}
+            <button className={`crumb${l === level ? ' is-current' : ''}`} aria-current={l === level ? 'page' : undefined} onClick={() => go(l)}>
               {label(l)}
             </button>
           </span>
@@ -123,9 +123,9 @@ export function CalendarIcon() {
   );
 }
 
-
 /** Quiet link at the foot of time pages until the Index menu exists. */
 export function PageFooter() {
+  const { navigate } = usePane();
   return (
     <footer className="page-footer">
       <button className="link" onClick={() => navigate('/settings')}>

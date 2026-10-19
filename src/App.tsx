@@ -6,8 +6,10 @@ import { CollectionPage } from './pages/CollectionPage';
 import { DayPage, WeekPage } from './pages/DayWeekPages';
 import { IndexPage } from './pages/IndexPage';
 import { MonthPage, YearPage } from './pages/MonthYearPages';
-import { activeLevels, anchorWithin, finestLevel, pathFor, type Level } from './pages/nav';
-import { replace, restoreScroll, usePath } from './router';
+import { activeLevels, finestLevel, pathFor, type Level } from './pages/nav';
+import { mainPane, type Pane } from './pages/pane';
+import { SplitPane } from './pages/SplitPane';
+import { restoreScroll, usePath } from './router';
 import { setSelection } from './export/selection';
 import { OpenItemsPanel } from './open/OpenItemsPanel';
 import { SearchDialog } from './search/SearchDialog';
@@ -20,6 +22,7 @@ export function App() {
   return (
     <>
       <Routes />
+      <SplitPane />
       <OpenItemsPanel />
       <SearchDialog />
     </>
@@ -39,23 +42,43 @@ function Routes() {
   // A selection belongs to the page it was made on.
   useEffect(() => setSelection(null), [path]);
 
+  return renderPage(path, settings, mainPane);
+}
+
+/**
+ * A page of a level turned off in Settings (from history, a link, or settings
+ * changed elsewhere) is replaced by the finest active level for the same date,
+ * so ‹ › always step through an active log.
+ */
+function guard(pane: Pane, settings: Settings | undefined, level: Level, date: (s: Settings) => string) {
+  if (!settings || activeLevels(settings).includes(level)) return null;
+  return <Redirect pane={pane} to={pathFor(finestLevel(settings), date(settings), settings.firstDayOfWeek as Weekday)} />;
+}
+
+function Redirect({ pane, to }: { pane: Pane; to: string }) {
+  useEffect(() => pane.replace(to), [pane, to]);
+  return null;
+}
+
+/** The page for a path, in the main pane or the second pane of the split view. */
+export function renderPage(path: string, settings: Settings | undefined, pane: Pane) {
   let m: RegExpMatchArray | null;
   if ((m = path.match(/^\/day\/(\d{4}-\d{2}-\d{2})$/))) {
     const iso = m[1];
-    return guard(settings, 'day', () => iso) ?? <DayPage key={iso} iso={iso} />;
+    return guard(pane, settings, 'day', () => iso) ?? <DayPage key={iso} iso={iso} />;
   }
   if ((m = path.match(/^\/week\/(\d{4}-W\d{2})$/))) {
     const key = m[1];
     return (
-      guard(settings, 'week', (s) => {
+      guard(pane, settings, 'week', (s) => {
         const start = weekKeyStart(key, s.firstDayOfWeek as Weekday);
-        return anchorWithin(start, addDays(start, 6));
+        return pane.anchorWithin(start, addDays(start, 6));
       }) ?? <WeekPage key={key} weekKey={key} />
     );
   }
   if ((m = path.match(/^\/month\/(\d{4}-\d{2})$/))) {
     const ym = m[1];
-    return guard(settings, 'month', () => anchorWithin(`${ym}-01`, `${ym}-${daysInMonth(ym)}`)) ?? <MonthPage key={ym} ym={ym} />;
+    return guard(pane, settings, 'month', () => pane.anchorWithin(`${ym}-01`, `${ym}-${daysInMonth(ym)}`)) ?? <MonthPage key={ym} ym={ym} />;
   }
   if ((m = path.match(/^\/year\/(\d{4})$/))) return <YearPage key={m[1]} year={m[1]} />;
   if ((m = path.match(/^\/collection\/([^/]+)$/))) {
@@ -65,20 +88,5 @@ function Routes() {
   if (path === '/index') return <IndexPage />;
   if (path === '/settings') return <SettingsPage />;
   if (path === '/check') return <SpikePage />;
-  return settings ? <Redirect to={pathFor(finestLevel(settings), todayIso(), settings.firstDayOfWeek as Weekday)} /> : null;
-}
-
-/**
- * A page of a level turned off in Settings (from history, a link, or settings
- * changed elsewhere) is replaced by the finest active level for the same date,
- * so ‹ › always step through an active log.
- */
-function guard(settings: Settings | undefined, level: Level, date: (s: Settings) => string) {
-  if (!settings || activeLevels(settings).includes(level)) return null;
-  return <Redirect to={pathFor(finestLevel(settings), date(settings), settings.firstDayOfWeek as Weekday)} />;
-}
-
-function Redirect({ to }: { to: string }) {
-  useEffect(() => replace(to), [to]);
-  return null;
+  return settings ? <Redirect pane={pane} to={pathFor(finestLevel(settings), todayIso(), settings.firstDayOfWeek as Weekday)} /> : null;
 }

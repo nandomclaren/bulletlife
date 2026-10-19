@@ -1,18 +1,19 @@
 import { useEffect, useRef } from 'react';
+import { usePane } from './pane';
 import { addMonths, fmt, fromIso, monthDays, monthOf, todayIso, weekKey, type Weekday } from '../dates';
 import { periodLog, useSettings } from '../data/repo';
 import { t } from '../i18n/en';
-import { navigate } from '../router';
 import { fitDayRows } from './fitText';
-import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
 import { PageMenu } from '../export/PageMenu';
 import { Banners } from '../open/Banners';
 import { OpenItemsButton } from '../open/OpenItemsButton';
+import { SplitButton } from './SplitPane';
 
 /** Month: a fixed calendar rendered from the date (never stored) plus "Month tasks". */
 export function MonthPage({ ym }: { ym: string }) {
+  const { anchorWithin, flash, navigate, setAnchor, takeFrom } = usePane();
   const settings = useSettings();
   const firstDay = settings.firstDayOfWeek as Weekday;
   const days = monthDays(ym);
@@ -42,6 +43,7 @@ export function MonthPage({ ym }: { ym: string }) {
       <div className="title-row">
         <h1>{isCurrent ? t.pages.thisMonth : fmt(`${ym}-01`, { month: 'long', year: 'numeric' })}</h1>
         <OpenItemsButton />
+        <SplitButton />
         <PageMenu page={{ kind: 'monthly', key: ym }} />
       </div>
       <div className="month-spread">
@@ -74,7 +76,13 @@ export function MonthPage({ ym }: { ym: string }) {
                   {fmt(iso, { weekday: 'narrow' })}
                 </span>
                 <div className="day-text">
-                  <PageEditor key={`${log.id}/${iso}`} log={log} slot={iso} compact label={`${t.pages.dayRow} ${fmt(iso, { month: 'long', day: 'numeric' })}`} />
+                  <PageEditor
+                    key={`${log.id}/${iso}`}
+                    log={log}
+                    slot={iso}
+                    compact
+                    label={`${t.pages.dayRow} ${fmt(iso, { month: 'long', day: 'numeric' })}`}
+                  />
                 </div>
               </li>
             );
@@ -92,6 +100,7 @@ export function MonthPage({ ym }: { ym: string }) {
 
 /** Year (future log): one page per calendar year, twelve generous month areas. */
 export function YearPage({ year }: { year: string }) {
+  const { anchorWithin, flash, navigate, setAnchor, takeFrom } = usePane();
   const settings = useSettings();
   const firstDay = settings.firstDayOfWeek as Weekday;
   const anchor = anchorWithin(`${year}-01-01`, `${year}-12-31`);
@@ -110,6 +119,7 @@ export function YearPage({ year }: { year: string }) {
       <div className="title-row">
         <h1>{year}</h1>
         <OpenItemsButton />
+        <SplitButton />
         <PageMenu page={{ kind: 'future', key: year }} />
       </div>
       {months.map((ym) => (

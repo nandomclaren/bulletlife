@@ -173,6 +173,11 @@ export const en = {
     unmarked: 'Back to open',
     count: (n: number) => `${n} open ${n === 1 ? 'item' : 'items'}`,
   },
+  split: {
+    open: 'Open a second page',
+    close: 'Close the second page',
+    label: 'Second page',
+  },
   search: {
     title: 'Search',
     placeholder: 'Search everything',

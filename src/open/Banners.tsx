@@ -1,4 +1,5 @@
 // Quiet in-app banners (CLAUDE.md 5): the set-up banner for this week or
+import { usePane } from '../pages/pane';
 // month, and Close the day in the evening. Both are dismissible and only
 // open things up; nothing is written except the explicit "Set up".
 import { useEffect, useState } from 'react';
@@ -7,7 +8,6 @@ import { daysSinceExport, exportReminderDue } from '../data/backup';
 import { exportEverything, periodLog, setUpPeriod, useHasEntries, usePeriodsSetUp, useSettings, type LogRef } from '../data/repo';
 import { exportFile } from '../export/actions';
 import { t } from '../i18n/en';
-import { navigate } from '../router';
 import { openPanel } from './panelStore';
 import { useToday } from './useOpenItems';
 
@@ -42,6 +42,7 @@ function useNow(): string {
 
 /** Shown on pages of the current period (today's Day, this Week, this Month). */
 export function Banners({ current }: { current: boolean }) {
+  const { navigate, secondary } = usePane();
   const settings = useSettings();
   const today = useToday();
   const now = useNow();
@@ -55,7 +56,8 @@ export function Banners({ current }: { current: boolean }) {
   void dismissed;
 
   const hasEntries = useHasEntries();
-  if (!current || !setUp) return null;
+  // The second pane is for reading only.
+  if (secondary || !current || !setUp) return null;
 
   // Backup reminder: a full export to keep off the device (iCloud Drive). Dismissing waits 3 days.
   const snoozed = (() => {

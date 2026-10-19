@@ -144,7 +144,7 @@ export interface DateRun {
 
 /**
  * Sequences of two or more sibling bullets (same parent, children in between)
- * where at least one has a due date. Each can be sorted by date on request.
+ * with at least two due dates. Each can be sorted by date on request.
  */
 export function dateRuns(lines: Line[]): DateRun[] {
   const parents = parentIds(lines);
@@ -160,9 +160,11 @@ export function dateRuns(lines: Line[]): DateRun[] {
     }
     items.forEach((x) => seen.add(x));
     const dues = items.map((x) => dueOf(lines[x].text));
-    if (items.length < 2 || !dues.some(Boolean)) return;
-    const keys = dues.map((d) => d ?? '￿');
-    runs.push({ items, sorted: keys.every((k2, x) => x === 0 || keys[x - 1] <= k2) });
+    if (items.length < 2 || dues.filter(Boolean).length < 2) return;
+    // Offered only when two or more dated items are out of order among themselves;
+    // undated items in between do not count (they still go last when sorting).
+    const dated = dues.filter((d): d is string => !!d);
+    runs.push({ items, sorted: dated.every((d, x) => x === 0 || dated[x - 1] <= d) });
   });
   return runs;
 }

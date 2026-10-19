@@ -1,17 +1,19 @@
 import { useEffect } from 'react';
+import { usePane } from './pane';
 import { addDays, fmt, todayIso, weekKey, weekKeyStart, type Weekday } from '../dates';
 import { periodLog, useSettings } from '../data/repo';
 import { t } from '../i18n/en';
-import { anchorWithin, flash, setAnchor, takeFrom } from './nav';
 import { PageEditor } from './PageEditor';
 import { PageFooter, TimeHeader } from './TimeHeader';
 import { PageMenu } from '../export/PageMenu';
 import { Banners } from '../open/Banners';
 import { OpenItemsButton } from '../open/OpenItemsButton';
+import { SplitButton } from './SplitPane';
 // Week strip hidden at Fernando's request (felt like a digital note taker). Kept for later.
 // import { WeekStrip } from './WeekStrip';
 
 export function DayPage({ iso }: { iso: string }) {
+  const { setAnchor, secondary } = usePane();
   const settings = useSettings();
   const firstDay = settings.firstDayOfWeek as Weekday;
   setAnchor(iso);
@@ -26,15 +28,17 @@ export function DayPage({ iso }: { iso: string }) {
       <div className="title-row">
         <h1>{fmt(iso, isToday ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })}</h1>
         <OpenItemsButton />
+        <SplitButton />
         <PageMenu page={{ kind: 'daily', key: iso }} />
       </div>
-      <PageEditor key={log.id} log={log} autoFocus label={log.title} />
+      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} />
       <PageFooter />
     </main>
   );
 }
 
 export function WeekPage({ weekKey: key }: { weekKey: string }) {
+  const { anchorWithin, flash, takeFrom, secondary } = usePane();
   const settings = useSettings();
   const firstDay = settings.firstDayOfWeek as Weekday;
   const start = weekKeyStart(key, firstDay);
@@ -60,9 +64,10 @@ export function WeekPage({ weekKey: key }: { weekKey: string }) {
       <div className="title-row">
         <h1>{range}</h1>
         <OpenItemsButton />
+        <SplitButton />
         <PageMenu page={{ kind: 'weekly', key }} />
       </div>
-      <PageEditor key={log.id} log={log} autoFocus label={log.title} />
+      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} />
       <PageFooter />
     </main>
   );
