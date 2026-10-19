@@ -140,3 +140,9 @@ Short log of technical decisions. Newest last.
 - **Editors only write what they changed:** each editor keeps a base (what it loaded or last saved) and saves only lines it touched; it deletes only lines it knew and removed. Before this, an editor that had not yet received a change from elsewhere wrote the whole page back and undid it (reproduced with two windows). `touchedIds` + `diffEntries(..., base)`, unit tested.
 - **Live updates:** each editor watches its stored entries; when they change from elsewhere it reloads, but never while the user is typing (waits for a 2.5 s pause, keeps the caret in the editor).
 - **Indicator:** Settings › Sync shows "Up to date", "Syncing…", "Offline…" or "Sync paused" with the signed-in email, plus Sync now and Sign out. On every page a small ring on the Index button appears only when offline or paused; nothing when in sync or not signed in.
+
+## 2026-10-19 · Phase 2 accepted
+
+- Fernando signed in on iPhone and Mac with the same email: entries written on one appear on the other, including entries written offline and synced after reconnecting (Phase 2 acceptance criterion).
+- Icons and manifest already use the final files from `assets/icon/` (manifest icons incl. maskable, apple-touch-icon, favicons).
+- Still per device: Settings (theme, active logs, first day of week).
