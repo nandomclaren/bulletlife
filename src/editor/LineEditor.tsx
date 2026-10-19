@@ -7,6 +7,7 @@ import { BulletMenu, UndoToast, type MenuActions } from './BulletMenu';
 import { selectionDoc, toHtml, toPlain } from '../export/format';
 import { setSelection } from '../export/selection';
 import { attachGutter } from './gutter';
+import { LINES_MIME, linesFromJson, linesFromText } from './paste';
 import {
   colorTypes,
   continuationType,
@@ -71,6 +72,7 @@ class LineEditorCore {
     document.addEventListener('selectionchange', this.onSelectionChange);
     root.addEventListener('copy', this.onCopy);
     root.addEventListener('cut', this.onCopy);
+    root.addEventListener('paste', this.onPaste);
     this.detachGutter = attachGutter(root, {
       bullet: (id) => this.updateById(id, (l) => (hasStates(l.type, this.eventStates) ? { ...l, state: nextState(l.state) } : null)),
       chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
@@ -88,6 +90,7 @@ class LineEditorCore {
     document.removeEventListener('selectionchange', this.onSelectionChange);
     this.root.removeEventListener('copy', this.onCopy);
     this.root.removeEventListener('cut', this.onCopy);
+    this.root.removeEventListener('paste', this.onPaste);
     this.detachGutter();
   }
 
@@ -547,6 +550,7 @@ class LineEditorCore {
     const doc = selectionDoc(lines);
     e.clipboardData.setData('text/plain', toPlain(doc));
     e.clipboardData.setData('text/html', toHtml(doc));
+    e.clipboardData.setData(LINES_MIME, JSON.stringify(lines));
     if (e.type === 'cut') {
       // Cut what was copied: hidden children of a collapsed last line go too.
       const last = this.lines.findIndex((l) => l.id === lines[lines.length - 1].id);
@@ -554,6 +558,31 @@ class LineEditorCore {
       this.snapshot(start);
       this.commit(this.deleteRange(start, to));
     }
+  };
+
+  /** Pasting entries (copied from the app, or its Markdown) recreates them as entries. */
+  private onPaste = (e: ClipboardEvent) => {
+    const data = e.clipboardData;
+    const sel = this.readSelection();
+    if (!data || !sel) return;
+    const pasted = linesFromJson(data.getData(LINES_MIME)) ?? linesFromText(data.getData('text/plain'));
+    if (!pasted) return; // ordinary text: the regular paste below
+    e.preventDefault();
+    this.snapshot(sel.start);
+    const at = this.deleteRange(sel.start, sel.end);
+    const line = this.lines[at.index];
+    const fresh = pasted.map((p) => newLine({ ...p, indent: line.indent + p.indent, collapsed: false }));
+    const head = line.text.slice(0, at.offset);
+    const tail = line.text.slice(at.offset);
+    if (!line.text) this.lines.splice(at.index, 1, ...fresh);
+    else if (!head) this.lines.splice(at.index, 0, ...fresh);
+    else {
+      line.text = head;
+      const rest = tail ? [newLine({ type: line.type, indent: line.indent, text: tail })] : [];
+      this.lines.splice(at.index + 1, 0, ...fresh, ...rest);
+    }
+    const last = this.lines.indexOf(fresh[fresh.length - 1]);
+    this.commit({ index: last, offset: fresh[fresh.length - 1].text.length });
   };
 
   /** Safety net: the caret may only live inside a line's text, never in the gutter. */
