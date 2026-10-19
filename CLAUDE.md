@@ -284,7 +284,7 @@ Textos finais da UI. Onde o documento cita um termo em português, use o equival
 | Este mês | This Month |
 | Tarefas do mês | Month tasks |
 | Montar semana / mês | Set up week / Set up month |
-| Pendências (painel e botão) | Pending |
+| Pendências (painel e botão) | Open items |
 | Já escrevi no destino | I wrote it there |
 | Fechar o dia | Close the day |
 | Estados em eventos (ajuste) | Event states |
