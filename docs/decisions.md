@@ -168,3 +168,7 @@ Short log of technical decisions. Newest last.
 - **Settings:** Markdown glyph style (Checkboxes / Dot notation). Backup › Export everything as Markdown: every written page in one `.md` file (Years, Months, Weeks, Days oldest first, then collections by name). The JSON file stays the restorable backup.
 - To validate on the iPhone: rich-text paste into Notes/Mail, the share sheet, and the selection surviving a tap on "…".
 - **Paste back into the app** (Fernando's report: pasted items came in as literal "•" and struck characters). ⌘C/iOS Copy now also carries the exact lines (`application/x-bullet-life-lines`); on paste the editor recreates them as entries (fresh ids, indentation relative to the line pasted on). Without that type, text that looks like our export (Markdown with checkboxes or dot notation, or plain text with glyphs) is read back too (`src/editor/paste.ts`, tested). Plain text cannot tell a done/migrated event from a task, so those come back as tasks; Markdown keeps it. Ordinary text keeps the regular paste. Pasting is the user's own gesture on the page they are on, so it is not an automatic copy (principle 1).
+
+## 2026-10-19 · Phase 3 accepted
+
+- Fernando confirmed on the iPhone: Copy As (incl. rich text pasted into native apps), Share, the selection surviving a tap on "…", Export, and copy/paste of entries inside the app.
