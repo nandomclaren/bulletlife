@@ -287,7 +287,7 @@
   border: 0;
   background: none;
   text-align: left;
-  font-size: 16px;
+  font-size: calc(var(--fs-body) - 1px);
   line-height: 44px;
   cursor: pointer;
 }
@@ -360,7 +360,7 @@
   padding: 0;
   border: 0;
   background: none;
-  font-size: 19px;
+  font-size: var(--fs-section);
   font-weight: 650;
   cursor: pointer;
 }
@@ -430,7 +430,7 @@
   border-bottom: 1px solid var(--rule);
   background: none;
   text-align: left;
-  font-size: 17px;
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -464,7 +464,7 @@
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 34px;
+  font-size: var(--fs-title);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;

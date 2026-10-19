@@ -12,11 +12,27 @@
   --event: #3b82c4;
   --note: #2a9d8f;
 
+  /* Type scale. The Mac (fine pointer) reads closer to the screen: smaller,
+     like a desktop notes app. The iPhone keeps the larger sizes. */
+  --fs-body: 17px;
+  --fs-title: 34px;
+  --fs-heading: 21px;
+  --fs-section: 19px;
+
   --radius: 10px;
   --measure: 720px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
   color-scheme: light;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root {
+    --fs-body: 15px;
+    --fs-title: 28px;
+    --fs-heading: 18px;
+    --fs-section: 17px;
+  }
 }
 
 /* Themes: Paper (light, default above), Graphite (dark), Night (OLED black).
@@ -98,7 +114,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 17px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   caret-color: var(--text);
@@ -127,7 +143,7 @@ button {
 
 h1 {
   margin: 0 0 8px;
-  font-size: 34px;
+  font-size: var(--fs-title);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;

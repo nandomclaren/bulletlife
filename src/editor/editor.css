@@ -12,7 +12,7 @@
   --step: 26px;
   outline: none;
   margin: 8px 0 0 -20px;
-  font-size: 17px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   -webkit-tap-highlight-color: transparent;
 }
@@ -70,7 +70,7 @@
   display: inline-grid;
   place-items: center;
   width: 16px;
-  font-size: 20px;
+  font-size: calc(var(--fs-body) + 3px);
   line-height: 1;
   vertical-align: baseline;
   cursor: pointer;
@@ -155,7 +155,7 @@
 }
 
 .t-heading .line-text {
-  font-size: 21px;
+  font-size: var(--fs-heading);
   font-weight: 650;
   letter-spacing: -0.005em;
   padding-top: 10px;
@@ -229,7 +229,7 @@
    An empty 1ex box sitting on the baseline is centered on the x-height,
    which is where the eye expects a bullet next to lowercase text. */
 .bullet.drawn {
-  font-size: 17px;
+  font-size: var(--fs-body);
   height: 1ex;
 }
 

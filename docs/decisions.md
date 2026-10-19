@@ -226,3 +226,7 @@ Short log of technical decisions. Newest last.
 - No automatic off-device job for now. A quiet banner on current-period pages says "No full export on this device yet." or "Last full export: 9 days ago." with **Export now** (the same JSON as Settings › Backup › Export everything: share sheet on iPhone → Save to Files / iCloud Drive; download on Mac). It shows when something is written and the last export is 7+ days old; × waits 3 days. Settings › Backup › Remind me to export turns it off. Per device (the date of the last export is a device setting).
 - A scheduled export on Railway (Dexie Cloud export into a volume) stays possible later, once the sync plan is decided.
 - Phase 5 is complete apart from Fernando's checks.
+
+## 2026-10-19 · Smaller type on the Mac
+
+- Fernando compared with a desktop notes app: our Mac text read about 15% larger. Type sizes are now variables (`--fs-body`, `--fs-title`, `--fs-heading`, `--fs-section`); on a fine pointer with hover (the Mac) they are 15 / 28 / 18 / 17 px; the iPhone keeps 17 / 34 / 21 / 19 px. Bullets, day numbers, collection titles and Index rows follow the same variables.
