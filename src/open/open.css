@@ -422,3 +422,29 @@ html.panel-docked {
     animation: none;
   }
 }
+
+/* Two-page spread: the facing page follows the main one, so its header stays out of the way
+   (kept in the flow so both titles line up). */
+.split-pane.spread .time-header {
+  visibility: hidden;
+}
+
+@media (max-width: 999px) {
+  .split-pane.spread {
+    display: none;
+  }
+}
+
+/* With a page beside it, the month shows calendar and month tasks in one column. */
+@media (min-width: 1000px) {
+  html.split-open .month-spread {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  html.split-open .month-tasks {
+    position: static;
+  }
+  html.split-open .page-month {
+    max-width: 720px;
+  }
+}

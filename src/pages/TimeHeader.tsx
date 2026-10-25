@@ -3,6 +3,7 @@ import { usePane } from './pane';
 import { useSettings, useSync } from '../data/repo';
 import { t } from '../i18n/en';
 import { activeLevels, pathFor, stepKey, type Level } from './nav';
+import { useSplit } from './splitStore';
 
 const ORDER: Level[] = ['year', 'month', 'week', 'day'];
 
@@ -16,7 +17,7 @@ interface Props {
 
 /** Breadcrumb (every level is one tap away), ‹ ›, Today and a date picker. */
 export function TimeHeader({ level, periodKey, anchor }: Props) {
-  const { navigate, goUp, setAnchor } = usePane();
+  const { navigate, goUp, setAnchor, secondary } = usePane();
   const settings = useSettings();
   const sync = useSync();
   // Quiet: nothing when in sync or not signed in; a small ring only when offline or paused.
@@ -45,7 +46,9 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
     else navigate(path);
   };
 
-  const step = (n: number) => navigate(`/${level}/${stepKey(level, periodKey, n, firstDay)}`);
+  // In the two-page spread the main page turns two pages at a time.
+  const spread = useSplit().spread && !secondary;
+  const step = (n: number) => navigate(`/${level}/${stepKey(level, periodKey, spread ? n * 2 : n, firstDay)}`);
 
   return (
     <header className="time-header">

@@ -269,3 +269,9 @@ Short log of technical decisions. Newest last.
 - **Cancel** plays a quieter version of each: the strike-through fades in, plus a smaller pop (1.15), a fainter and shorter ring, fainter and shorter sparks, a gray swipe, or a 2 px nudge.
 - **Mark:** the check is drawn left to right (clip reveal); the cross is stamped in (scale + fade), because a half-revealed × reads as ">" (migrated).
 - `src/editor/doneFx.ts` adds `fx-done` / `fx-cancel` to the line (and injects the ring or spark dots into the bullet), cleaned up after 1.4 s; CSS in editor.css keyed on `html[data-done-anim]`. Played from the page editor (tap, ⌘↵, menu) and from the Open items panel. Settings shows a live preview on each option. `prefers-reduced-motion` turns them off.
+
+## Two-page spread (open notebook)
+
+- Fernando picked **mode A**: the facing page is the next period at the same level, and ‹ › on the main page step by two. Spread and the second page are mutually exclusive (one store, `splitStore`, with `open` and `spread`); the spread is remembered in localStorage (`split.spread`).
+- `SplitPane` renders the facing page with a secondary pane (own anchor and highlights) whose `navigate`/`goUp`/`back` go to the main pane, so tapping a day or a week label on the facing page moves the notebook. Its time header is kept in the flow but hidden, so both titles line up.
+- Same columns as the second page (`html.split-open`, ≥ 1000 px). On non-time pages the spread shows nothing.

@@ -8,7 +8,7 @@ import { PageFooter, TimeHeader } from './TimeHeader';
 import { PageMenu } from '../export/PageMenu';
 import { Banners } from '../open/Banners';
 import { OpenItemsButton } from '../open/OpenItemsButton';
-import { SplitButton } from './SplitPane';
+import { SplitButton, SpreadButton } from './SplitPane';
 // Week strip hidden at Fernando's request (felt like a digital note taker). Kept for later.
 // import { WeekStrip } from './WeekStrip';
 
@@ -28,6 +28,7 @@ export function DayPage({ iso }: { iso: string }) {
       <div className="title-row">
         <h1>{fmt(iso, isToday ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })}</h1>
         <OpenItemsButton />
+        <SpreadButton />
         <SplitButton />
         <PageMenu page={{ kind: 'daily', key: iso }} />
       </div>
@@ -64,6 +65,7 @@ export function WeekPage({ weekKey: key }: { weekKey: string }) {
       <div className="title-row">
         <h1>{range}</h1>
         <OpenItemsButton />
+        <SpreadButton />
         <SplitButton />
         <PageMenu page={{ kind: 'weekly', key }} />
       </div>

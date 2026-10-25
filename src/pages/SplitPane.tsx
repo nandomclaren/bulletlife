@@ -1,25 +1,51 @@
-// The second page of the split view: a full notebook page beside the main
-// one, with its own navigation and scrolling, editable like any page.
+// Beside the main page on a wide screen: either the second page (a full page
+// with its own navigation, editable like any page) or the two-page spread
+// (the next period, following the main page like the facing page of a
+// notebook; it navigates the main page).
 import { useEffect, useMemo, useRef } from 'react';
 import { renderPage } from '../App';
 import { useLoadedSettings } from '../data/repo';
-import { todayIso } from '../dates';
+import { todayIso, type Weekday } from '../dates';
 import { t } from '../i18n/en';
-import { makeSecondaryPane, PaneContext, usePane } from './pane';
-import { closeSplit, setSplitPath, toggleSplit, useSplit } from './splitStore';
+import { usePath } from '../router';
+import { stepKey, type Level } from './nav';
+import { mainPane, makeSecondaryPane, PaneContext, usePane } from './pane';
+import { closeSplit, setSplitPath, toggleSplit, toggleSpread, useSplit } from './splitStore';
+
+/** The period after the one at `path` ('/day/2026-10-19' → '/day/2026-10-20'); null for other pages. */
+export function nextPeriodPath(path: string, firstDay: Weekday): string | null {
+  const m = path.match(/^\/(day|week|month|year)\/([^/]+)$/);
+  return m ? `/${m[1]}/${stepKey(m[1] as Level, m[2], 1, firstDay)}` : null;
+}
 
 export function SplitPane() {
   const split = useSplit();
   const settings = useLoadedSettings();
+  const mainPath = usePath();
   const root = useRef<HTMLElement>(null);
   const pane = useMemo(() => makeSecondaryPane(setSplitPath, () => root.current, todayIso()), []);
+  // The facing page has its own anchor and highlights, but going somewhere from it moves the main page.
+  const facing = useMemo(() => {
+    const p = makeSecondaryPane(mainPane.navigate, () => root.current, todayIso());
+    return { ...p, navigate: mainPane.navigate, goUp: mainPane.goUp, back: mainPane.back };
+  }, []);
+
+  const spreadPath = split.spread && settings ? nextPeriodPath(mainPath, settings.firstDayOfWeek as Weekday) : null;
+  const showing = split.open || !!spreadPath;
 
   useEffect(() => {
     const html = document.documentElement;
-    html.classList.toggle('split-open', split.open);
-    return () => html.classList.remove('split-open');
-  }, [split.open]);
+    html.classList.toggle('split-open', showing);
+    html.classList.toggle('spread-open', !!spreadPath);
+    return () => html.classList.remove('split-open', 'spread-open');
+  }, [showing, spreadPath]);
 
+  if (spreadPath)
+    return (
+      <aside ref={root} className="split-pane spread" aria-label={t.split.spreadLabel}>
+        <PaneContext.Provider value={facing}>{renderPage(spreadPath, settings, facing)}</PaneContext.Provider>
+      </aside>
+    );
   if (!split.open) return null;
   return (
     <aside ref={root} className="split-pane" aria-label={t.split.label}>
@@ -43,6 +69,21 @@ export function SplitButton() {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
         <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
         <path d="M12 4.5v15" />
+      </svg>
+    </button>
+  );
+}
+
+/** Title-row button for the two-page spread, on time pages (wide screens only). */
+export function SpreadButton() {
+  const { secondary } = usePane();
+  const split = useSplit();
+  if (secondary) return null;
+  return (
+    <button className="split-btn" aria-label={split.spread ? t.split.spreadClose : t.split.spreadOpen} aria-pressed={split.spread} onClick={toggleSpread}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
+        <path d="M12 6.5C10 5 6.5 4.5 3 5v13.5c3.5-.5 7 0 9 1.5 2-1.5 5.5-2 9-1.5V5c-3.5-.5-7 0-9 1.5Z" />
+        <path d="M12 6.5V20" />
       </svg>
     </button>
   );

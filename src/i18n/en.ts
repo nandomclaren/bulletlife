@@ -177,6 +177,9 @@ export const en = {
     open: 'Open a second page',
     close: 'Close the second page',
     label: 'Second page',
+    spreadOpen: 'Open as a two-page spread',
+    spreadClose: 'Close the two-page spread',
+    spreadLabel: 'Facing page',
   },
   search: {
     title: 'Search',

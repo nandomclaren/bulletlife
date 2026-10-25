@@ -177,6 +177,8 @@ Configuração de referência do Fernando: Weekly + Daily + Monthly + Future Log
 
 **Duas páginas abertas (pedido do Fernando, Mac).** Um botão entre o de Open items e o "…" abre uma segunda página do caderno à direita, como o caderno aberto em duas páginas. As duas são editáveis e navegam de forma independente (a segunda guarda a última página aberta). As faixas (montagem, Fechar o dia, exportação) só aparecem na página principal. Em telas estreitas (iPhone) o botão não aparece.
 
+**Caderno aberto (pedido do Fernando, Mac e iPad deitado).** Um botão com um livro aberto, ao lado do de segunda página, mostra à direita o **período seguinte no mesmo nível** (dia 19 | dia 20, Wk 43 | Wk 44, Oct | Nov, 2026 | 2027), como o Month com calendário e Month tasks. ‹ › avançam de duas em duas páginas; a página da direita é editável, não tem cabeçalho próprio e, ao tocar no conteúdo dela (dia, Wk, mês), navega a página principal. Caderno aberto e segunda página são exclusivos: ligar um desliga o outro. Fica ligado até ser desligado (guardado no aparelho). Em páginas que não são de tempo (Index, Collections), não mostra nada à direita. Com qualquer página ao lado, o Month mostra calendário e Month tasks em uma coluna.
+
 ### 5.1 Navegação entre Ano ↔ Mês ↔ Semana ↔ Dia
 
 **Objetivo (pedido do Fernando):** trocar de nível em **1 toque**, sem menu e sem perder o contexto, tanto para descer (Ano → Mês → Semana/Dia) quanto para subir (Dia → Semana/Mês/Ano). O app mantém uma **data âncora** (o dia que o usuário está olhando); mudar de nível leva ao período que **contém a âncora**.

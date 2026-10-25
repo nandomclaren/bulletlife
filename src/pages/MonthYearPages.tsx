@@ -9,7 +9,7 @@ import { PageFooter, TimeHeader } from './TimeHeader';
 import { PageMenu } from '../export/PageMenu';
 import { Banners } from '../open/Banners';
 import { OpenItemsButton } from '../open/OpenItemsButton';
-import { SplitButton } from './SplitPane';
+import { SplitButton, SpreadButton } from './SplitPane';
 
 /** Month: a fixed calendar rendered from the date (never stored) plus "Month tasks". */
 export function MonthPage({ ym }: { ym: string }) {
@@ -43,6 +43,7 @@ export function MonthPage({ ym }: { ym: string }) {
       <div className="title-row">
         <h1>{isCurrent ? t.pages.thisMonth : fmt(`${ym}-01`, { month: 'long', year: 'numeric' })}</h1>
         <OpenItemsButton />
+        <SpreadButton />
         <SplitButton />
         <PageMenu page={{ kind: 'monthly', key: ym }} />
       </div>
@@ -119,6 +120,7 @@ export function YearPage({ year }: { year: string }) {
       <div className="title-row">
         <h1>{year}</h1>
         <OpenItemsButton />
+        <SpreadButton />
         <SplitButton />
         <PageMenu page={{ kind: 'future', key: year }} />
       </div>
