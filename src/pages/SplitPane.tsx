@@ -1,8 +1,9 @@
 // Beside the main page on a wide screen: either the second page (a full page
-// with its own navigation, editable like any page) or the two-page spread
-// (the next period, following the main page like the facing page of a
-// notebook; it navigates the main page).
-import { useEffect, useMemo, useRef } from 'react';
+// with its own navigation, editable like any page) or the two-page spread.
+// The spread either lets the page's text flow on into a right-hand column
+// (html.spread-flow, laid out by useSpreadFlow) or shows the next period as
+// the facing page (it navigates the main page).
+import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
 import { renderPage } from '../App';
 import { useLoadedSettings } from '../data/repo';
 import { todayIso, type Weekday } from '../dates';
@@ -30,15 +31,17 @@ export function SplitPane() {
     return { ...p, navigate: mainPane.navigate, goUp: mainPane.goUp, back: mainPane.back };
   }, []);
 
-  const spreadPath = split.spread && settings ? nextPeriodPath(mainPath, settings.firstDayOfWeek as Weekday) : null;
+  const flow = split.spread && settings?.spreadMode === 'flow';
+  const spreadPath = split.spread && settings?.spreadMode === 'next' ? nextPeriodPath(mainPath, settings.firstDayOfWeek as Weekday) : null;
   const showing = split.open || !!spreadPath;
 
   useEffect(() => {
     const html = document.documentElement;
     html.classList.toggle('split-open', showing);
     html.classList.toggle('spread-open', !!spreadPath);
-    return () => html.classList.remove('split-open', 'spread-open');
-  }, [showing, spreadPath]);
+    html.classList.toggle('spread-flow', flow);
+    return () => html.classList.remove('split-open', 'spread-open', 'spread-flow');
+  }, [showing, spreadPath, flow]);
 
   if (spreadPath)
     return (
@@ -59,6 +62,58 @@ export function SplitPane() {
   );
 }
 
+const FLOW_MIN_WIDTH = '(min-width: 1000px)';
+
+/**
+ * Flowing spread: the editor's lines fill the left column down to the bottom
+ * of the screen, then go on in the right one, like a magazine. The column
+ * height is the screen's until the text needs more; then both columns grow
+ * together, half the text each.
+ */
+export function useSpreadFlow(area: RefObject<HTMLElement | null>, enabled: boolean) {
+  const split = useSplit();
+  const on = enabled && split.spread;
+  useLayoutEffect(() => {
+    const host = area.current;
+    if (!on || !host) return;
+    let frame = 0;
+    let editor: HTMLElement | null = null;
+    const layout = () => {
+      frame = 0;
+      editor = host.querySelector<HTMLElement>('.editor');
+      if (!editor) return;
+      if (!document.documentElement.classList.contains('spread-flow') || !matchMedia(FLOW_MIN_WIDTH).matches) {
+        editor.style.height = '';
+        return;
+      }
+      let total = 0;
+      for (const child of Array.from(editor.children) as HTMLElement[]) total += child.offsetHeight;
+      const top = editor.getBoundingClientRect().top + window.scrollY;
+      const screen = Math.max(240, window.innerHeight - top - 48);
+      let height = Math.max(screen, Math.ceil(total / 2) + 8);
+      editor.style.height = `${height}px`;
+      // Lines never split across columns, so half may not be enough: grow until two columns hold it all.
+      for (let i = 0; i < 60 && editor.scrollWidth > editor.clientWidth + 1; i++) editor.style.height = `${(height += 16)}px`;
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(layout);
+    };
+    layout();
+    const mo = new MutationObserver(schedule);
+    mo.observe(host, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] });
+    const ro = new ResizeObserver(schedule);
+    ro.observe(document.documentElement);
+    window.addEventListener('resize', schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      mo.disconnect();
+      ro.disconnect();
+      window.removeEventListener('resize', schedule);
+      if (editor) editor.style.height = '';
+    };
+  }, [on, area]);
+}
+
 /** Title-row button that opens or closes the second page (wide screens only). */
 export function SplitButton() {
   const { secondary } = usePane();
@@ -74,11 +129,12 @@ export function SplitButton() {
   );
 }
 
-/** Title-row button for the two-page spread, on time pages (wide screens only). */
-export function SpreadButton() {
+/** Title-row button for the two-page spread (wide screens only). `flowOnly`: pages with no next period. */
+export function SpreadButton({ flowOnly }: { flowOnly?: boolean }) {
   const { secondary } = usePane();
   const split = useSplit();
-  if (secondary) return null;
+  const settings = useLoadedSettings();
+  if (secondary || (flowOnly && settings?.spreadMode !== 'flow')) return null;
   return (
     <button className="split-btn" aria-label={split.spread ? t.split.spreadClose : t.split.spreadOpen} aria-pressed={split.spread} onClick={toggleSpread}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>

@@ -7,6 +7,8 @@ import { flushAll, registerFlush } from './flush';
 import { dismissLink, findRewriteOf, linkRewrite, loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
 import { sourceLabel } from '../data/openItems';
 import { t } from '../i18n/en';
+import { usePane } from './pane';
+import { useSpreadFlow } from './SplitPane';
 
 const SAVE_DELAY = 400;
 /** Remote changes wait until the user has stopped typing for this long. */
@@ -18,9 +20,11 @@ interface Props {
   autoFocus?: boolean;
   compact?: boolean;
   label?: string;
+  /** In the flowing two-page spread, the page's lines continue in a right-hand column. */
+  flow?: boolean;
 }
 
-export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props) {
+export function PageEditor({ log, slot = '', autoFocus, compact, label, flow }: Props) {
   const [initial, setInitial] = useState<Line[] | null>(null);
   const settings = useSettings();
   const { eventStates } = settings;
@@ -100,6 +104,9 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label }: Props)
   useEffect(() => {
     if (stamp !== undefined) refresh.current();
   }, [stamp]);
+
+  const { secondary } = usePane();
+  useSpreadFlow(area, !!flow && !secondary && !!initial);
 
   if (!initial) return <div className={`editor-area${compact ? ' compact' : ''}`} />;
 

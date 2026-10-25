@@ -3,8 +3,7 @@ export const en = {
   appName: 'Bullet Life',
   spike: {
     title: 'Device check',
-    subtitle:
-      'A throwaway page to test what the real app depends on. Run it on the installed app on each device, mark each check, then copy the report.',
+    subtitle: 'A throwaway page to test what the real app depends on. Run it on the installed app on each device, mark each check, then copy the report.',
     pass: 'Pass',
     fail: 'Fail',
     unsure: 'Unsure',
@@ -324,6 +323,13 @@ export const en = {
       settle: 'The line takes a small breath',
       colorSparks: 'Sparks in red, blue and green',
     },
+    spreadMode: 'Two-page spread',
+    spreadModes: { flow: 'Flowing text', next: 'Next page' },
+    spreadModeHints: {
+      flow: 'The page continues on the right, like a magazine',
+      next: 'The right page is the next day, week, month or year',
+    },
+    spreadModeHint: 'The open book button on wide screens (Mac, iPad in landscape).',
     doneMark: 'Done mark',
     doneMarks: { cross: 'Cross', check: 'Check' },
     doneMarkHints: { cross: 'The original method', check: 'A check mark, same size and color' },

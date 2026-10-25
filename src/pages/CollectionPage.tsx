@@ -6,7 +6,7 @@ import { t } from '../i18n/en';
 import { PageMenu } from '../export/PageMenu';
 import { PageEditor } from './PageEditor';
 import { OpenItemsButton } from '../open/OpenItemsButton';
-import { SplitButton } from './SplitPane';
+import { SplitButton, SpreadButton } from './SplitPane';
 
 export function CollectionPage({ id }: { id: string }) {
   const { navigate } = usePane();
@@ -58,10 +58,11 @@ export function CollectionPage({ id }: { id: string }) {
           enterKeyHint="done"
         />
         <OpenItemsButton />
+        <SpreadButton flowOnly />
         <SplitButton />
         <PageMenu page={{ kind: 'collection', id: log.id, title: log.title }} />
       </div>
-      <PageEditor key={log.id} log={collectionRef(log)} label={log.title} />
+      <PageEditor key={log.id} log={collectionRef(log)} label={log.title} flow />
     </main>
   );
 }

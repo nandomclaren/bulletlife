@@ -150,6 +150,21 @@ export function SettingsPage() {
       </section>
 
       <section className="setting">
+        <h2 id="spread-mode-label">{t.settings.spreadMode}</h2>
+        <div className="options" role="radiogroup" aria-labelledby="spread-mode-label">
+          {(['flow', 'next'] as const).map((m) => (
+            <button key={m} role="radio" aria-checked={settings.spreadMode === m} className="option" onClick={() => void updateSettings({ spreadMode: m })}>
+              <span className="option-text">
+                <span className="option-title">{t.settings.spreadModes[m]}</span>
+                <span className="option-hint">{t.settings.spreadModeHints[m]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="setting-hint">{t.settings.spreadModeHint}</p>
+      </section>
+
+      <section className="setting">
         <h2 id="done-anim-label">{t.settings.doneAnimation}</h2>
         <div className="options" role="radiogroup" aria-labelledby="done-anim-label">
           {DONE_ANIMATIONS.map((a) => (

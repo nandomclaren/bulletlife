@@ -63,6 +63,8 @@ export interface Settings {
   closeDayAt: string;
   /** Settings › Backup: a reminder when the last full export is over a week old. */
   exportReminder: boolean;
+  /** Settings › Two-page spread: the text flows on into the right page, or the right page is the next period. */
+  spreadMode: 'flow' | 'next';
   /** Settings › number on the Open items button. */
   openCount: boolean;
 }
@@ -74,6 +76,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dateOrder: 'dmy',
   doneMark: 'cross',
   doneAnimation: 'ink',
+  spreadMode: 'flow',
   reverseSwipes: false,
   setupBanner: true,
   closeDay: true,

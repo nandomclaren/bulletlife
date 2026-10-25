@@ -47,7 +47,7 @@ export function TimeHeader({ level, periodKey, anchor }: Props) {
   };
 
   // In the two-page spread the main page turns two pages at a time.
-  const spread = useSplit().spread && !secondary;
+  const spread = useSplit().spread && !secondary && settings.spreadMode === 'next';
   const step = (n: number) => navigate(`/${level}/${stepKey(level, periodKey, spread ? n * 2 : n, firstDay)}`);
 
   return (

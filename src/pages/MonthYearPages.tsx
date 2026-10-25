@@ -124,23 +124,25 @@ export function YearPage({ year }: { year: string }) {
         <SplitButton />
         <PageMenu page={{ kind: 'future', key: year }} />
       </div>
-      {months.map((ym) => (
-        <section key={ym} id={`year-month-${ym}`} className={`year-month${ym === currentMonth ? ' is-current' : ''}`}>
-          <h2 className="year-month-title">
-            <button
-              onClick={() => {
-                setAnchor(ym === currentMonth ? todayIso() : `${ym}-01`);
-                navigate(settings.activeLogs.monthly ? `/month/${ym}` : `/week/${weekKey(`${ym}-01`, firstDay)}`);
-              }}
-            >
-              {fmt(`${ym}-01`, { month: 'long' })}
-            </button>
-          </h2>
-          <div className="year-month-area">
-            <PageEditor key={`${log.id}/${ym}`} log={log} slot={ym} label={`${t.pages.monthArea} ${fmt(`${ym}-01`, { month: 'long' })}`} />
-          </div>
-        </section>
-      ))}
+      <div className="year-months">
+        {months.map((ym) => (
+          <section key={ym} id={`year-month-${ym}`} className={`year-month${ym === currentMonth ? ' is-current' : ''}`}>
+            <h2 className="year-month-title">
+              <button
+                onClick={() => {
+                  setAnchor(ym === currentMonth ? todayIso() : `${ym}-01`);
+                  navigate(settings.activeLogs.monthly ? `/month/${ym}` : `/week/${weekKey(`${ym}-01`, firstDay)}`);
+                }}
+              >
+                {fmt(`${ym}-01`, { month: 'long' })}
+              </button>
+            </h2>
+            <div className="year-month-area">
+              <PageEditor key={`${log.id}/${ym}`} log={log} slot={ym} label={`${t.pages.monthArea} ${fmt(`${ym}-01`, { month: 'long' })}`} />
+            </div>
+          </section>
+        ))}
+      </div>
       <PageFooter />
     </main>
   );

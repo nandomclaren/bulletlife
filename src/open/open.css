@@ -448,3 +448,31 @@ html.panel-docked {
     max-width: 720px;
   }
 }
+
+/* Flowing spread: one page across both halves of the screen, its text going on in the right column. */
+@media (min-width: 1000px) {
+  html.spread-flow #root > .page {
+    max-width: calc(2 * var(--measure) + 72px);
+  }
+  html.spread-flow .editor-area > .editor {
+    column-count: 2;
+    column-gap: 72px;
+    column-rule: 1px solid var(--rule);
+    column-fill: auto;
+    padding-bottom: 0;
+  }
+  html.spread-flow .editor-area > .editor > * {
+    break-inside: avoid;
+  }
+  /* Year: January to June on the left page, July to December on the right. */
+  html.spread-flow .year-months {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto);
+    grid-auto-flow: column;
+    column-gap: 72px;
+  }
+  html.spread-flow .page-year {
+    max-width: calc(2 * var(--measure) + 72px);
+  }
+}

@@ -32,7 +32,7 @@ export function DayPage({ iso }: { iso: string }) {
         <SplitButton />
         <PageMenu page={{ kind: 'daily', key: iso }} />
       </div>
-      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} />
+      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} flow />
       <PageFooter />
     </main>
   );
@@ -69,7 +69,7 @@ export function WeekPage({ weekKey: key }: { weekKey: string }) {
         <SplitButton />
         <PageMenu page={{ kind: 'weekly', key }} />
       </div>
-      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} />
+      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} flow />
       <PageFooter />
     </main>
   );
