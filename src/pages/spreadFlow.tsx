@@ -53,7 +53,7 @@ export function useSpreadFlow(area: RefObject<HTMLElement | null>, enabled: bool
         rect = node?.closest('.line')?.getBoundingClientRect() ?? (undefined as unknown as DOMRect);
       }
       if (!rect) return null;
-      const x = rect.left - editor.getBoundingClientRect().left;
+      const x = rect.left + 1 - editor.getBoundingClientRect().left;
       return Math.floor(x / step(editor));
     };
     const layout = () => {

@@ -461,7 +461,13 @@ html.panel-docked {
     column-fill: auto;
     padding-bottom: 0;
   }
+  /* A long paragraph continues on the next page, as on paper; at least two lines stay on each side. */
   html.spread-flow .editor-area > .editor > * {
+    orphans: 2;
+    widows: 2;
+  }
+  html.spread-flow .editor-area > .editor > .line.t-heading {
+    break-after: avoid;
     break-inside: avoid;
   }
   /* Year: January to June on the left page, July to December on the right. */
