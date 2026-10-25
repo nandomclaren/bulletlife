@@ -476,3 +476,42 @@ html.panel-docked {
     max-width: calc(2 * var(--measure) + 72px);
   }
 }
+
+/* Flowing spread turning pages: fixed-height columns, extra pairs overflow to the right (hidden). */
+@media (min-width: 1000px) {
+  /* The area clips the pairs of pages not shown; its padding keeps the gutter (hung left of the text) visible. */
+  html.spread-flow .editor-area:has(> .editor) {
+    overflow: hidden;
+    margin-left: -24px;
+    padding-left: 24px;
+  }
+  html.spread-flow .page-time > .editor-area {
+    flex: none;
+    min-height: 0;
+  }
+  html.spread-flow .editor-area > .editor {
+    transition: transform 260ms var(--ease);
+  }
+}
+
+.spread-turner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.spread-turner button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.spread-flow .editor-area > .editor {
+    transition: none;
+  }
+}

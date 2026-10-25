@@ -179,6 +179,10 @@ export const en = {
     spreadOpen: 'Open as a two-page spread',
     spreadClose: 'Close the two-page spread',
     spreadLabel: 'Facing page',
+    turner: 'Turn pages',
+    prevPages: 'Previous two pages',
+    nextPages: 'Next two pages',
+    pagesOf: (a: number, b: number, n: number) => `Pages ${a}–${b} of ${n}`,
   },
   search: {
     title: 'Search',

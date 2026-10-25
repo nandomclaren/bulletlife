@@ -1,9 +1,9 @@
 // Beside the main page on a wide screen: either the second page (a full page
 // with its own navigation, editable like any page) or the two-page spread.
 // The spread either lets the page's text flow on into a right-hand column
-// (html.spread-flow, laid out by useSpreadFlow) or shows the next period as
+// (html.spread-flow, laid out by spreadFlow.tsx) or shows the next period as
 // the facing page (it navigates the main page).
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { renderPage } from '../App';
 import { useLoadedSettings } from '../data/repo';
 import { todayIso, type Weekday } from '../dates';
@@ -60,58 +60,6 @@ export function SplitPane() {
       <PaneContext.Provider value={pane}>{renderPage(split.path, settings, pane)}</PaneContext.Provider>
     </aside>
   );
-}
-
-const FLOW_MIN_WIDTH = '(min-width: 1000px)';
-
-/**
- * Flowing spread: the editor's lines fill the left column down to the bottom
- * of the screen, then go on in the right one, like a magazine. The column
- * height is the screen's until the text needs more; then both columns grow
- * together, half the text each.
- */
-export function useSpreadFlow(area: RefObject<HTMLElement | null>, enabled: boolean) {
-  const split = useSplit();
-  const on = enabled && split.spread;
-  useLayoutEffect(() => {
-    const host = area.current;
-    if (!on || !host) return;
-    let frame = 0;
-    let editor: HTMLElement | null = null;
-    const layout = () => {
-      frame = 0;
-      editor = host.querySelector<HTMLElement>('.editor');
-      if (!editor) return;
-      if (!document.documentElement.classList.contains('spread-flow') || !matchMedia(FLOW_MIN_WIDTH).matches) {
-        editor.style.height = '';
-        return;
-      }
-      let total = 0;
-      for (const child of Array.from(editor.children) as HTMLElement[]) total += child.offsetHeight;
-      const top = editor.getBoundingClientRect().top + window.scrollY;
-      const screen = Math.max(240, window.innerHeight - top - 48);
-      let height = Math.max(screen, Math.ceil(total / 2) + 8);
-      editor.style.height = `${height}px`;
-      // Lines never split across columns, so half may not be enough: grow until two columns hold it all.
-      for (let i = 0; i < 60 && editor.scrollWidth > editor.clientWidth + 1; i++) editor.style.height = `${(height += 16)}px`;
-    };
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(layout);
-    };
-    layout();
-    const mo = new MutationObserver(schedule);
-    mo.observe(host, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] });
-    const ro = new ResizeObserver(schedule);
-    ro.observe(document.documentElement);
-    window.addEventListener('resize', schedule);
-    return () => {
-      cancelAnimationFrame(frame);
-      mo.disconnect();
-      ro.disconnect();
-      window.removeEventListener('resize', schedule);
-      if (editor) editor.style.height = '';
-    };
-  }, [on, area]);
 }
 
 /** Title-row button that opens or closes the second page (wide screens only). */

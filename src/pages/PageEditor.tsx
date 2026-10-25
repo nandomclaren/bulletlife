@@ -8,7 +8,7 @@ import { dismissLink, findRewriteOf, linkRewrite, loadLines, saveLines, useEntri
 import { sourceLabel } from '../data/openItems';
 import { t } from '../i18n/en';
 import { usePane } from './pane';
-import { useSpreadFlow } from './SplitPane';
+import { SpreadTurner, useSpreadFlow } from './spreadFlow';
 
 const SAVE_DELAY = 400;
 /** Remote changes wait until the user has stopped typing for this long. */
@@ -106,7 +106,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label, flow }: 
   }, [stamp]);
 
   const { secondary } = usePane();
-  useSpreadFlow(area, !!flow && !secondary && !!initial);
+  const spread = useSpreadFlow(area, !!flow && !secondary && !!initial);
 
   if (!initial) return <div className={`editor-area${compact ? ' compact' : ''}`} />;
 
@@ -114,49 +114,52 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label, flow }: 
     // The whole free area around the lines is a tap target: a tap below the
     // text puts the caret at the end (the first line of an empty page); a tap
     // in a line's margin puts it at the end of that line.
-    <div
-      ref={area}
-      className={`editor-area${compact ? ' compact' : ''}`}
-      onClick={(e) => {
-        const target = e.target as Element;
-        if (target.closest('.line-text, .bullet, .chevron')) return;
-        focusAt.current?.(target.closest<HTMLElement>('.line')?.dataset.id);
-      }}
-    >
-      <LineEditor
-        key={version}
-        initial={initial}
-        autoFocus={autoFocus}
-        className={compact ? 'compact' : ''}
-        label={label}
-        eventStates={eventStates}
-        focusRef={focusAt}
-        reverseSwipes={settings.reverseSwipes}
-        findRewrite={async (line) => {
-          const found = await findRewriteOf(line.id, line.text, log.id, settings);
-          if (!found) return null;
-          const { item, collectionTitle } = found;
-          const origin = sourceLabel(item.source, item.entry.slot, collectionTitle);
-          const plain = item.entry.text.replace(/\s*due:\d{4}-\d{2}-\d{2}/g, '').trim();
-          const short = plain.length > 48 ? `${plain.slice(0, 46)}…` : plain;
-          return { sourceId: item.entry.id, text: t.link.prompt(short, origin) };
+    <>
+      <div
+        ref={area}
+        className={`editor-area${compact ? ' compact' : ''}`}
+        onClick={(e) => {
+          const target = e.target as Element;
+          if (target.closest('.line-text, .bullet, .chevron')) return;
+          focusAt.current?.(target.closest<HTMLElement>('.line')?.dataset.id);
         }}
-        onLinkAnswer={(lineId, sourceId, link) => {
-          if (link) void flushAll().then(() => linkRewrite(sourceId, lineId));
-          else dismissLink(lineId, sourceId);
-        }}
-        onChange={(lines) => {
-          shown.current = lines;
-          lastInput.current = Date.now();
-          pending.current = lines;
-          window.clearTimeout(timer.current);
-          timer.current = window.setTimeout(() => {
-            pending.current = null;
-            void save(lines);
-          }, SAVE_DELAY);
-        }}
-      />
-    </div>
+      >
+        <LineEditor
+          key={version}
+          initial={initial}
+          autoFocus={autoFocus}
+          className={compact ? 'compact' : ''}
+          label={label}
+          eventStates={eventStates}
+          focusRef={focusAt}
+          reverseSwipes={settings.reverseSwipes}
+          findRewrite={async (line) => {
+            const found = await findRewriteOf(line.id, line.text, log.id, settings);
+            if (!found) return null;
+            const { item, collectionTitle } = found;
+            const origin = sourceLabel(item.source, item.entry.slot, collectionTitle);
+            const plain = item.entry.text.replace(/\s*due:\d{4}-\d{2}-\d{2}/g, '').trim();
+            const short = plain.length > 48 ? `${plain.slice(0, 46)}…` : plain;
+            return { sourceId: item.entry.id, text: t.link.prompt(short, origin) };
+          }}
+          onLinkAnswer={(lineId, sourceId, link) => {
+            if (link) void flushAll().then(() => linkRewrite(sourceId, lineId));
+            else dismissLink(lineId, sourceId);
+          }}
+          onChange={(lines) => {
+            shown.current = lines;
+            lastInput.current = Date.now();
+            pending.current = lines;
+            window.clearTimeout(timer.current);
+            timer.current = window.setTimeout(() => {
+              pending.current = null;
+              void save(lines);
+            }, SAVE_DELAY);
+          }}
+        />
+      </div>
+      <SpreadTurner {...spread} />
+    </>
   );
 }
 
