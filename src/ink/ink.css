@@ -303,3 +303,62 @@
 .pen-typed.t-heading .line-text {
   padding-top: 0;
 }
+
+/* Drawing tool: a blank sheet, no rules. */
+.pen-sheet.pen-plain {
+  background-image: none;
+}
+
+/* Drawings in Type mode: tap to select, drag to move, drag the corner to resize. */
+.line-ink.is-drawing {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
+  cursor: pointer;
+  transition: box-shadow 120ms var(--ease);
+}
+
+.line-ink.is-drawing svg {
+  width: 100%;
+  height: auto;
+}
+
+.line-ink.is-drawing.selected {
+  box-shadow: 0 0 0 2px var(--accent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ink-handle {
+  display: none;
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+/* A bigger invisible grip around the dot for fingers. */
+.ink-handle::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+
+.line-ink.is-drawing.selected .ink-handle {
+  display: block;
+}
+
+.ink-drop {
+  position: fixed;
+  z-index: 40;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}

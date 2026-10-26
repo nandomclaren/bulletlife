@@ -160,14 +160,21 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     if (deferred.current) apply(deferred.current);
   };
 
-  /** Runs a write, holding back stale pages until it lands. */
-  const write = async <T,>(w: Promise<T>): Promise<T> => {
+  /**
+   * Runs a write, holding back stale pages until it lands. A page held back during a stroke write is only
+   * used if it already has the strokes (a newer one follows the write anyway); after erasing, the latest is.
+   */
+  const write = async <T,>(w: Promise<T>, erase = false): Promise<T> => {
     inflight.current++;
     try {
       return await w;
     } finally {
       inflight.current--;
-      if (deferred.current) apply(deferred.current);
+      const held = deferred.current;
+      if (held && inflight.current === 0 && !drawing.current && (erase || caughtUp(held))) {
+        deferred.current = null;
+        build(held);
+      }
     }
   };
 
@@ -264,7 +271,11 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     if (e.button > 0 || bulletDown(e)) return;
     if (e.pointerType === 'touch') return;
     e.preventDefault();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    try {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      // not an active pointer (synthetic events)
+    }
     drawing.current = true;
     tool.current = toolRef.current.tool;
     isPen.current = e.pointerType === 'pen';
@@ -290,7 +301,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     if (tool.current === 'erase') {
       const hits = new Map([...erased.current].map(([id, s]) => [id, [...s]]));
       flush();
-      if (hits.size) pushUndo(await write(eraseInk(log, hits)));
+      if (hits.size) pushUndo(await write(eraseInk(log, hits), true));
       soon();
       return;
     }
@@ -319,6 +330,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       contentEnd.current,
       draft,
       row,
+      recent && now - recent.at < 4000 ? recent.id : null,
     );
     const top = placed.top;
     const local = p.map((v, i) => (i % 3 === 1 ? v - top : v));
@@ -373,7 +385,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     <>
       <div
         ref={sheet}
-        className="pen-sheet"
+        className={`pen-sheet${pen.tool === 'draw' ? ' pen-plain' : ''}`}
         role="img"
         aria-label={label}
         onPointerDown={onPointerDown}

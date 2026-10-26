@@ -29,10 +29,12 @@ import {
   nextState,
   shiftIndent,
   subtreeEnd,
+  maxIndent,
   type Line,
 } from './lines';
 import { buildGutter, dueView, fillText, inkPreview, lineClass, textShapeMatches } from './render';
-import { hasInk, hasWriting } from '../ink/ink';
+import { hasInk } from '../ink/ink';
+import { attachDrawingHandles, type DrawingView } from '../ink/drawingHandles';
 import { DUE_TOKEN, dateRuns, resolveDue, sortRun } from './due';
 import { todayIso } from '../dates';
 import { t } from '../i18n/en';
@@ -55,6 +57,7 @@ class LineEditorCore {
   private composing = false;
   private detachGutter: () => void;
   private detachSwipe: () => void;
+  private detachDrawings: () => void;
   /** Settings › Event states: whether event bullets cycle through states. */
   eventStates = true;
   /** Settings › Reverse swipe directions. */
@@ -66,6 +69,8 @@ class LineEditorCore {
   private suggestions = new Map<string, { sourceId: string; text: string }>();
   /** A line was marked > or < (or the mark was taken back: null). */
   onMark: ((mark: Mark | null) => void) | null = null;
+  /** A drawing was resized or moved sideways in Type mode (its view is stored apart from the text). */
+  onInkView: ((lineId: string, view: DrawingView) => void) | null = null;
   /** Opens the bullet menu (set by the React wrapper). */
   onMenu: ((lineId: string, anchor: DOMRect) => void) | null = null;
 
@@ -99,6 +104,14 @@ class LineEditorCore {
       chevron: (id) => this.updateById(id, (l) => ({ ...l, collapsed: !l.collapsed })),
       menu: (id, anchor) => this.onMenu?.(id, anchor),
     });
+    this.detachDrawings = attachDrawingHandles(root, {
+      move: (id, before) => this.moveLine(id, before),
+      view: (id, view) => {
+        const line = this.lineById(id);
+        if (line?.ink) line.ink = { ...line.ink, view };
+        this.onInkView?.(id, view);
+      },
+    });
     this.detachSwipe = attachSwipe(root, {
       canSwipe: (id) => {
         const l = this.lineById(id);
@@ -126,6 +139,7 @@ class LineEditorCore {
     this.root.removeEventListener('mousedown', this.onDecorDown);
     this.detachGutter();
     this.detachSwipe();
+    this.detachDrawings();
   }
 
   // ---------- rendering ----------
@@ -138,8 +152,13 @@ class LineEditorCore {
     text.className = 'line-text';
     fillText(text, line.text);
     el.append(buildGutter(document, line, collapsed), text);
-    // Once handwriting has a transcription, the line shows the text; drawings always show as drawings.
-    if (hasInk(line.ink) && (!line.text.trim() || !hasWriting(line.ink))) el.append(inkPreview(line.ink));
+    // Handwriting shows until it has a transcription (then the line shows the text); drawings always show.
+    if (hasInk(line.ink)) {
+      const writing = line.ink.strokes.filter((s) => s.k === 'w');
+      const drawing = line.ink.strokes.filter((s) => s.k === 'd');
+      if (writing.length && !line.text.trim()) el.append(inkPreview({ strokes: writing }));
+      if (drawing.length) el.append(inkPreview({ ...line.ink, strokes: drawing }));
+    }
     const s = this.suggestions.get(line.id);
     if (s) el.append(linkChip(s.text));
     return el;
@@ -240,6 +259,22 @@ class LineEditorCore {
     r.collapse(true);
     sel?.removeAllRanges();
     sel?.addRange(r);
+  }
+
+  /** Moves a line (with its sub-items) so it comes before line `before`, as dragging a drawing does. */
+  moveLine(id: string, before: number) {
+    const i = this.lines.findIndex((l) => l.id === id);
+    if (i < 0) return;
+    this.snapshot(this.readSelection()?.start ?? { index: i, offset: 0 });
+    const end = subtreeEnd(this.lines, i);
+    const block = this.lines.splice(i, end - i);
+    const at = before > i ? before - block.length : before;
+    this.lines.splice(at, 0, ...block);
+    // Keep the outline valid where it lands: never deeper than one level under the line above.
+    const shift = Math.min(block[0].indent, maxIndent(this.lines, at)) - block[0].indent;
+    for (const l of block) l.indent = Math.max(0, l.indent + shift);
+    this.renderAll();
+    this.emit();
   }
 
   // ---------- history ----------
@@ -939,6 +974,8 @@ interface Props {
   findRewrite?: (line: Line) => Promise<{ sourceId: string; text: string } | null>;
   /** The user tapped "Link it" (true) or dismissed the suggestion (false). */
   onLinkAnswer?: (lineId: string, sourceId: string, link: boolean) => void;
+  /** A drawing was resized or moved sideways. */
+  onInkView?: (lineId: string, view: DrawingView) => void;
 }
 
 export function LineEditor({
@@ -952,6 +989,7 @@ export function LineEditor({
   reverseSwipes = false,
   findRewrite,
   onLinkAnswer,
+  onInkView,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const core = useRef<LineEditorCore | null>(null);
@@ -962,6 +1000,8 @@ export function LineEditor({
   find.current = findRewrite;
   const answer = useRef(onLinkAnswer);
   answer.current = onLinkAnswer;
+  const inkView = useRef(onInkView);
+  inkView.current = onInkView;
   const [marked, setMarked] = useState<{ n: number; mark: Mark | null } | null>(null);
 
   useEffect(() => {
@@ -979,6 +1019,7 @@ export function LineEditor({
     };
     c.onMark = (mark) => setMarked((m) => ({ n: (m?.n ?? 0) + 1, mark }));
     c.onMenu = (id, anchor) => setMenu({ id, anchor });
+    c.onInkView = (id, view) => inkView.current?.(id, view);
     if (label) host.current!.setAttribute('aria-label', label);
     if (focusRef) focusRef.current = (lineId) => c.focusEnd(lineId);
     if (autoFocus) c.focusEnd();

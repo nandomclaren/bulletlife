@@ -112,10 +112,11 @@ export function strokeRow(box: Box, kind: 'w' | 'd', last: { row: number; at: nu
  *   right below it continues it as a paragraph, unless that new line opens
  *   with a bullet or starts clearly further right (a new item or paragraph);
  * - a blank line takes what is written on it;
- * - drawings get their own entry, except over another drawing;
+ * - drawings get their own entry, except over another drawing or a blank line;
+ * - writing over a drawing joins it (text next to a drawing);
  * - below the last line, skipped lines become blank entries, as on paper.
  */
-export function placeStroke(blocks: PlacedBlock[], contentEnd: number, s: Stroke, row: number): Placement {
+export function placeStroke(blocks: PlacedBlock[], contentEnd: number, s: Stroke, row: number, lastId: string | null = null): Placement {
   const box = strokeBox(s.p);
   const y = row * ROW;
   const i = blocks.findIndex((b) => y >= b.top && y < b.top + b.height);
@@ -123,8 +124,16 @@ export function placeStroke(blocks: PlacedBlock[], contentEnd: number, s: Stroke
   if (i >= 0) {
     const b = blocks[i];
     const blank = !b.typed && !b.strokes.length;
+    if (b.typed) {
+      // The entry just started for writing on this typed line keeps the rest of it (each stroke must not
+      // start yet another entry in the same place).
+      const next = blocks[i + 1];
+      if (next && next.id === lastId && !next.typed) return { join: next.id, r: 0, top: next.top };
+      return { after: b.id, blanks: 0, top: b.top + b.height };
+    }
+    // Over a drawing, writing and drawing both join it: a drawing spans several ruled lines, and writing
+    // next to it belongs there (moving each stroke below the drawing scattered the letters).
     if (s.k === 'd') return drawingOnly(b) || blank ? { join: b.id, r: 0, top: b.top } : { after: b.id, blanks: 0, top: b.top + b.height };
-    if (b.typed || drawingOnly(b)) return { after: b.id, blanks: 0, top: b.top + b.height };
     return { join: b.id, r: Math.round((y - b.top) / ROW), top: b.top };
   }
   const blanks = Math.max(0, Math.round((y - contentEnd) / ROW));

@@ -429,16 +429,24 @@ export async function eraseInk(log: LogRef, hits: Map<string, number[]>): Promis
       if (!e?.ink) continue;
       const gone = new Set(idx);
       const strokes = e.ink.strokes.filter((_, i) => !gone.has(i));
+      const next: Entry = { ...e, updatedAt: now };
+      // The transcription goes with the handwriting it came from (a typed correction stays).
+      const transcribed = e.ink.tx !== undefined && e.text === e.ink.tx;
+      if (!strokes.some((s) => s.k === 'w') && transcribed) {
+        next.text = '';
+        next.type = 'text';
+        next.state = 'open';
+        delete next.placement;
+      }
+      // Keeps what the transcription knew (tx, n) and the drawing's place: the next pass re-reads what is left.
+      if (strokes.length) next.ink = { ...e.ink, strokes };
+      else delete next.ink;
       // An emptied line stays as a blank ruled line, so nothing below moves up; only the last line of the page goes.
       const page = await db.entries.where('[logId+slot]').equals([e.logId, e.slot]).toArray();
       const last = page.every((o) => o.order <= e.order);
-      if (!strokes.length && !e.text.trim() && e.type === 'text' && last) await db.entries.delete(id);
-      else {
-        const next: Entry = { ...e, updatedAt: now };
-        if (strokes.length) next.ink = { strokes };
-        else delete next.ink;
-        await db.entries.put(next);
-      }
+      const children = page.some((o) => o.parentId === id);
+      if (!next.ink && !next.text.trim() && next.type === 'text' && last && !children) await db.entries.delete(id);
+      else await db.entries.put(next);
     }
     if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
     return before;
@@ -539,5 +547,14 @@ export async function repairInk(logId: string, slot = ''): Promise<void> {
   await db.transaction('rw', db.entries, async () => {
     const entries = await db.entries.where('[logId+slot]').equals([logId, slot]).toArray();
     for (const e of entries) if (hasWriting(e.ink) && e.text.trim() && e.ink!.tx === '') await moveInkOut(e);
+  });
+}
+
+/** A drawing's size and sideways place in Type mode (the strokes themselves never change). */
+export async function setInkView(id: string, view: { w: number; x: number }): Promise<void> {
+  await db.transaction('rw', db.entries, async () => {
+    const e = await db.entries.get(id);
+    if (!e?.ink) return;
+    await db.entries.put({ ...e, ink: { ...e.ink, view }, updatedAt: new Date().toISOString() });
   });
 }

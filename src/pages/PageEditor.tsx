@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { LineEditor } from '../editor/LineEditor';
 import type { Line } from '../editor/lines';
 import { flushAll, registerFlush } from './flush';
-import { dismissLink, findRewriteOf, linkRewrite, loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
+import { dismissLink, findRewriteOf, setInkView, linkRewrite, loadLines, saveLines, useEntriesStamp, useSettings, type LogRef } from '../data/repo';
 import { sourceLabel } from '../data/openItems';
 import { t } from '../i18n/en';
 import { usePane } from './pane';
@@ -133,6 +133,7 @@ export function PageEditor({ log, slot = '', autoFocus, compact, label, flow }: 
           eventStates={eventStates}
           focusRef={focusAt}
           reverseSwipes={settings.reverseSwipes}
+          onInkView={(id, view) => void setInkView(id, view)}
           findRewrite={async (line) => {
             const found = await findRewriteOf(line.id, line.text, log.id, settings);
             if (!found) return null;

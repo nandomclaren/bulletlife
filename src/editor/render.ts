@@ -160,28 +160,37 @@ export function textShapeMatches(el: Element, text: string) {
 }
 
 /**
- * Pen mode ink shown inside a line of the text editor (until it is
- * transcribed): handwriting a little smaller than written, drawings as a
- * small picture. Not editable; the line around it is.
+ * Pen mode ink shown inside a line of the text editor: handwriting not yet
+ * transcribed, a little smaller than written; drawings as a picture the user
+ * can select, move and resize (its size and offset are kept in ink.view).
+ * Not editable; the line around it is.
  */
 export function inkPreview(ink: Ink): HTMLElement {
   const box = inkBox(ink)!;
   const drawing = ink.strokes.every((s) => s.k === 'd');
-  const scale = drawing ? Math.min(0.6, 240 / Math.max(1, box.x1 - box.x0)) : 0.7;
   const pad = 4;
+  const naturalW = box.x1 - box.x0 + pad * 2;
+  const naturalH = box.y1 - box.y0 + pad * 2;
   const el = document.createElement('div');
   el.className = `line-ink${drawing ? ' is-drawing' : ''}`;
   el.contentEditable = 'false';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', drawing ? t.pen.drawing : t.pen.handwriting);
-  el.append(
-    inkSvg(document, ink, {
-      width: Math.ceil((box.x1 - box.x0 + pad * 2) * scale),
-      height: Math.ceil((box.y1 - box.y0 + pad * 2) * scale),
-      dx: pad - box.x0,
-      dy: pad - box.y0,
-      scale,
-    }),
-  );
+  if (!drawing) {
+    const scale = 0.7;
+    el.append(inkSvg(document, ink, { width: Math.ceil(naturalW * scale), height: Math.ceil(naturalH * scale), dx: pad - box.x0, dy: pad - box.y0, scale }));
+    return el;
+  }
+  // Drawings scale with their box (vector strokes, so any size stays sharp).
+  const svg = inkSvg(document, ink, { width: naturalW, height: naturalH, dx: pad - box.x0, dy: pad - box.y0 });
+  svg.setAttribute('viewBox', `0 0 ${naturalW} ${naturalH}`);
+  svg.removeAttribute('width');
+  svg.removeAttribute('height');
+  el.append(svg);
+  const handle = document.createElement('span');
+  handle.className = 'ink-handle';
+  el.append(handle);
+  el.style.width = `${Math.round(ink.view?.w ?? Math.min(naturalW * 0.6, 240) + 20)}px`;
+  if (ink.view?.x) el.style.marginLeft = `${ink.view.x}px`;
   return el;
 }

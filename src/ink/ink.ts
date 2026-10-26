@@ -32,6 +32,8 @@ export interface Ink {
   tx?: string;
   /** Writing strokes the last transcription read; a different count means the ink changed since. */
   n?: number;
+  /** A drawing's size and place in Type mode, when the user moved or resized it there. */
+  view?: { w: number; x: number };
 }
 
 export const writingCount = (ink: Ink | undefined) => ink?.strokes.filter((s) => s.k === 'w').length ?? 0;
