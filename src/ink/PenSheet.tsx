@@ -83,7 +83,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         const svg = inkSvg(document, l.ink, { width, height: n * ROW, bulletColor: color });
         svg.classList.add('pen-ink');
         row.append(svg);
-        if (handwritten) decorateHand(row, l, color);
+        if (handwritten) decorateHand(row, l, color, settings.doneMark);
       }
       out.push({ id: l.id, top, height: n * ROW, line: l });
       top += n * ROW;
@@ -432,7 +432,7 @@ export function isTyped(l: Line): boolean {
  * cancelled lines fade, cancelled ones get a stroke through. The bullet
  * answers taps like a typed bullet.
  */
-function decorateHand(row: HTMLElement, l: Line, color: InkColor | undefined) {
+function decorateHand(row: HTMLElement, l: Line, color: InkColor | undefined, doneMark: 'cross' | 'check') {
   const bulletIdx = l.ink!.strokes.findIndex((s) => s.b);
   row.classList.add(`pen-s-${l.state}`);
   if (bulletIdx < 0) return;
@@ -450,7 +450,8 @@ function decorateHand(row: HTMLElement, l: Line, color: InkColor | undefined) {
   }
   const mark = document.createElement('span');
   mark.className = `pen-hand-mark ink-text-${color ?? 'ink'}`;
-  mark.textContent = glyph(l.type, l.state, true);
+  // Done follows Settings › Done mark, like typed bullets.
+  mark.textContent = l.state === 'done' && doneMark === 'check' ? '✓' : glyph(l.type, l.state, true);
   mark.style.left = `${cx}px`;
   mark.style.top = `${cy}px`;
   row.append(mark);

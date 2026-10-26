@@ -372,11 +372,20 @@ class LineEditorCore {
     const pending = this.pendingPrefix;
     if (!pending) return;
     clearTimeout(pending.timer);
+    // Mid-composition (Scribble can hold text as provisional) the model lags the screen: wait for it.
+    if (this.composing) {
+      pending.timer = window.setTimeout(() => this.applyPendingPrefix(), 500);
+      return;
+    }
     this.pendingPrefix = null;
     const i = this.lines.findIndex((l) => l.id === pending.id);
     const line = this.lines[i];
     if (!line) return;
+    // Read the line as it is on screen: re-rendering from a stale model brought back deleted text.
+    const shown = this.root.children[i]?.querySelector('.line-text')?.textContent;
+    if (shown !== undefined && shown !== null) line.text = shown.replace(/\u00a0/g, ' ');
     const m = leadingPrefix(line.text);
+    if (!m) return this.emit();
     const bulletless = line.type === 'text' || line.type === 'heading';
     if (!m || (m.type === 'text' && bulletless)) return;
     const sel = this.readSelection();
@@ -848,7 +857,7 @@ class LineEditorCore {
       const id = sel?.anchorNode
         ? (sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode.parentElement)?.closest<HTMLElement>('.line')?.dataset.id
         : undefined;
-      if (id !== this.pendingPrefix.id) this.applyPendingPrefix();
+      if (id !== this.pendingPrefix.id && !this.composing) this.applyPendingPrefix();
     }
     this.updateActiveMarks();
     const sel = document.getSelection();
