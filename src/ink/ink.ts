@@ -102,9 +102,7 @@ export const DEFAULT_SIZE = 2.4;
 
 /** A stroke's outline (variable width from pressure), as a closed polygon. */
 export function strokeOutline(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): number[][] {
-  const pts: number[][] = [];
-  for (let i = 0; i < s.p.length; i += 3) pts.push([s.p[i] * scale, (s.p[i + 1] + dy) * scale, s.p[i + 2]]);
-  return getStroke(pts, {
+  return getStroke(steady(s.p, dy, scale), {
     // A fine ballpoint feel: little width change with pressure, smooth curves.
     size: (s.s ?? DEFAULT_SIZE) * Math.max(scale, 0.6),
     thinning: 0.35,
@@ -118,11 +116,45 @@ export function strokeOutline(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, 
 }
 
 /** SVG path of a stroke's outline. */
+/**
+ * Calms the raw pen input before the outline is built (the stored points stay as they were). The Pencil
+ * reports points at 240 Hz with sub-pixel jitter and a noisy pressure, which made the edges of the
+ * letters look fuzzy: points closer than ~0.8 px to the last kept one are dropped, the line is eased
+ * with a short moving average (ends kept exact) and the pressure is smoothed so the width stops trembling.
+ */
+function steady(p: number[], dy: number, scale: number): number[][] {
+  const raw: number[][] = [];
+  for (let i = 0; i < p.length; i += 3) {
+    const pt = [p[i] * scale, (p[i + 1] + dy) * scale, p[i + 2]];
+    const last = raw[raw.length - 1];
+    if (last && Math.hypot(pt[0] - last[0], pt[1] - last[1]) < 0.8 * scale && i < p.length - 3) continue;
+    raw.push(pt);
+  }
+  if (raw.length < 4) return raw;
+  const out = raw.map((pt) => [...pt]);
+  for (let i = 1; i < raw.length - 1; i++) {
+    out[i][0] = (raw[i - 1][0] + 2 * raw[i][0] + raw[i + 1][0]) / 4;
+    out[i][1] = (raw[i - 1][1] + 2 * raw[i][1] + raw[i + 1][1]) / 4;
+  }
+  for (let i = 1; i < out.length; i++) out[i][2] = out[i - 1][2] * 0.7 + raw[i][2] * 0.3;
+  return out;
+}
+
 export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): string {
   const outline = strokeOutline(s, dy, scale);
   if (!outline.length) return '';
-  const d = outline.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`);
-  return `${d.join('')}Z`;
+  // Quadratic curves through the midpoints of the outline: straight segments between its many points
+  // left small corners all along the edge of each letter.
+  const f = (v: number) => v.toFixed(2);
+  const n = outline.length;
+  if (n < 3) return `M${f(outline[0][0])} ${f(outline[0][1])}Z`;
+  let d = `M${f(outline[0][0])} ${f(outline[0][1])}Q`;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = outline[i];
+    const [x1, y1] = outline[(i + 1) % n];
+    d += `${f(x0)} ${f(y0)} ${f((x0 + x1) / 2)} ${f((y0 + y1) / 2)} `;
+  }
+  return `${d}Z`;
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
