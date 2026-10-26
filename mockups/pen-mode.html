@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pen mode mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:'Avenir Next','Nunito Sans',system-ui,sans-serif;
+  --bg:#faf8f4;--surface:#f3f0ea;--text:#1f1d1a;--muted:#726d65;--rule:#e6e1d8;
+  --task:#e0533d;--event:#3b82c4;--note:#2a9d8f;--ink:#2b2925;
+  --row:40px;
+}
+.graphite{--bg:#141414;--surface:#1d1d1d;--text:#ece9e4;--muted:#8d8a85;--rule:#262626;--task:#ef6b56;--event:#5b9bd8;--note:#3bb3a4;--ink:#e4e0da}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:#d9d6d0;color:var(--text);padding:24px 16px 48px}
+h2.cap{max-width:1180px;margin:28px auto 10px;font:600 13px/1.4 var(--font);letter-spacing:.08em;text-transform:uppercase;color:#5d5850}
+p.note{max-width:1180px;margin:0 auto 10px;font-size:14px;color:#4a463f}
+.ipad{color:var(--text);position:relative;max-width:1180px;height:820px;margin:0 auto;background:var(--bg);border-radius:22px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.18)}
+.page{max-width:720px;margin:0 auto;padding:18px 20px}
+.header{display:flex;align-items:center;gap:6px;height:44px;color:var(--muted);font-size:15px}
+.header b{color:var(--text)}
+.header .sp{flex:1}
+.today{border:1px solid var(--rule);border-radius:999px;padding:3px 9px;font-size:13px;font-weight:600;color:var(--text)}
+.eyebrow{margin:22px 0 0;font-size:12px;font-weight:600;letter-spacing:.12em;color:var(--muted)}
+.title-row{display:flex;align-items:center;gap:14px}
+.title-row h1{flex:1;margin:2px 0 6px;font-size:34px;font-weight:700;letter-spacing:-.01em}
+.ico{width:22px;height:22px;color:var(--muted)}
+/* Type / Pen switch: two quiet icons in one capsule. */
+.mode{display:flex;border:1px solid var(--rule);border-radius:999px;padding:2px}
+.mode span{display:grid;place-items:center;width:34px;height:28px;border-radius:999px;color:var(--muted)}
+.mode span.on{background:var(--surface);color:var(--text)}
+
+/* Ruled sheet: a 1 px rule in the theme's rule color every row; nothing else. */
+.sheet{position:relative;margin:10px 0 0 -20px;padding-left:60px;
+  background-image:linear-gradient(to bottom,transparent calc(var(--row) - 1px),var(--rule) calc(var(--row) - 1px));
+  background-size:100% var(--row);background-position:0 0;min-height:calc(var(--row) * 14)}
+.row{position:relative;height:var(--row);display:flex;align-items:flex-end;padding-bottom:7px;padding-left:calc(var(--i,0) * 26px)}
+.row.tall{height:calc(var(--row) * 3);align-items:center}
+.hand{font-family:'Caveat',cursive;font-size:27px;line-height:1;color:var(--ink);transform:rotate(var(--r,-.4deg));transform-origin:left bottom;white-space:nowrap}
+.typed{font-size:17px;line-height:1.6;color:var(--text);padding-bottom:1px}
+.done .hand,.done .typed{opacity:.5}
+/* Hand-drawn bullets, tinted in the entry's color after recognition. */
+.hb{position:absolute;left:calc(var(--i,0) * 26px - 28px);bottom:9px;width:20px;height:20px;overflow:visible}
+.hb path,.hb circle{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.tb{position:absolute;left:calc(var(--i,0) * 26px - 28px);bottom:14px;width:10px;height:10px;border-radius:50%}
+.sketch{position:absolute;left:0;top:4px}
+.sketch path{fill:none;stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Type mode: the normal page. */
+.lines{margin:10px 0 0 -20px;padding-left:60px;font-size:17px;line-height:1.6}
+.ln{position:relative;padding:3px 0 3px calc(var(--i,0) * 26px)}
+.ln .g{position:absolute;left:calc(var(--i,0) * 26px - 30px);top:3px;width:16px;text-align:center;font-weight:700}
+.ln.done .t{opacity:.5}
+.from-hand{display:inline-block;width:6px;height:6px;margin-left:8px;border-radius:50%;background:var(--rule);vertical-align:middle}
+.sk-box{margin:6px 0 6px;width:240px;height:110px;border-radius:10px;background:var(--surface);display:grid;place-items:center}
+
+/* Pen toolbar: a floating capsule, bottom center, only in Pen mode. */
+.tools{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:6px 10px;
+  background:color-mix(in srgb,var(--bg) 92%,transparent);border:1px solid var(--rule);border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.08);backdrop-filter:blur(12px)}
+.tool{display:grid;place-items:center;width:40px;height:40px;border-radius:999px;color:var(--muted)}
+.tool.on{background:var(--surface);color:var(--text)}
+.sep{width:1px;height:22px;background:var(--rule);margin:0 6px}
+.dot{width:22px;height:22px;border-radius:50%;margin:0 4px;border:2px solid transparent}
+.dot.on{outline:2px solid var(--muted);outline-offset:2px}
+.legend{max-width:1180px;margin:10px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 24px;font-size:13.5px;color:#4a463f}
+.legend b{color:#1f1d1a}
+@media (max-width:700px){.ipad{height:auto;padding-bottom:90px}}
+</style>
+</head>
+<body>
+
+<h2 class="cap">1 · Pen mode (Paper)</h2>
+<p class="note">Lined sheet: a 1 px rule every 40 px in the app's own rule color, and no margin line. Handwriting stays exactly where it was written. Typed entries sit on the same lines. The bullet you draw gets tinted in its type's color after recognition.</p>
+<div class="ipad" id="pen"></div>
+
+<h2 class="cap">2 · Same page in Type mode</h2>
+<p class="note">Everything above, as text. The sketch shows as a small drawing in place. A tiny gray dot marks lines that came from handwriting; it's optional and could be removed.</p>
+<div class="ipad" id="type"></div>
+
+<h2 class="cap">3 · Pen mode (Graphite)</h2>
+<div class="ipad graphite" id="pen-dark"></div>
+
+<div class="legend">
+  <div><b>Switch</b>: the capsule beside the title, keyboard | pen. Only on iPad; the Mac always opens in Type mode.</div>
+  <div><b>Toolbar</b>: write, draw (kept as a drawing, never converted), eraser, lasso | ink, red, blue, green | undo.</div>
+  <div><b>Rows</b>: 40 px, a little taller than typed lines so handwriting has room. Writing further right on a row indents the entry.</div>
+</div>
+
+<template id="tpl-header">
+  <div class="header">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+    <span>2026</span>›<span>Oct</span>›<span>Wk 44</span>›<b>26</b>
+    <span class="sp"></span>‹ <span class="today">Today</span> › &nbsp;
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+  </div>
+  <p class="eyebrow">TODAY</p>
+  <div class="title-row">
+    <h1>Monday, Oct 26</h1>
+    <div class="mode"><span class="k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg></span><span class="p"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M15 4l5 5L9 20H4v-5z"/><path d="M13 6l5 5"/></svg></span></div>
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4" cy="7" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="17" r="1"/></svg>
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+  </div>
+</template>
+
+<template id="tpl-pen">
+  <div class="sheet">
+    <div class="row" style="--r:-.6deg">
+      <svg class="hb" viewBox="0 0 20 20"><circle cx="10" cy="11" r="2.4" style="stroke:var(--task);fill:var(--task)"/></svg>
+      <span class="hand">Ligar pro Dr. Paulo sobre o exame</span></div>
+    <div class="row done" style="--r:.3deg">
+      <svg class="hb" viewBox="0 0 20 20"><path d="M5 6l10 10M15 6L5 16" style="stroke:var(--task)"/></svg>
+      <span class="hand">Comprar ração do Thor</span></div>
+    <div class="row">
+      <span class="tb" style="border:1.6px solid var(--event)"></span>
+      <span class="typed">15:00 Call with Ana — Q4 plan</span></div>
+    <div class="row" style="--i:1;--r:-.2deg">
+      <svg class="hb" viewBox="0 0 20 20"><circle cx="10" cy="11" r="2.2" style="stroke:var(--event);fill:var(--event)"/></svg>
+      <span class="hand">levar os números de setembro</span></div>
+    <div class="row" style="--r:.5deg">
+      <svg class="hb" viewBox="0 0 20 20"><path d="M4 11.5c3-.6 8-.6 12-.2" style="stroke:var(--note)"/></svg>
+      <span class="hand">Dormi mal, acordei às 5h. Imurel à noite ajudou?</span></div>
+    <div class="row" style="--r:-.3deg">
+      <span class="hand" style="font-size:26px">Ideia: caderno com caneta e teclado juntos</span></div>
+    <div class="row tall">
+      <svg class="sketch" width="230" height="112" viewBox="0 0 230 112">
+        <path d="M30 40c0 30 6 52 34 52s34-22 34-52z"/>
+        <path d="M98 50c16-2 20 14 4 22"/>
+        <path d="M46 26c-4-8 4-12 0-20M64 26c-4-8 4-12 0-20M82 26c-4-8 4-12 0-20"/>
+        <path d="M18 98c40 6 100 6 130-2"/>
+        <path d="M150 70c10-18 30-18 38 0s28 18 36 0" style="stroke:var(--note)"/>
+      </svg></div>
+    <div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div>
+  </div>
+  <div class="tools">
+    <span class="tool on" title="Write"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M15 4l5 5L9 20H4v-5z"/></svg></span>
+    <span class="tool" title="Draw"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 18c3-6 6 2 9-4s5-6 7-4"/></svg></span>
+    <span class="tool" title="Eraser"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M9 20h11M4 15l9-9 6 6-8 8H8z"/></svg></span>
+    <span class="tool" title="Lasso"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.5 2.5"><ellipse cx="12" cy="10" rx="8" ry="5"/><path d="M8 15c-1 3 1 5 3 5" stroke-dasharray="none"/></svg></span>
+    <span class="sep"></span>
+    <span class="dot on" style="background:var(--ink)"></span>
+    <span class="dot" style="background:var(--task)"></span>
+    <span class="dot" style="background:var(--event)"></span>
+    <span class="dot" style="background:var(--note)"></span>
+    <span class="sep"></span>
+    <span class="tool" title="Undo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9 7L4 12l5 5M4 12h11a5 5 0 010 10h-2"/></svg></span>
+  </div>
+</template>
+
+<template id="tpl-type">
+  <div class="lines">
+    <div class="ln"><span class="g" style="color:var(--task)">•</span><span class="t">Ligar pro Dr. Paulo sobre o exame</span><span class="from-hand"></span></div>
+    <div class="ln done"><span class="g" style="color:var(--task)">×</span><span class="t">Comprar ração do Thor</span><span class="from-hand"></span></div>
+    <div class="ln"><span class="g" style="color:var(--event)">○</span><span class="t">15:00 Call with Ana — Q4 plan</span></div>
+    <div class="ln" style="--i:1"><span class="g" style="color:var(--event)">•</span><span class="t">levar os números de setembro</span><span class="from-hand"></span></div>
+    <div class="ln"><span class="g" style="color:var(--note)">–</span><span class="t">Dormi mal, acordei às 5h. Imurel à noite ajudou?</span><span class="from-hand"></span></div>
+    <div class="ln"><span class="t">Ideia: caderno com caneta e teclado juntos</span><span class="from-hand"></span></div>
+    <div class="sk-box"><svg width="200" height="98" viewBox="0 0 230 112" style="opacity:.85"><g fill="none" stroke="var(--text)" stroke-width="2" stroke-linecap="round"><path d="M30 40c0 30 6 52 34 52s34-22 34-52z"/><path d="M98 50c16-2 20 14 4 22"/><path d="M46 26c-4-8 4-12 0-20M64 26c-4-8 4-12 0-20M82 26c-4-8 4-12 0-20"/><path d="M18 98c40 6 100 6 130-2"/><path d="M150 70c10-18 30-18 38 0s28 18 36 0" stroke="var(--note)"/></g></svg></div>
+  </div>
+</template>
+
+<script>
+const mk = (id, body, pen) => {
+  const host = document.getElementById(id);
+  const page = document.createElement('div'); page.className = 'page';
+  page.append(document.getElementById('tpl-header').content.cloneNode(true));
+  page.querySelector(pen ? '.mode .p' : '.mode .k').classList.add('on');
+  const b = document.getElementById(body).content.cloneNode(true);
+  const tools = b.querySelector('.tools');
+  if (tools) { tools.remove(); host.append(tools); }
+  page.append(b); host.prepend(page);
+};
+mk('pen', 'tpl-pen', true); mk('type', 'tpl-type', false); mk('pen-dark', 'tpl-pen', true);
+</script>
+</body>
+</html>
