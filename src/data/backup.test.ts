@@ -39,7 +39,10 @@ describe('backup', () => {
 
   it('restore replaces: entries not in the backup are removed, the rest written back', () => {
     const backup = buildBackup([collection], [entry('e1', 'Pay rent')], NOW);
-    const current = { logs: [collection, { ...collection, id: 'collection:02B', title: 'New' }], entries: [entry('e1', 'Pay rent (edited)'), entry('e2', 'Later entry')] };
+    const current = {
+      logs: [collection, { ...collection, id: 'collection:02B', title: 'New' }],
+      entries: [entry('e1', 'Pay rent (edited)'), entry('e2', 'Later entry')],
+    };
     const plan = planRestore(current, backup);
     expect(plan.putEntries.map((e) => e.text)).toEqual(['Pay rent']);
     expect(plan.removeEntries).toEqual(['e2']);

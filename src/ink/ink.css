@@ -362,3 +362,31 @@
   background: var(--accent);
   pointer-events: none;
 }
+
+.ink-delete {
+  display: none;
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--bg);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.ink-delete::before {
+  content: '';
+  position: absolute;
+  inset: -11px;
+}
+
+.line-ink.is-drawing.selected .ink-delete {
+  display: block;
+}

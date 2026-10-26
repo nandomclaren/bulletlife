@@ -106,6 +106,7 @@ class LineEditorCore {
     });
     this.detachDrawings = attachDrawingHandles(root, {
       move: (id, before) => this.moveLine(id, before),
+      remove: (id) => this.removeDrawing(id),
       view: (id, view) => {
         const line = this.lineById(id);
         if (line?.ink) line.ink = { ...line.ink, view };
@@ -259,6 +260,20 @@ class LineEditorCore {
     r.collapse(true);
     sel?.removeAllRanges();
     sel?.addRange(r);
+  }
+
+  /** Deletes a line's drawing (its handwriting, if any, stays). */
+  removeDrawing(id: string) {
+    const i = this.lines.findIndex((l) => l.id === id);
+    const line = this.lines[i];
+    if (!line?.ink) return;
+    this.snapshot(this.readSelection()?.start ?? { index: i, offset: 0 });
+    const { view: _, ...rest } = line.ink;
+    const strokes = rest.strokes.filter((s) => s.k !== 'd');
+    line.ink = strokes.length ? { ...rest, strokes } : undefined;
+    line.inkEdit = line.ink ?? null;
+    this.renderAll();
+    this.emit();
   }
 
   /** Moves a line (with its sub-items) so it comes before line `before`, as dragging a drawing does. */
@@ -633,6 +648,16 @@ class LineEditorCore {
       // move the caret into the gutter.
       e.preventDefault();
       this.snapshot(sel.start);
+      // An empty line holding ink: the first Backspace removes the ink, like deleting a picture.
+      const line = this.lines[sel.start.index];
+      if (!line.text && hasInk(line.ink)) {
+        line.ink = undefined;
+        line.inkEdit = null;
+        this.renderAll();
+        this.placeCaret(sel.start);
+        this.emit();
+        return;
+      }
       this.backspaceAtStart(sel.start);
       return;
     }

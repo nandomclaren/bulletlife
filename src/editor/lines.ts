@@ -19,6 +19,8 @@ export interface Line {
   text: string;
   /** Pen mode handwriting or drawing on this line (read-only in the text editor). */
   ink?: Ink;
+  /** The text editor changed the ink on purpose (null: removed), e.g. Backspace on it or deleting a drawing. */
+  inkEdit?: Ink | null;
 }
 
 export interface Prefixes {

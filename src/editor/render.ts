@@ -189,7 +189,12 @@ export function inkPreview(ink: Ink): HTMLElement {
   el.append(svg);
   const handle = document.createElement('span');
   handle.className = 'ink-handle';
-  el.append(handle);
+  const remove = document.createElement('span');
+  remove.className = 'ink-delete';
+  remove.setAttribute('role', 'button');
+  remove.setAttribute('aria-label', t.pen.deleteDrawing);
+  remove.textContent = '×';
+  el.append(handle, remove);
   el.style.width = `${Math.round(ink.view?.w ?? Math.min(naturalW * 0.6, 240) + 20)}px`;
   if (ink.view?.x) el.style.marginLeft = `${ink.view.x}px`;
   return el;

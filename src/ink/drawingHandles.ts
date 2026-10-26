@@ -13,6 +13,7 @@ interface Callbacks {
   /** Move the drawing's line so it comes before line `before` (an index in the page; the end = line count). */
   move: (id: string, before: number) => void;
   view: (id: string, view: DrawingView) => void;
+  remove: (id: string) => void;
 }
 
 const MIN_W = 60;
@@ -58,6 +59,11 @@ export function attachDrawingHandles(root: HTMLElement, cb: Callbacks): () => vo
     const line = el.closest<HTMLElement>('.line');
     const id = line?.dataset.id;
     if (!line || !id) return;
+    if ((e.target as Element).closest('.ink-delete')) {
+      select(null);
+      cb.remove(id);
+      return;
+    }
     const resizing = !!(e.target as Element).closest('.ink-handle');
     const pad = parseFloat(getComputedStyle(line).paddingLeft) || 0;
     const avail = line.clientWidth - pad;
@@ -109,12 +115,23 @@ export function attachDrawingHandles(root: HTMLElement, cb: Callbacks): () => vo
     el.addEventListener('pointercancel', onUp);
   };
 
-  const onKey = (e: KeyboardEvent) => e.key === 'Escape' && select(null);
+  const onKey = (e: KeyboardEvent) => {
+    if (!selected) return;
+    if (e.key === 'Escape') select(null);
+    else if (e.key === 'Backspace' || e.key === 'Delete') {
+      // The selected drawing goes, not the text where the caret happens to be.
+      e.preventDefault();
+      e.stopPropagation();
+      const id = selected.closest<HTMLElement>('.line')?.dataset.id;
+      select(null);
+      if (id) cb.remove(id);
+    }
+  };
   document.addEventListener('pointerdown', onDown, true);
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true);
   return () => {
     document.removeEventListener('pointerdown', onDown, true);
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
     indicator?.remove();
   };
 }

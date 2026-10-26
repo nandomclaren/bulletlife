@@ -274,14 +274,72 @@ describe('placing a stroke', () => {
     ).toEqual({ join: 'b', r: 0, top: 40 });
   });
   it('writing over a drawing (beside it) joins it, every stroke in the same place', () => {
-    const drawing: PlacedBlock = { id: 'd', top: 0, height: 160, typed: false, strokes: [{ ...at([[200, 10], [300, 150]], 'd') }] };
-    expect(placeStroke([drawing], 160, at([[20, 90], [40, 110]]), 2)).toEqual({ join: 'd', r: 2, top: 0 });
-    expect(placeStroke([drawing], 160, at([[50, 90], [70, 110]]), 2)).toEqual({ join: 'd', r: 2, top: 0 });
+    const drawing: PlacedBlock = {
+      id: 'd',
+      top: 0,
+      height: 160,
+      typed: false,
+      strokes: [
+        {
+          ...at(
+            [
+              [200, 10],
+              [300, 150],
+            ],
+            'd',
+          ),
+        },
+      ],
+    };
+    expect(
+      placeStroke(
+        [drawing],
+        160,
+        at([
+          [20, 90],
+          [40, 110],
+        ]),
+        2,
+      ),
+    ).toEqual({ join: 'd', r: 2, top: 0 });
+    expect(
+      placeStroke(
+        [drawing],
+        160,
+        at([
+          [50, 90],
+          [70, 110],
+        ]),
+        2,
+      ),
+    ).toEqual({ join: 'd', r: 2, top: 0 });
   });
   it('the rest of a line written over a typed entry stays with the entry it started', () => {
     const blocks = [typed('h', 0, 1), hand('n', 40, 1)];
-    expect(placeStroke(blocks, 80, at([[60, 10], [80, 30]]), 0, 'n')).toEqual({ join: 'n', r: 0, top: 40 });
-    expect(placeStroke(blocks, 80, at([[60, 10], [80, 30]]), 0, null)).toEqual({ after: 'h', blanks: 0, top: 40 });
+    expect(
+      placeStroke(
+        blocks,
+        80,
+        at([
+          [60, 10],
+          [80, 30],
+        ]),
+        0,
+        'n',
+      ),
+    ).toEqual({ join: 'n', r: 0, top: 40 });
+    expect(
+      placeStroke(
+        blocks,
+        80,
+        at([
+          [60, 10],
+          [80, 30],
+        ]),
+        0,
+        null,
+      ),
+    ).toEqual({ after: 'h', blanks: 0, top: 40 });
   });
   it('a drawing gets its own entry instead of joining handwriting', () => {
     expect(

@@ -2,7 +2,7 @@
 import { dueOf } from '../editor/due';
 import { parentIds, signifiersOf, type Line } from '../editor/lines';
 import { assignOrders } from './order';
-import { hasInk } from '../ink/ink';
+import { hasInk, hasWriting, writingCount } from '../ink/ink';
 import type { Entry } from './types';
 
 /** Stored entries (any order) → editor lines in document order with indents. */
@@ -57,6 +57,7 @@ export function touchedIds(lines: Line[], base: Line[]): Set<string> {
       b.l.type !== l.type ||
       b.l.state !== l.state ||
       b.l.collapsed !== l.collapsed ||
+      b.l.inkEdit !== l.inkEdit ||
       signifiersOf(b.l).join() !== signifiersOf(l).join()
     )
       touched.add(l.id);
@@ -99,13 +100,20 @@ export function diffEntries(lines: Line[], existing: Entry[], logId: string, slo
     // Marked > or < : pending until the user confirms they wrote it at the destination (CLAUDE.md 4.3).
     // Ink is written by Pen mode; the text editor only carries it along (e.g. a line deleted and undone).
     if (!old?.ink && hasInk(l.ink)) next.ink = l.ink;
+    // The user cleared a handwritten line's text in Type mode: that is their call, so its ink is not
+    // transcribed again on its own (it came back otherwise). The ink stays and shows in the line; deleting
+    // the empty line removes it.
+    if (old?.ink && hasWriting(old.ink) && old.text.trim() && !l.text.trim()) next.ink = { ...old.ink, tx: '', n: writingCount(old.ink) };
+    // Ink removed or trimmed on purpose in the text editor.
+    if (l.inkEdit === null) delete next.ink;
+    else if (l.inkEdit) next.ink = l.inkEdit;
     if (migrating) next.placement = old?.placement ?? { status: 'pending' };
     else delete next.placement;
     // The date written as "due:YYYY-MM-DD" in the text, kept as a field for queries.
     const due = dueOf(l.text);
     if (due) next.dueDate = due;
     else delete next.dueDate;
-    if (!old || changed(old, next)) put.push({ ...next, updatedAt: now });
+    if (!old || changed(old, next) || l.inkEdit !== undefined) put.push({ ...next, updatedAt: now });
   });
   const live = new Set(keep.map((l) => l.id));
   if (!base) return { put, remove: existing.filter((e) => !live.has(e.id)).map((e) => e.id) };
@@ -130,6 +138,7 @@ function changed(a: Entry, b: Entry) {
     a.slot !== b.slot ||
     a.signifiers.join() !== b.signifiers.join() ||
     a.placement?.status !== b.placement?.status ||
-    a.dueDate !== b.dueDate
+    a.dueDate !== b.dueDate ||
+    (a.ink?.strokes.length ?? 0) !== (b.ink?.strokes.length ?? 0)
   );
 }

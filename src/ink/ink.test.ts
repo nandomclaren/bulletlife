@@ -62,6 +62,26 @@ describe('ink in the model', () => {
     expect(put[0].ink).toEqual(ink);
   });
 
+  it('clearing the text of a handwritten line in Type mode stops it from being transcribed again', () => {
+    const stored = { ...entry('e1', ink), text: 'A' };
+    const [line] = entriesToLines([stored]);
+    const { put } = diffEntries([{ ...line, text: '' }], [stored], 'daily:2026-10-26', '', 'now', [line]);
+    expect(put[0].ink).toMatchObject({ tx: '', n: 1 });
+    expect(put[0].text).toBe('');
+  });
+
+  it('ink removed in the text editor is removed from storage, and undo brings it back', () => {
+    const other = { ...entry('t1'), order: 'a1', text: 'typed' };
+    const stored = entry('e1', ink);
+    const [line, typed] = entriesToLines([stored, other]);
+    const cut = { ...line, ink: undefined, inkEdit: null };
+    const removed = diffEntries([cut, typed], [stored, other], 'daily:2026-10-26', '', 'now', [line, typed]);
+    const e1 = removed.put.find((e) => e.id === 'e1')!;
+    expect(e1.ink).toBeUndefined();
+    const back = diffEntries([line, typed], [e1, other], 'daily:2026-10-26', '', 'now', [cut, typed]);
+    expect(back.put.find((e) => e.id === 'e1')!.ink).toEqual(ink);
+  });
+
   it('a deleted ink line brought back (undo) gets its ink back', () => {
     const line = newLine({ ink });
     const { put } = diffEntries([line], [], 'daily:2026-10-26', '', 'now', []);

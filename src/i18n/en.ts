@@ -168,6 +168,7 @@ export const en = {
     undo: 'Undo',
     handwriting: 'Handwriting',
     drawing: 'Drawing',
+    deleteDrawing: 'Delete drawing',
   },
   open: {
     title: 'Open items',

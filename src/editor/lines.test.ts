@@ -115,21 +115,58 @@ describe('renumberLists', () => {
   };
 
   it('renumbers after an item is inserted or removed', async () => {
-    expect(await run(null, [[0, '1. a'], [0, '2. new'], [0, '2. b'], [0, '3. c']])).toEqual(['1. a', '2. new', '3. b', '4. c']);
-    expect(await run(null, [[0, '1. a'], [0, '3. c']])).toEqual(['1. a', '2. c']);
+    expect(
+      await run(null, [
+        [0, '1. a'],
+        [0, '2. new'],
+        [0, '2. b'],
+        [0, '3. c'],
+      ]),
+    ).toEqual(['1. a', '2. new', '3. b', '4. c']);
+    expect(
+      await run(null, [
+        [0, '1. a'],
+        [0, '3. c'],
+      ]),
+    ).toEqual(['1. a', '2. c']);
   });
 
   it('counts siblings across their children and keeps nested lists separate', async () => {
-    expect(await run(null, [[0, '1. a'], [1, 'note'], [1, '1. sub'], [1, '5. sub'], [0, '7. b']])).toEqual(['1. a', 'note', '1. sub', '2. sub', '2. b']);
+    expect(
+      await run(null, [
+        [0, '1. a'],
+        [1, 'note'],
+        [1, '1. sub'],
+        [1, '5. sub'],
+        [0, '7. b'],
+      ]),
+    ).toEqual(['1. a', 'note', '1. sub', '2. sub', '2. b']);
   });
 
   it('a plain sibling ends the list; the first item keeps its number and separator', async () => {
-    expect(await run(null, [[0, '4) a'], [0, '1. b'], [0, 'plain'], [0, '9. c']])).toEqual(['4) a', '5) b', 'plain', '9. c']);
+    expect(
+      await run(null, [
+        [0, '4) a'],
+        [0, '1. b'],
+        [0, 'plain'],
+        [0, '9. c'],
+      ]),
+    ).toEqual(['4) a', '5) b', 'plain', '9. c']);
   });
 
   it('keeps a number the user typed out of sequence and counts on from it', async () => {
     // "1. a / 2. b / 10. x" then Enter on 10 → new "11." line
-    expect(await run(['1. a', '2. b', '10. x'], [[0, '1. a'], [0, '2. b'], [0, '10. x'], [0, '11. ']])).toEqual(['1. a', '2. b', '10. x', '11. ']);
+    expect(
+      await run(
+        ['1. a', '2. b', '10. x'],
+        [
+          [0, '1. a'],
+          [0, '2. b'],
+          [0, '10. x'],
+          [0, '11. '],
+        ],
+      ),
+    ).toEqual(['1. a', '2. b', '10. x', '11. ']);
     // deleting "b" still renumbers the in-sequence items, but not the chosen 10
     const { renumberLists, listRestarts } = await import('./lines');
     const before = ['1. a', '2. b', '3. c', '10. x', '11. y'].map((text, i) => ({ id: 'abcxy'[i], indent: 0, text }));
@@ -142,10 +179,17 @@ describe('renumberLists', () => {
 describe('restartIfFirst', () => {
   it('an item indented into a new nested list starts at 1; one joining a list keeps counting', async () => {
     const { restartIfFirst } = await import('./lines');
-    const a = [{ indent: 0, text: '1. Alpha' }, { indent: 1, text: '2. Inserted' }];
+    const a = [
+      { indent: 0, text: '1. Alpha' },
+      { indent: 1, text: '2. Inserted' },
+    ];
     restartIfFirst(a, 1);
     expect(a[1].text).toBe('1. Inserted');
-    const b = [{ indent: 0, text: '1. a' }, { indent: 0, text: '2. b' }, { indent: 0, text: '3. c' }];
+    const b = [
+      { indent: 0, text: '1. a' },
+      { indent: 0, text: '2. b' },
+      { indent: 0, text: '3. c' },
+    ];
     restartIfFirst(b, 2);
     expect(b[2].text).toBe('3. c');
   });
