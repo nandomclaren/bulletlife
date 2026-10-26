@@ -287,3 +287,7 @@ Short log of technical decisions. Newest last.
 - Palm rejection: pointer events from touch never draw; `touchstart`/`touchmove` with `touchType === 'stylus'` are cancelled so Safari does not scroll on pen strokes.
 - The text editor never edits ink: `Line.ink` is carried for display (a preview inside the line) and so a deleted-then-undone line gets its ink back; `diffEntries` keeps the stored ink otherwise. Export writes "(handwriting)" / "(drawing)" for lines with ink and no text yet.
 - Pen mode shows on a touch screen ≥ 700 × 600 px (iPad); `localStorage['pen.force'] = '1'` turns it on elsewhere for testing.
+
+## Palettes
+
+- Settings › Palette: Classic (default), Earth, Dusk, Citrus, Muted. Each sets `--p-task/event/note` and `--p-*-dark` on `[data-palette]`; the theme rules map `--task/--event/--note` to the light or dark set, so palette and theme combine freely. `--accent` follows `--task`. Stored per device (`settings.palette`) and applied before first paint, like the theme. Export HTML keeps the Classic colors (a document, not the screen).

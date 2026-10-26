@@ -15,10 +15,12 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Bullet Life</title>
     <script>
-      // Apply the saved theme before first paint (keep in sync with src/theme.ts).
+      // Apply the saved theme and palette before first paint (keep in sync with src/theme.ts).
       try {
         var th = localStorage.getItem('settings.theme');
         if (th && th !== 'auto') document.documentElement.dataset.theme = th;
+        var pa = localStorage.getItem('settings.palette');
+        if (pa && pa !== 'classic') document.documentElement.dataset.palette = pa;
       } catch (e) {}
     </script>
   </head>

@@ -33,3 +33,31 @@ export function applyTheme(pref: ThemePref = getTheme()) {
     m.content = pref === 'auto' ? (isDark ? BG.graphite : BG.paper) : BG[pref];
   });
 }
+
+// Palette: the colors of the task, event and note bullets. Per device, like the theme.
+export type Palette = 'classic' | 'earth' | 'dusk' | 'citrus' | 'muted';
+export const PALETTES: Palette[] = ['classic', 'earth', 'dusk', 'citrus', 'muted'];
+const PALETTE_KEY = 'settings.palette';
+
+export function getPalette(): Palette {
+  try {
+    const v = localStorage.getItem(PALETTE_KEY) as Palette | null;
+    return v && PALETTES.includes(v) ? v : 'classic';
+  } catch {
+    return 'classic';
+  }
+}
+
+export function setPalette(p: Palette) {
+  try {
+    localStorage.setItem(PALETTE_KEY, p);
+  } catch {
+    // still applied for this session
+  }
+  applyPalette(p);
+}
+
+export function applyPalette(p: Palette = getPalette()) {
+  if (p === 'classic') delete document.documentElement.dataset.palette;
+  else document.documentElement.dataset.palette = p;
+}

@@ -6,11 +6,19 @@
   --text: #1f1d1a;
   --muted: #726d65; /* AA on --bg and --surface */
   --rule: #e6e1d8;
-  --accent: #e0533d;
+  /* Bullet colors come from the palette (Settings › Palette), each with a
+     light and a dark version; the theme picks which one. */
+  --p-task: #e0533d;
+  --p-event: #3b82c4;
+  --p-note: #2a9d8f;
+  --p-task-dark: #ef6b56;
+  --p-event-dark: #5b9bd8;
+  --p-note-dark: #3bb3a4;
 
-  --task: #e0533d;
-  --event: #3b82c4;
-  --note: #2a9d8f;
+  --task: var(--p-task);
+  --event: var(--p-event);
+  --note: var(--p-note);
+  --accent: var(--task);
 
   /* Type scale. The Mac (fine pointer) reads closer to the screen: smaller,
      like a desktop notes app. The iPhone keeps the larger sizes. */
@@ -44,9 +52,9 @@
     --text: #ece9e4;
     --muted: #8d8a85;
     --rule: #2a2a2a;
-    --task: #ef6b56;
-    --event: #5b9bd8;
-    --note: #3bb3a4;
+    --task: var(--p-task-dark);
+    --event: var(--p-event-dark);
+    --note: var(--p-note-dark);
     color-scheme: dark;
   }
 }
@@ -61,9 +69,9 @@
   --text: #ece9e4;
   --muted: #8d8a85;
   --rule: #2a2a2a;
-  --task: #ef6b56;
-  --event: #5b9bd8;
-  --note: #3bb3a4;
+  --task: var(--p-task-dark);
+  --event: var(--p-event-dark);
+  --note: var(--p-note-dark);
   color-scheme: dark;
 }
 
@@ -73,9 +81,9 @@
   --text: #e6e3de;
   --muted: #85827d;
   --rule: #222222;
-  --task: #ef6b56;
-  --event: #5b9bd8;
-  --note: #3bb3a4;
+  --task: var(--p-task-dark);
+  --event: var(--p-event-dark);
+  --note: var(--p-note-dark);
   color-scheme: dark;
 }
 
@@ -701,4 +709,96 @@ h1 {
 
 .confirm-actions .btn {
   margin-top: 0;
+}
+
+[data-palette='classic'] {
+  --p-task: #e0533d;
+  --p-event: #3b82c4;
+  --p-note: #2a9d8f;
+  --p-task-dark: #ef6b56;
+  --p-event-dark: #5b9bd8;
+  --p-note-dark: #3bb3a4;
+}
+
+/* Palettes (Settings › Palette): task / event / note, light and dark versions.
+   Classic is the default above. Dark versions are lighter and a touch softer,
+   so the bullets keep the same weight on a near-black page. */
+[data-palette='earth'] {
+  --p-task: #c2562b;
+  --p-event: #56679f;
+  --p-note: #6b8a3a;
+  --p-task-dark: #e0794c;
+  --p-event-dark: #8e9cd4;
+  --p-note-dark: #9dbd66;
+}
+
+[data-palette='dusk'] {
+  --p-task: #c9405d;
+  --p-event: #6a55b5;
+  --p-note: #c27f17;
+  --p-task-dark: #ea6c86;
+  --p-event-dark: #a08fe8;
+  --p-note-dark: #e6a84c;
+}
+
+[data-palette='citrus'] {
+  --p-task: #e2572b;
+  --p-event: #0f7b8a;
+  --p-note: #6f8f0a;
+  --p-task-dark: #ff7d52;
+  --p-event-dark: #3fb6c4;
+  --p-note-dark: #b2cc3e;
+}
+
+[data-palette='muted'] {
+  --p-task: #b5584b;
+  --p-event: #4e7194;
+  --p-note: #5c8a69;
+  --p-task-dark: #d98a7d;
+  --p-event-dark: #8aa9c8;
+  --p-note-dark: #91bb9c;
+}
+
+/* Settings › Palette: each row shows its own colors, in the current theme's tone. */
+.palette-dots {
+  --dot-task: var(--p-task);
+  --dot-event: var(--p-event);
+  --dot-note: var(--p-note);
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+  margin-right: 4px;
+}
+
+:root[data-theme='graphite'] .palette-dots,
+:root[data-theme='night'] .palette-dots {
+  --dot-task: var(--p-task-dark);
+  --dot-event: var(--p-event-dark);
+  --dot-note: var(--p-note-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .palette-dots {
+    --dot-task: var(--p-task-dark);
+    --dot-event: var(--p-event-dark);
+    --dot-note: var(--p-note-dark);
+  }
+}
+
+.pd {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.pd-task {
+  background: var(--dot-task);
+}
+
+.pd-event {
+  background: var(--dot-event);
+}
+
+.pd-note {
+  background: var(--dot-note);
 }

@@ -4,7 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { startBackups } from './data/repo';
 import { recordLaunch } from './data/spikeDb';
-import { applyTheme } from './theme';
+import { applyPalette, applyTheme } from './theme';
 import './styles.css';
 import './editor/editor.css';
 import './pages/pages.css';
@@ -13,6 +13,7 @@ import './ink/ink.css';
 import './search/search.css';
 
 applyTheme();
+applyPalette();
 registerSW({ immediate: true });
 void recordLaunch();
 startBackups();

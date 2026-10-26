@@ -5,7 +5,7 @@ import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from '
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
 import { DONE_ANIMATIONS, playDoneFx } from './editor/doneFx';
-import { getTheme, setTheme, THEMES, type ThemePref } from './theme';
+import { getPalette, getTheme, PALETTES, setPalette, setTheme, THEMES, type Palette, type ThemePref } from './theme';
 
 const TIME_LOGS: TimeLog[] = ['monthly', 'weekly', 'daily'];
 
@@ -13,6 +13,7 @@ export function SettingsPage() {
   const { back } = usePane();
   const settings = useSettings();
   const [theme, setThemeState] = useState<ThemePref>(getTheme);
+  const [palette, setPaletteState] = useState<Palette>(getPalette);
   const sync = useSync();
   return (
     <main className="page">
@@ -279,6 +280,35 @@ export function SettingsPage() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="setting">
+        <h2 id="palette-label">{t.settings.palette}</h2>
+        <div className="options" role="radiogroup" aria-labelledby="palette-label">
+          {PALETTES.map((p) => (
+            <button
+              key={p}
+              role="radio"
+              aria-checked={palette === p}
+              className="option"
+              onClick={() => {
+                setPalette(p);
+                setPaletteState(p);
+              }}
+            >
+              {/* Each row shows its own colors in the current theme (light or dark). */}
+              <span className="palette-dots" data-palette={p} aria-hidden>
+                <span className="pd pd-task" />
+                <span className="pd pd-event" />
+                <span className="pd pd-note" />
+              </span>
+              <span className="option-text">
+                <span className="option-title">{t.settings.palettes[p]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="setting-hint">{t.settings.paletteHint}</p>
       </section>
     </main>
   );
