@@ -4,7 +4,7 @@ import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { ulid } from 'ulid';
 import { addDays, daysInMonth, fmt, todayIso, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
-import { hasWriting, needsTranscription, ROW, writingCount, type Ink, type Stroke } from '../ink/ink';
+import { needsTranscription, writingCount, type Stroke } from '../ink/ink';
 import type { LineShape } from '../ink/structure';
 import { maxIndent, newLine } from '../editor/lines';
 import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune, type Backup } from './backup';
@@ -491,8 +491,8 @@ export async function applyTranscription(id: string, n: number, text: string, sh
     const e = await db.entries.get(id);
     if (!e?.ink || writingCount(e.ink) !== n) return; // written on again meanwhile: the next pass reads it
     const first = e.ink.tx === undefined;
-    // Ink on a typed entry (possible before the placement rules of the first pen test) gets its own line.
-    if (first && e.text.trim()) return moveInkOut(e);
+    // Text already there on the first pass (a transcription whose record was lost, or a correction) is
+    // adopted as the transcription: the ink stays on its line, never split off into another.
     const ours = first ? !e.text.trim() : e.text === e.ink.tx;
     const bullet = new Set(shape.bullet);
     const ink = {
@@ -502,7 +502,7 @@ export async function applyTranscription(id: string, n: number, text: string, sh
         return bullet.has(i) ? { ...rest, b: true } : rest;
       }),
       n,
-      tx: ours ? text : (e.ink.tx ?? ''),
+      tx: ours ? text : (e.ink.tx ?? e.text),
     };
     const page = await db.entries.where('[logId+slot]').equals([e.logId, e.slot]).toArray();
     const lines = entriesToLines(page);
@@ -516,39 +516,6 @@ export async function applyTranscription(id: string, n: number, text: string, sh
     const { put } = diffEntries(next, page, e.logId, e.slot, new Date().toISOString(), lines);
     const own = put.find((p) => p.id === id) ?? { ...e, updatedAt: new Date().toISOString() };
     await db.entries.bulkPut([...put.filter((p) => p.id !== id), { ...own, ink }]);
-  });
-}
-
-/**
- * Handwriting that ended up on a typed entry (before the placement rules
- * were fixed, the first lines under a heading went into the heading) moves
- * to its own entry right after it, starting on its first written line, so
- * it gets transcribed like any other. Nothing is lost: the strokes move
- * as they are.
- */
-async function moveInkOut(e: Entry): Promise<void> {
-  const ink = e.ink!;
-  const minR = Math.min(...ink.strokes.filter((s) => s.k === 'w').map((s) => s.r));
-  const shift = Number.isFinite(minR) ? minR : 0;
-  const moved: Ink = {
-    strokes: ink.strokes.map(({ b: _, ...s }) => ({ ...s, r: s.k === 'w' ? s.r - shift : s.r, p: s.p.map((v, i) => (i % 3 === 1 ? v - shift * ROW : v)) })),
-  };
-  const page = await db.entries.where('[logId+slot]').equals([e.logId, e.slot]).toArray();
-  const lines = entriesToLines(page);
-  const i = lines.findIndex((l) => l.id === e.id);
-  const own = newLine({ ink: moved });
-  const next = [...lines.slice(0, i + 1), own, ...lines.slice(i + 1)];
-  const now = new Date().toISOString();
-  const { put } = diffEntries(next, page, e.logId, e.slot, now, lines);
-  const { ink: _, ...typed } = e;
-  await db.entries.bulkPut([...put.filter((p) => p.id !== e.id), { ...typed, updatedAt: now }]);
-}
-
-/** Typed entries carrying handwriting from the first pen test (its transcription was set aside): fix them. */
-export async function repairInk(logId: string, slot = ''): Promise<void> {
-  await db.transaction('rw', db.entries, async () => {
-    const entries = await db.entries.where('[logId+slot]').equals([logId, slot]).toArray();
-    for (const e of entries) if (hasWriting(e.ink) && e.text.trim() && e.ink!.tx === '') await moveInkOut(e);
   });
 }
 

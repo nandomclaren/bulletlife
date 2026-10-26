@@ -2,7 +2,7 @@
 // writing, when leaving Pen mode, and when the connection comes back. The
 // ink is saved first and always; transcription is a bonus that can wait.
 import { useSyncExternalStore } from 'react';
-import { applyTranscription, pendingTranscriptions, repairInk } from '../data/repo';
+import { applyTranscription, pendingTranscriptions } from '../data/repo';
 import type { Settings } from '../data/types';
 import { recognize, RecognizeError } from './myscript';
 import { readLineShape } from './structure';
@@ -35,7 +35,6 @@ export async function transcribePage(logId: string, slot: string, settings: Sett
   if (running.has(key)) return;
   running.add(key);
   try {
-    await repairInk(logId, slot);
     const pending = await pendingTranscriptions(logId, slot);
     if (!pending.length) return;
     if (!keys.applicationKey || !keys.hmacKey) return setStatus({ state: 'no-keys' });

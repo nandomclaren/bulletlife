@@ -164,8 +164,8 @@ class Writer {
     // Collapsed children print too: collapsing never changes what is exported.
     const colors = colorTypes(lines);
     lines.forEach((l, i) => {
-      const transcribed = l.ink?.tx !== undefined && l.text === l.ink.tx;
-      const handwritten = hasWriting(l.ink) && (transcribed || !l.text.trim());
+      // Transcribed handwriting prints as handwriting, corrected or not (the ink is the original).
+      const handwritten = hasWriting(l.ink) && (l.ink!.tx !== undefined || !l.text.trim());
       if (handwritten) this.ink(l, l.ink!, colors[i], doneMark, dx);
       else {
         if (l.text.trim() || l.type !== 'text') this.typed(l, colors[i], doneMark, dx);

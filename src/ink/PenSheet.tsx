@@ -649,8 +649,10 @@ function rowSignature(l: Line, color: LineType, parent: boolean, width: number, 
 
 /** Has typed content of its own (not a transcription of its ink): it shows as text in Pen mode and never takes ink. */
 export function isTyped(l: Line): boolean {
-  const transcribed = l.ink?.tx !== undefined && l.text === l.ink.tx;
-  if (l.text.trim() && !transcribed) return true;
+  // Handwriting that has been transcribed stays handwriting, even after its text was corrected in Type
+  // mode: the ink is the original, the text its transcription (a corrected line showed both, overlapping).
+  if (hasWriting(l.ink) && l.ink!.tx !== undefined) return false;
+  if (l.text.trim()) return true;
   return l.type !== 'text' && !hasWriting(l.ink);
 }
 
