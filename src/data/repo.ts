@@ -450,3 +450,10 @@ export async function restoreInk(before: InkSnapshot): Promise<void> {
     }
   });
 }
+
+/** A bullet's state changed from Pen mode (one entry, by the user's tap or menu). Returns how to undo it. */
+export async function markInkState(id: string, state: EntryState): Promise<InkSnapshot> {
+  const before = await snapshot([id]);
+  await markEntry(id, state);
+  return before;
+}

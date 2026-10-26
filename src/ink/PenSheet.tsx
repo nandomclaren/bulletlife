@@ -1,10 +1,12 @@
 // Pen mode: the page as a ruled sheet you write and draw on with the pen.
 // Each ruled line is an entry: writing on a line adds to that entry, writing
 // below the last line starts a new one. Typed entries sit on the same lines.
-// Fingers scroll; only the pen (or a mouse) leaves ink.
+// Fingers scroll; only the pen (or a mouse) leaves ink. Bullets of typed
+// entries still work: a tap cycles the state, holding opens the states menu.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { addInk, addInkLines, eraseInk, restoreInk, usePageLines, type InkSnapshot, type LogRef } from '../data/repo';
-import { colorTypes, hasChildren, hiddenMask, newLine, type Line } from '../editor/lines';
+import { addInk, addInkLines, eraseInk, markInkState, restoreInk, usePageLines, useSettings, type InkSnapshot, type LogRef } from '../data/repo';
+import { playDoneFx } from '../editor/doneFx';
+import { colorTypes, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState } from '../editor/lines';
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
 import { compact, hasInk, inkRows, inkSvg, ROW, rowOf, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
@@ -26,7 +28,9 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const lines = usePageLines(log.id, slot);
   const pen = usePen();
   const sheet = useRef<HTMLDivElement>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const live = useRef<SVGPathElement>(null);
+  const settings = useSettings();
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; state: LineState } | null>(null);
   const blocks = useRef<Block[]>([]);
   const contentEnd = useRef(0);
   const drawing = useRef(false);
@@ -135,27 +139,57 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
 
   const origin = () => sheet.current!.getBoundingClientRect();
 
+  // The stroke in progress is drawn in the sheet's own coordinates (the same as the stored ink),
+  // so it appears exactly under the pen tip.
   const paintLive = () => {
     frame.current = 0;
-    const c = canvas.current!;
-    const dpr = window.devicePixelRatio || 1;
-    if (c.width !== innerWidth * dpr || c.height !== innerHeight * dpr) {
-      c.width = innerWidth * dpr;
-      c.height = innerHeight * dpr;
-    }
-    const ctx = c.getContext('2d')!;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, innerWidth, innerHeight);
-    if (tool.current === 'erase') return;
-    const o = origin();
-    ctx.translate(o.left, o.top);
-    ctx.fillStyle = getComputedStyle(sheet.current!).getPropertyValue(`--ink-${toolRef.current.color}`).trim() || '#222';
-    ctx.fill(new Path2D(strokePath({ k: tool.current === 'draw' ? 'd' : 'w', p: points.current, pen: isPen.current })));
+    const path = live.current;
+    if (!path || tool.current === 'erase') return;
+    path.setAttribute('class', `ink-${toolRef.current.color}`);
+    path.setAttribute('d', strokePath({ k: tool.current === 'draw' ? 'd' : 'w', p: points.current, pen: isPen.current }));
   };
 
-  const clearLive = () => {
-    const c = canvas.current;
-    c?.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+  const clearLive = () => live.current?.setAttribute('d', '');
+
+  // ---------- bullets of typed entries ----------
+
+  const press = useRef<{ id: string; x: number; y: number; timer: number; held: boolean } | null>(null);
+
+  const stateful = (l: Line) => hasStates(l.type, settings.eventStates);
+
+  const setState = async (id: string, state: LineState) => {
+    const b = blocks.current.find((x) => x.id === id);
+    if (!b || b.line.state === state) return;
+    const el = sheet.current?.querySelector<HTMLElement>(`.pen-row[data-id="${id}"] .pen-typed`);
+    if (state === 'done') playDoneFx(el, 'done');
+    else if (state === 'cancelled') playDoneFx(el, 'cancel');
+    pushUndo(await markInkState(id, state));
+  };
+
+  const bulletDown = (e: React.PointerEvent): boolean => {
+    const bullet = (e.target as Element).closest('.pen-typed .bullet');
+    const id = bullet?.closest<HTMLElement>('.pen-row')?.dataset.id;
+    const b = id ? blocks.current.find((x) => x.id === id) : undefined;
+    if (!b || !stateful(b.line)) return false;
+    e.preventDefault();
+    const r = bullet!.getBoundingClientRect();
+    const timer = window.setTimeout(() => {
+      if (!press.current) return;
+      press.current.held = true;
+      setMenu({ id: b.id, x: r.left, y: r.bottom, state: b.line.state });
+    }, 500);
+    press.current = { id: b.id, x: e.clientX, y: e.clientY, timer, held: false };
+    return true;
+  };
+
+  const bulletUp = (e: React.PointerEvent): boolean => {
+    const p = press.current;
+    if (!p) return false;
+    press.current = null;
+    clearTimeout(p.timer);
+    const b = blocks.current.find((x) => x.id === p.id);
+    if (!p.held && b && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 12) void setState(p.id, nextState(b.line.state));
+    return true;
   };
 
   const add = (e: PointerEvent) => {
@@ -185,7 +219,8 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType === 'touch' || e.button > 0) return;
+    if (e.button > 0 || bulletDown(e)) return;
+    if (e.pointerType === 'touch') return;
     e.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     drawing.current = true;
@@ -206,6 +241,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   };
 
   const onPointerUp = async (e: React.PointerEvent) => {
+    if (bulletUp(e)) return;
     if (!drawing.current || e.pointerType === 'touch') return;
     cancelAnimationFrame(frame.current);
     frame.current = 0;
@@ -287,15 +323,53 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={() => {
+          if (press.current) clearTimeout(press.current.timer);
+          press.current = null;
           clearLive();
           flush();
         }}
       >
         <div className="pen-rows" />
+        <svg className="pen-live" aria-hidden>
+          <path ref={live} />
+        </svg>
       </div>
-      <canvas ref={canvas} className="pen-live" aria-hidden />
+      {menu && (
+        <StateMenu
+          {...menu}
+          eventStates={settings.eventStates}
+          onPick={(s) => {
+            setMenu(null);
+            void setState(menu.id, s);
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
       <PenToolbar canUndo={canUndo} onUndo={onUndo} />
     </>
+  );
+}
+
+const MENU_STATES: LineState[] = ['done', 'cancelled', 'migrated', 'scheduled', 'open'];
+
+/** Held bullet: pick a state (one entry at a time, like the bullet menu in Type mode). */
+function StateMenu(props: { x: number; y: number; state: LineState; eventStates: boolean; onPick: (s: LineState) => void; onClose: () => void }) {
+  useEffect(() => {
+    const close = (e: PointerEvent) => !(e.target as Element).closest('.pen-menu') && props.onClose();
+    const t0 = window.setTimeout(() => document.addEventListener('pointerdown', close), 0);
+    return () => {
+      clearTimeout(t0);
+      document.removeEventListener('pointerdown', close);
+    };
+  }, []);
+  return (
+    <div className="pen-menu" role="menu" style={{ left: Math.max(8, props.x - 8), top: props.y + 6 }}>
+      {MENU_STATES.filter((s) => s !== props.state).map((s) => (
+        <button key={s} role="menuitem" onClick={() => props.onPick(s)}>
+          {t.menu.states[s]}
+        </button>
+      ))}
+    </div>
   );
 }
 
