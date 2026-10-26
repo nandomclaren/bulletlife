@@ -108,8 +108,10 @@ export function strokeOutline(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, 
     // A fine ballpoint feel: little width change with pressure, smooth curves.
     size: (s.s ?? DEFAULT_SIZE) * Math.max(scale, 0.6),
     thinning: 0.35,
-    smoothing: 0.65,
-    streamline: 0.45,
+    smoothing: 0.6,
+    // Low streamline: the line stays right under the pen tip (higher values trail behind it, which
+    // feels like dragging a blade).
+    streamline: 0.22,
     simulatePressure: !s.pen,
     last: true,
   });

@@ -340,3 +340,9 @@ Short log of technical decisions. Newest last.
 - `src/export/pdf.ts` draws with jsPDF (loaded only when exporting): handwriting and drawings as filled vector outlines (the same `strokeOutline` as the screen), the Pen sheet's 740 px mapped onto the A5 text width so handwriting keeps its proportions and rows; typed entries in Helvetica 9 pt with bullets and state marks drawn as shapes (any font works, and ○ ✓ are not in the standard PDF fonts); due dates as "(Oct 29)", inline Markdown markers removed. Collapsed children print. A Month packs its days so the month fits one sheet; a drawing taller than a page is scaled to fit.
 - Order (`pagesInRange`): each Year, then each Month followed by its weeks and days by date (a week before its first day); Collections last, in Everything.
 - The page menu builds the PDF as soon as it opens, and Settings › Print builds first and saves with a second tap: on the iPad the share sheet only opens right inside a tap.
+
+## Pen mode: smoother writing (Fernando: "GoodNotes is butter, ours is a knife on paper")
+
+- The page was rebuilt from scratch after every stroke (every row, every stroke outline recomputed), right when the pen starts the next stroke. Rows are now cached by a signature (text, type, state, indent, colors, ink stroke count and positions, transcription); only changed rows are redrawn, and new typed rows are measured in one layout pass. Measured on a 370-stroke page with the CPU throttled 6×: 10 strokes caused 10 main-thread stalls up to 282 ms (1.6 s total) before, 1 stall of 57 ms after.
+- The sheet's position is read once per stroke instead of on every pen move (each read forced a layout mid-stroke).
+- Stroke streamline 0.45 → 0.22 (smoothing 0.6): the line stays under the pen tip instead of trailing behind it. Same settings live and stored, so nothing shifts on lift.

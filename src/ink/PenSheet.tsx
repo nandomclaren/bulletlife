@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { addInk, addInkLines, eraseInk, markInkState, moveInk, restoreInk, usePageLines, useSettings, type InkSnapshot, type LogRef } from '../data/repo';
 import { playDoneFx } from '../editor/doneFx';
-import { colorTypes, glyph, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState } from '../editor/lines';
+import { colorTypes, glyph, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState, type LineType } from '../editor/lines';
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
 import { compact, DEFAULT_SIZE, PEN_SIZES, type Box, hasInk, hasWriting, inkRows, inkSvg, ROW, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
@@ -50,27 +50,39 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const toolRef = useRef(pen);
   toolRef.current = pen;
 
-  /** Lays the page out as ruled blocks: one per visible entry, as many lines tall as its text or ink. */
+  /** Rows already drawn, kept between redraws: only lines that changed are drawn again. */
+  const rowCache = useRef(new Map<string, { sig: string; el: HTMLElement; height: number }>());
+
+  /**
+   * Lays the page out as ruled blocks: one per visible entry, as many lines tall as its text or ink.
+   * It runs after every stroke, so it only redraws the lines that changed (redrawing the whole page,
+   * every stroke of it, made the pen catch between strokes), and measures new typed lines in one go.
+   */
   const build = (ls: Line[]) => {
     const host = sheet.current;
     if (!host) return;
     const colors = colorTypes(ls);
     const hidden = hiddenMask(ls);
     const rows = host.querySelector<HTMLElement>('.pen-rows')!;
-    rows.replaceChildren();
     host.querySelectorAll('.pen-pending').forEach((el) => el.remove());
     const width = host.clientWidth;
-    let top = 0;
-    const out: Block[] = [];
+    const cache = rowCache.current;
+    const els: HTMLElement[] = [];
+    const fresh: Array<{ l: Line; i: number; row: HTMLElement; typed: boolean }> = [];
+    const visible: Line[] = [];
     ls.forEach((l, i) => {
       if (hidden[i]) return;
+      visible.push(l);
+      const typed = isTyped(l);
+      const sig = rowSignature(l, colors[i], hasChildren(ls, i), width, settings.doneMark);
+      const hit = cache.get(l.id);
+      if (hit && hit.sig === sig) {
+        els.push(hit.el);
+        return;
+      }
       const row = document.createElement('div');
       row.className = 'pen-row';
       row.dataset.id = l.id;
-      // Handwritten lines show the hand, not their transcription (the ink is the original).
-      const typed = isTyped(l);
-      const handwritten = hasWriting(l.ink) && !typed;
-      let typedRows = 0;
       if (typed) {
         const el = document.createElement('div');
         el.className = `${lineClass(l, { color: colors[i], hasChildren: hasChildren(ls, i), hidden: false })} pen-typed`;
@@ -81,8 +93,15 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         el.append(buildGutter(document, l, l.collapsed), text);
         row.append(el);
       }
-      rows.append(row);
-      if (typed) typedRows = Math.ceil((row.firstElementChild as HTMLElement).offsetHeight / ROW - 0.05);
+      cache.set(l.id, { sig, el: row, height: ROW });
+      els.push(row);
+      fresh.push({ l, i, row, typed });
+    });
+    rows.replaceChildren(...els);
+    // Measure all new typed lines together (one layout), then size and ink them.
+    const typedHeights = fresh.map((f) => (f.typed ? (f.row.firstElementChild as HTMLElement).offsetHeight : 0));
+    fresh.forEach(({ l, i, row, typed }, k) => {
+      const typedRows = typed ? Math.ceil(typedHeights[k] / ROW - 0.05) : 0;
       const n = Math.max(1, typedRows, inkRows(l.ink));
       row.style.height = `${n * ROW}px`;
       if (hasInk(l.ink)) {
@@ -90,10 +109,18 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         const svg = inkSvg(document, l.ink, { width, height: n * ROW, bulletColor: color });
         svg.classList.add('pen-ink');
         row.append(svg);
-        if (handwritten) decorateHand(row, l, color, settings.doneMark);
+        if (hasWriting(l.ink) && !typed) decorateHand(row, l, color, settings.doneMark);
       }
-      out.push({ id: l.id, top, height: n * ROW, line: l });
-      top += n * ROW;
+      cache.get(l.id)!.height = n * ROW;
+    });
+    const live = new Set(visible.map((l) => l.id));
+    for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
+    let top = 0;
+    const out: Block[] = visible.map((l) => {
+      const height = cache.get(l.id)!.height;
+      const b = { id: l.id, top, height, line: l };
+      top += height;
+      return b;
     });
     blocks.current = out;
     contentEnd.current = top;
@@ -202,7 +229,10 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const tool = useRef<PenTool>('write');
   const isPen = useRef(false);
 
-  const origin = () => sheet.current!.getBoundingClientRect();
+  // The sheet's place on screen, read once per stroke: reading it on every pen move made the browser
+  // lay the page out again in the middle of the stroke.
+  const originRect = useRef<DOMRect | null>(null);
+  const origin = () => originRect.current ?? sheet.current!.getBoundingClientRect();
 
   // The stroke in progress is drawn in the sheet's own coordinates (the same as the stored ink),
   // so it appears exactly under the pen tip.
@@ -354,6 +384,8 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       mode.current = 'ink';
       const { dx, dy } = dragFrom.current;
       if (Math.hypot(dx, dy) < 3) {
+        for (const p of pathsOf(selRef.current?.items ?? [])) p.removeAttribute('transform');
+        if (boxEl.current) boxEl.current.style.transform = '';
         flush();
         return;
       }
@@ -428,6 +460,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       // not an active pointer (synthetic events)
     }
     drawing.current = true;
+    originRect.current = sheet.current!.getBoundingClientRect();
     tool.current = toolRef.current.tool;
     isPen.current = e.pointerType === 'pen';
     points.current = [];
@@ -449,6 +482,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const onPointerUp = async (e: React.PointerEvent) => {
     if (bulletUp(e)) return;
     if (!drawing.current || e.pointerType === 'touch') return;
+    originRect.current = null;
     cancelAnimationFrame(frame.current);
     frame.current = 0;
     if (tool.current === 'lasso') return lassoUp();
@@ -587,6 +621,30 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       <PenToolbar canUndo={canUndo} onUndo={onUndo} />
     </>
   );
+}
+
+/** What a row looks like: the same signature draws the same row, so it can be reused as is. */
+function rowSignature(l: Line, color: LineType, parent: boolean, width: number, doneMark: string): string {
+  const ink = l.ink;
+  let where = 0;
+  for (const s of ink?.strokes ?? []) where += s.p[0] * 3 + s.p[1] + s.p.length + (s.b ? 7 : 0);
+  return [
+    l.text,
+    l.type,
+    l.state,
+    l.indent,
+    l.collapsed,
+    l.priority,
+    l.inspiration,
+    l.explore,
+    color,
+    parent,
+    width,
+    doneMark,
+    ink?.strokes.length ?? 0,
+    ink?.tx ?? '',
+    Math.round(where),
+  ].join('|');
 }
 
 /** Has typed content of its own (not a transcription of its ink): it shows as text in Pen mode and never takes ink. */
