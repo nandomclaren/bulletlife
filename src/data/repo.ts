@@ -4,7 +4,7 @@ import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { ulid } from 'ulid';
 import { addDays, daysInMonth, fmt, todayIso, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
-import { needsTranscription, writingCount, type Stroke } from '../ink/ink';
+import { needsTranscription, writingCount, type Ink, type Stroke } from '../ink/ink';
 import type { LineShape } from '../ink/structure';
 import { maxIndent, newLine } from '../editor/lines';
 import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune, type Backup } from './backup';
@@ -379,9 +379,14 @@ export function usePageLines(logId: string, slot = ''): Line[] | undefined {
 }
 
 /** What some entries were before a pen action, to undo it: null = did not exist. */
-export type InkSnapshot = Map<string, Entry | null>;
+/**
+ * How to undo a Pen-mode change: per entry, what it was before (null: it did not exist). After writing
+ * a stroke, only the stroke count is kept (`keep`), not a copy of every stroke: a full copy per stroke,
+ * 100 deep, of a long handwritten paragraph ran the iPad out of memory.
+ */
+export type InkSnapshot = Map<string, Entry | { entry: Entry; keep: number } | null>;
 
-async function snapshot(ids: string[]): Promise<InkSnapshot> {
+async function snapshot(ids: string[]): Promise<Map<string, Entry | null>> {
   const rows = await db.entries.bulkGet(ids);
   return new Map(ids.map((id, i) => [id, rows[i] ?? null]));
 }
@@ -389,9 +394,10 @@ async function snapshot(ids: string[]): Promise<InkSnapshot> {
 /** Adds strokes to an entry the user wrote on. Returns how to undo it. */
 export async function addInk(log: LogRef, entryId: string, strokes: Stroke[]): Promise<InkSnapshot> {
   return db.transaction('rw', db.logs, db.entries, async () => {
-    const before = await snapshot([entryId]);
-    const e = before.get(entryId);
+    const e = await db.entries.get(entryId);
     if (!e) return new Map();
+    const { strokes: kept = [], ...meta } = e.ink ?? {};
+    const before: InkSnapshot = new Map([[entryId, { entry: { ...e, ink: e.ink && ({ ...meta } as Ink) }, keep: kept.length }]]);
     const now = new Date().toISOString();
     // Keeps what the transcription knew (tx, n) and a drawing's view: dropping tx made the transcribed text
     // look typed, and the next pass moved the ink out to a new line below it.
@@ -459,8 +465,15 @@ export async function eraseInk(log: LogRef, hits: Map<string, number[]>): Promis
 export async function restoreInk(before: InkSnapshot): Promise<void> {
   await db.transaction('rw', db.entries, async () => {
     for (const [id, e] of before) {
-      if (e) await db.entries.put({ ...e, updatedAt: new Date().toISOString() });
-      else await db.entries.delete(id);
+      const now = new Date().toISOString();
+      if (!e) await db.entries.delete(id);
+      else if ('keep' in e) {
+        // Strokes are only added on top of the ones kept, so the first `keep` are those it had.
+        const cur = await db.entries.get(id);
+        const strokes = (cur?.ink?.strokes ?? []).slice(0, e.keep);
+        const { ink: _, ...rest } = e.entry;
+        await db.entries.put(e.entry.ink || strokes.length ? { ...rest, ink: { ...e.entry.ink, strokes }, updatedAt: now } : { ...rest, updatedAt: now });
+      } else await db.entries.put({ ...e, updatedAt: now });
     }
   });
 }

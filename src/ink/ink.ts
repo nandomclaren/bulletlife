@@ -140,7 +140,28 @@ function steady(p: number[], dy: number, scale: number): number[][] {
   return out;
 }
 
-export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): string {
+/**
+ * Paths of strokes already drawn. A row is redrawn whole when a stroke is added to it, so a long
+ * handwritten paragraph recomputed every one of its strokes on each new one (slow and wasteful). Strokes
+ * come back from storage as new objects, so the key is made from the stroke's content.
+ */
+const paths = new Map<string, string>();
+const PATHS_KEPT = 1500;
+
+export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1, live = false): string {
+  const p = s.p;
+  const n = p.length;
+  if (live || n < 30) return buildPath(s, dy, scale); // the stroke in progress changes on every move
+  const key = `${s.k}${s.pen ? 1 : 0}|${s.s}|${dy}|${scale}|${n}|${p[0]}|${p[1]}|${p[n >> 1]}|${p[n - 2]}|${p[n - 1]}`;
+  const hit = paths.get(key);
+  if (hit !== undefined) return hit;
+  const d = buildPath(s, dy, scale);
+  if (paths.size >= PATHS_KEPT) paths.delete(paths.keys().next().value!);
+  paths.set(key, d);
+  return d;
+}
+
+function buildPath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy: number, scale: number): string {
   const outline = strokeOutline(s, dy, scale);
   if (!outline.length) return '';
   // Quadratic curves through the midpoints of the outline: straight segments between its many points

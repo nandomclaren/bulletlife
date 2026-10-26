@@ -241,7 +241,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     const path = live.current;
     if (!path || tool.current === 'erase') return;
     path.setAttribute('class', `ink-${toolRef.current.color}`);
-    path.setAttribute('d', strokePath({ k: tool.current === 'draw' ? 'd' : 'w', p: points.current, pen: isPen.current }));
+    path.setAttribute('d', strokePath({ k: tool.current === 'draw' ? 'd' : 'w', p: points.current, pen: isPen.current }, 0, 1, true));
   };
 
   const clearLive = () => live.current?.setAttribute('d', '');

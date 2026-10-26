@@ -15,7 +15,7 @@ export class BulletLifeDb extends Dexie {
   settings!: Table<SettingsRow, string>;
 
   constructor() {
-    super('bullet-life', { addons: [dexieCloud] });
+    super('bullet-life', { addons: [dexieCloud], cache: 'disabled' });
     this.version(1).stores({
       logs: 'id, kind, periodStart',
       entries: 'id, logId, [logId+slot], parentId, updatedAt',
