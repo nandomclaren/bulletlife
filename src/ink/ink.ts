@@ -100,11 +100,11 @@ export function strokeHit(p: number[], dy: number, eraser: Array<[number, number
 export const PEN_SIZES = [1.8, 2.4, 3.4] as const;
 export const DEFAULT_SIZE = 2.4;
 
-/** SVG path of a stroke's outline (variable width from pressure). */
-export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): string {
+/** A stroke's outline (variable width from pressure), as a closed polygon. */
+export function strokeOutline(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): number[][] {
   const pts: number[][] = [];
   for (let i = 0; i < s.p.length; i += 3) pts.push([s.p[i] * scale, (s.p[i + 1] + dy) * scale, s.p[i + 2]]);
-  const outline = getStroke(pts, {
+  return getStroke(pts, {
     // A fine ballpoint feel: little width change with pressure, smooth curves.
     size: (s.s ?? DEFAULT_SIZE) * Math.max(scale, 0.6),
     thinning: 0.35,
@@ -113,6 +113,11 @@ export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, sca
     simulatePressure: !s.pen,
     last: true,
   });
+}
+
+/** SVG path of a stroke's outline. */
+export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): string {
+  const outline = strokeOutline(s, dy, scale);
   if (!outline.length) return '';
   const d = outline.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`);
   return `${d.join('')}Z`;

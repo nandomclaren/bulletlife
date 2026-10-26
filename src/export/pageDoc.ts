@@ -5,9 +5,7 @@ import { loadLines, periodLog } from '../data/repo';
 import { t } from '../i18n/en';
 import type { ExportDoc } from './format';
 
-export type PageRef =
-  | { kind: 'daily' | 'weekly' | 'monthly' | 'future'; key: string }
-  | { kind: 'collection'; id: string; title: string };
+export type PageRef = { kind: 'daily' | 'weekly' | 'monthly' | 'future'; key: string } | { kind: 'collection'; id: string; title: string };
 
 export async function buildPageDoc(page: PageRef, firstDay: Weekday): Promise<ExportDoc> {
   switch (page.kind) {

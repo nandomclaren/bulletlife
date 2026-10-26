@@ -7,6 +7,7 @@ import { useSettings } from '../data/repo';
 import { t } from '../i18n/en';
 import { flushAll } from '../pages/flush';
 import { canShare, copyAs, exportFile, fileName, render, shareAs } from './actions';
+import { buildPdf } from './pdf';
 import { selectionDoc, type ExportDoc, type Format } from './format';
 import { buildPageDoc, type PageRef } from './pageDoc';
 import { useStoredSelection } from './selection';
@@ -48,6 +49,8 @@ function MenuPanel({ page, anchor, onClose }: { page: PageRef; anchor: HTMLEleme
   const [format, setFormat] = useState<Format>(savedFormat);
   const [pageDoc, setPageDoc] = useState<ExportDoc | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // The PDF is made ahead too: on the iPad the share sheet only opens right inside the tap.
+  const [pdf, setPdf] = useState<Blob | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
@@ -57,7 +60,11 @@ function MenuPanel({ page, anchor, onClose }: { page: PageRef; anchor: HTMLEleme
     let alive = true;
     void flushAll()
       .then(() => buildPageDoc(page, settings.firstDayOfWeek as Weekday))
-      .then((d) => alive && setPageDoc(d));
+      .then((d) => {
+        if (!alive) return;
+        setPageDoc(d);
+        return buildPdf([page], settings.firstDayOfWeek as Weekday, settings.doneMark).then((b) => alive && setPdf(b.blob));
+      });
     return () => {
       alive = false;
     };
@@ -99,7 +106,14 @@ function MenuPanel({ page, anchor, onClose }: { page: PageRef; anchor: HTMLEleme
   };
 
   return createPortal(
-    <div ref={ref} className="bullet-menu page-menu" role="dialog" aria-label={t.pageMenu.open} style={pos ? { top: pos.top, right: pos.right } : { visibility: 'hidden' }} onMouseDown={(e) => e.preventDefault()}>
+    <div
+      ref={ref}
+      className="bullet-menu page-menu"
+      role="dialog"
+      aria-label={t.pageMenu.open}
+      style={pos ? { top: pos.top, right: pos.right } : { visibility: 'hidden' }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
       {selection && (
         <div className="menu-section" role="radiogroup" aria-label={t.pageMenu.scope}>
           <div className="menu-section-title">{t.pageMenu.scope}</div>
@@ -145,6 +159,16 @@ function MenuPanel({ page, anchor, onClose }: { page: PageRef; anchor: HTMLEleme
         >
           {t.pageMenu.export}
         </button>
+        <button
+          disabled={!pdf}
+          onClick={async () => {
+            if (!pdf || !pageDoc) return;
+            await exportFile(fileName(pageDoc.title, 'pdf'), pdf, 'application/pdf');
+            onClose();
+          }}
+        >
+          {pdf ? t.pageMenu.pdf : t.pageMenu.pdfPreparing}
+        </button>
         {canShare() && (
           <button
             disabled={!ready}
@@ -158,7 +182,11 @@ function MenuPanel({ page, anchor, onClose }: { page: PageRef; anchor: HTMLEleme
           </button>
         )}
       </div>
-      {toast && <div className="undo-toast page-menu-toast" role="status">{toast}</div>}
+      {toast && (
+        <div className="undo-toast page-menu-toast" role="status">
+          {toast}
+        </div>
+      )}
     </div>,
     document.body,
   );

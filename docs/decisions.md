@@ -333,3 +333,10 @@ Short log of technical decisions. Newest last.
 - A Lasso tool in the pen toolbar. Draw a loop (pen or mouse): strokes with ≥ 60 % of their points inside are selected, across lines (`lassoed`). The selection shows as a dashed box with a × (delete). Dragging inside the box moves the strokes live (SVG transforms), and dropping files them like new ink: the group lands on the line its first writing stroke now sits on (`placeStroke` against the page as it will be once the strokes leave their lines), with each writing stroke's row read again (`rowWithin`).
 - `moveInk` does the whole move in one transaction (take off, put on, or a new line), so one Undo reverts it. Lines emptied by a move stay as blank lines (the page must not shift under the pen); their transcription goes with their handwriting, and lines that gained or lost writing are transcribed again on the usual pause.
 - A selection survives the page being redrawn (a transcription arriving) while its strokes exist; switching tools clears it. Fingers still scroll.
+
+## PDF (print the journal)
+
+- Fernando chose A5, a plain sheet (no rules), and both the current page (page menu › Export PDF) and periods (Settings › Print: this month, this year, everything).
+- `src/export/pdf.ts` draws with jsPDF (loaded only when exporting): handwriting and drawings as filled vector outlines (the same `strokeOutline` as the screen), the Pen sheet's 740 px mapped onto the A5 text width so handwriting keeps its proportions and rows; typed entries in Helvetica 9 pt with bullets and state marks drawn as shapes (any font works, and ○ ✓ are not in the standard PDF fonts); due dates as "(Oct 29)", inline Markdown markers removed. Collapsed children print. A Month packs its days so the month fits one sheet; a drawing taller than a page is scaled to fit.
+- Order (`pagesInRange`): each Year, then each Month followed by its weeks and days by date (a week before its first day); Collections last, in Everything.
+- The page menu builds the PDF as soon as it opens, and Settings › Print builds first and saves with a second tap: on the iPad the share sheet only opens right inside a tap.

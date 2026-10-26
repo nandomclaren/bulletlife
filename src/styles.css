@@ -817,3 +817,9 @@ h1 {
   margin-top: 4px;
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
 }
+
+.pdf-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

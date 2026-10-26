@@ -47,7 +47,7 @@ export function fileName(title: string, ext: string) {
 }
 
 /** Export: a file. iPhone: the share sheet (Save to Files); Mac: a download. */
-export async function exportFile(name: string, text: string, mime: string) {
+export async function exportFile(name: string, text: string | Blob, mime: string) {
   const file = new File([text], name, { type: mime });
   if (coarse() && navigator.canShare?.({ files: [file] })) {
     try {

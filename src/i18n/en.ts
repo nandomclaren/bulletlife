@@ -261,6 +261,16 @@ export const en = {
     copied: (f: string) => `Copied as ${f}`,
     copyFailed: 'Could not copy',
     preparing: 'Preparing…',
+    pdf: 'Export PDF',
+    pdfPreparing: 'Preparing PDF…',
+  },
+  pdf: {
+    title: 'Print',
+    hint: 'A PDF in A5 with your handwriting, drawings and typed entries, to print and keep. Each page of the notebook starts on a new sheet.',
+    ranges: { month: 'This month', year: 'This year', all: 'Everything' },
+    preparing: 'Preparing…',
+    save: (pages: number) => `Save PDF · ${pages} ${pages === 1 ? 'page' : 'pages'}`,
+    empty: 'Nothing written in this period yet.',
   },
   backup: {
     title: 'Backup',

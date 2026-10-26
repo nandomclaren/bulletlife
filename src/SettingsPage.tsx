@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { usePane } from './pages/pane';
 import { BackupSection } from './BackupSection';
+import { PdfSection } from './export/PdfSection';
 import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
@@ -54,6 +55,7 @@ export function SettingsPage() {
         )}
       </section>
 
+      <PdfSection />
       <BackupSection />
 
       <section className="setting">
