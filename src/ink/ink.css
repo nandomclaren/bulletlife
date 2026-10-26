@@ -225,3 +225,53 @@
   border-radius: 10px;
   background: var(--surface);
 }
+
+/* Transcribed handwritten lines: the drawn bullet answers taps; states show like typed ones. */
+.pen-hand-bullet {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.pen-hand-mark {
+  position: absolute;
+  transform: translate(-50%, -55%);
+  font-size: calc(var(--fs-body) + 4px);
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.ink-text-ink {
+  color: var(--ink-ink);
+}
+.ink-text-task {
+  color: var(--ink-task);
+}
+.ink-text-event {
+  color: var(--ink-event);
+}
+.ink-text-note {
+  color: var(--ink-note);
+}
+
+.pen-s-done .ink-b,
+.pen-s-migrated .ink-b,
+.pen-s-scheduled .ink-b {
+  opacity: 0;
+}
+
+.pen-s-done .pen-ink path:not(.ink-b),
+.pen-s-cancelled .pen-ink path:not(.ink-b) {
+  opacity: 0.45;
+}
+
+.pen-hand-strike {
+  position: absolute;
+  height: 1.5px;
+  background: var(--muted);
+  pointer-events: none;
+}

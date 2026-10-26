@@ -32,7 +32,7 @@ import {
   type Line,
 } from './lines';
 import { buildGutter, dueView, fillText, inkPreview, lineClass, textShapeMatches } from './render';
-import { hasInk } from '../ink/ink';
+import { hasInk, hasWriting } from '../ink/ink';
 import { DUE_TOKEN, dateRuns, resolveDue, sortRun } from './due';
 import { todayIso } from '../dates';
 import { t } from '../i18n/en';
@@ -138,7 +138,8 @@ class LineEditorCore {
     text.className = 'line-text';
     fillText(text, line.text);
     el.append(buildGutter(document, line, collapsed), text);
-    if (hasInk(line.ink)) el.append(inkPreview(line.ink));
+    // Once handwriting has a transcription, the line shows the text; drawings always show as drawings.
+    if (hasInk(line.ink) && (!line.text.trim() || !hasWriting(line.ink))) el.append(inkPreview(line.ink));
     const s = this.suggestions.get(line.id);
     if (s) el.append(linkChip(s.text));
     return el;

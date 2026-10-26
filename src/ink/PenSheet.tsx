@@ -6,11 +6,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { addInk, addInkLines, eraseInk, markInkState, restoreInk, usePageLines, useSettings, type InkSnapshot, type LogRef } from '../data/repo';
 import { playDoneFx } from '../editor/doneFx';
-import { colorTypes, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState } from '../editor/lines';
+import { colorTypes, glyph, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState } from '../editor/lines';
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
-import { compact, hasInk, inkRows, inkSvg, ROW, rowOf, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
+import { compact, hasInk, hasWriting, inkRows, inkSvg, ROW, rowOf, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
 import { setPenColor, setPenTool, usePen, type PenTool } from './penStore';
+import { transcribePage } from './transcribe';
 import type { InkColor } from './ink';
 
 interface Block {
@@ -58,7 +59,9 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       const row = document.createElement('div');
       row.className = 'pen-row';
       row.dataset.id = l.id;
-      const typed = l.text.trim() !== '' || l.type !== 'text';
+      // Handwritten lines show the hand, not their transcription (the ink is the original).
+      const handwritten = hasWriting(l.ink);
+      const typed = !handwritten && (l.text.trim() !== '' || l.type !== 'text');
       let typedRows = 0;
       if (typed) {
         const el = document.createElement('div');
@@ -75,9 +78,11 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       const n = Math.max(1, typedRows, inkRows(l.ink));
       row.style.height = `${n * ROW}px`;
       if (hasInk(l.ink)) {
-        const svg = inkSvg(document, l.ink, { width, height: n * ROW });
+        const color = colors[i] === 'task' || colors[i] === 'event' || colors[i] === 'note' ? colors[i] : undefined;
+        const svg = inkSvg(document, l.ink, { width, height: n * ROW, bulletColor: color });
         svg.classList.add('pen-ink');
         row.append(svg);
+        if (handwritten) decorateHand(row, l, color);
       }
       out.push({ id: l.id, top, height: n * ROW, line: l });
       top += n * ROW;
@@ -113,6 +118,22 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       host.removeEventListener('touchmove', stylus);
     };
   }, []);
+
+  // Handwriting is transcribed after a pause in writing, and when leaving Pen mode (unmount).
+  const pause = useRef(0);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const soon = () => {
+    clearTimeout(pause.current);
+    pause.current = window.setTimeout(() => void transcribePage(log.id, slot, settingsRef.current), 2500);
+  };
+  useEffect(
+    () => () => {
+      clearTimeout(pause.current);
+      void transcribePage(log.id, slot, settingsRef.current);
+    },
+    [log.id, slot],
+  );
 
   const pushUndo = (snap: InkSnapshot) => {
     if (!snap.size) return;
@@ -167,7 +188,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   };
 
   const bulletDown = (e: React.PointerEvent): boolean => {
-    const bullet = (e.target as Element).closest('.pen-typed .bullet');
+    const bullet = (e.target as Element).closest('.pen-typed .bullet, .pen-hand-bullet');
     const id = bullet?.closest<HTMLElement>('.pen-row')?.dataset.id;
     const b = id ? blocks.current.find((x) => x.id === id) : undefined;
     if (!b || !stateful(b.line)) return false;
@@ -249,6 +270,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       const hits = new Map([...erased.current].map(([id, s]) => [id, [...s]]));
       flush();
       if (hits.size) pushUndo(await eraseInk(log, hits));
+      soon();
       return;
     }
     const p = compact(points.current);
@@ -283,6 +305,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       reflow();
       lastStroke.current = { id: target.id, r, at: now };
       pushUndo(await addInk(log, target.id, [stroke]));
+      soon();
     } else {
       const blanks = Math.round((top - contentEnd.current) / ROW);
       const added = [...Array.from({ length: blanks }, () => newLine()), newLine({ ink: { strokes: [stroke] } })];
@@ -291,6 +314,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       const id = added[added.length - 1].id;
       lastStroke.current = { id, r, at: now };
       pushUndo(await addInkLines(log, slot, added));
+      soon();
     }
   };
 
@@ -348,6 +372,49 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       <PenToolbar canUndo={canUndo} onUndo={onUndo} />
     </>
   );
+}
+
+/**
+ * A transcribed handwritten line shows its state like a typed one: the
+ * hand-drawn bullet becomes ×, > or < in the entry's color, done and
+ * cancelled lines fade, cancelled ones get a stroke through. The bullet
+ * answers taps like a typed bullet.
+ */
+function decorateHand(row: HTMLElement, l: Line, color: InkColor | undefined) {
+  const bulletIdx = l.ink!.strokes.findIndex((s) => s.b);
+  row.classList.add(`pen-s-${l.state}`);
+  if (bulletIdx < 0) return;
+  const b = strokeBox(l.ink!.strokes[bulletIdx].p);
+  const cx = (b.x0 + b.x1) / 2;
+  const cy = (b.y0 + b.y1) / 2;
+  const hit = document.createElement('div');
+  hit.className = 'pen-hand-bullet';
+  hit.style.left = `${cx - 20}px`;
+  hit.style.top = `${cy - 20}px`;
+  row.append(hit);
+  if (l.state === 'open' || l.state === 'cancelled') {
+    if (l.state === 'cancelled') strikeThrough(row, l, bulletIdx, cy);
+    return;
+  }
+  const mark = document.createElement('span');
+  mark.className = `pen-hand-mark ink-text-${color ?? 'ink'}`;
+  mark.textContent = glyph(l.type, l.state, true);
+  mark.style.left = `${cx}px`;
+  mark.style.top = `${cy}px`;
+  row.append(mark);
+}
+
+function strikeThrough(row: HTMLElement, l: Line, bulletIdx: number, y: number) {
+  const words = l.ink!.strokes.filter((s, i) => s.k === 'w' && i !== bulletIdx).map((s) => strokeBox(s.p));
+  if (!words.length) return;
+  const x0 = Math.min(...words.map((w) => w.x0));
+  const x1 = Math.max(...words.map((w) => w.x1));
+  const strike = document.createElement('span');
+  strike.className = 'pen-hand-strike';
+  strike.style.left = `${x0}px`;
+  strike.style.width = `${x1 - x0}px`;
+  strike.style.top = `${y}px`;
+  row.append(strike);
 }
 
 const MENU_STATES: LineState[] = ['done', 'cancelled', 'migrated', 'scheduled', 'open'];

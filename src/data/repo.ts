@@ -4,7 +4,9 @@ import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { ulid } from 'ulid';
 import { addDays, daysInMonth, fmt, todayIso, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
-import type { Stroke } from '../ink/ink';
+import { needsTranscription, writingCount, type Stroke } from '../ink/ink';
+import type { LineShape } from '../ink/structure';
+import { maxIndent } from '../editor/lines';
 import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune, type Backup } from './backup';
 import { backupDb, type Snapshot } from './backupDb';
 import { diffEntries, entriesToLines } from './convert';
@@ -456,4 +458,49 @@ export async function markInkState(id: string, state: EntryState): Promise<InkSn
   const before = await snapshot([id]);
   await markEntry(id, state);
   return before;
+}
+
+// ---------- Handwriting transcription ----------
+
+/** Lines of a page whose handwriting changed since it was last transcribed. */
+export async function pendingTranscriptions(logId: string, slot = ''): Promise<Entry[]> {
+  const entries = await db.entries.where('[logId+slot]').equals([logId, slot]).toArray();
+  return entries.filter((e) => needsTranscription(e.ink)).sort((a, b) => (a.order < b.order ? -1 : 1));
+}
+
+/**
+ * Stores what the recognizer read on a handwritten line. The ink stays the
+ * original; the text is its transcription. A transcription only replaces
+ * text it wrote itself (a correction typed in Type mode is kept), and reads
+ * type and indentation from the drawing only the first time.
+ */
+export async function applyTranscription(id: string, n: number, text: string, shape: LineShape): Promise<void> {
+  await db.transaction('rw', db.entries, async () => {
+    const e = await db.entries.get(id);
+    if (!e?.ink || writingCount(e.ink) !== n) return; // written on again meanwhile: the next pass reads it
+    const first = e.ink.tx === undefined;
+    const ours = first ? !e.text.trim() : e.text === e.ink.tx;
+    const bullet = new Set(shape.bullet);
+    const ink = {
+      ...e.ink,
+      strokes: e.ink.strokes.map((s, i) => {
+        const { b: _, ...rest } = s;
+        return bullet.has(i) ? { ...rest, b: true } : rest;
+      }),
+      n,
+      tx: ours ? text : (e.ink.tx ?? ''),
+    };
+    const page = await db.entries.where('[logId+slot]').equals([e.logId, e.slot]).toArray();
+    const lines = entriesToLines(page);
+    const i = lines.findIndex((l) => l.id === id);
+    const line = { ...lines[i] };
+    if (ours) line.text = text;
+    if (first && line.type === 'text' && shape.type !== 'text') line.type = shape.type;
+    if (first && line.indent === 0) line.indent = Math.min(shape.indent, maxIndent(lines, i));
+    const next = lines.map((l, j) => (j === i ? line : l));
+    // Indenting can re-parent the lines under it, so let the usual diff work out the structure.
+    const { put } = diffEntries(next, page, e.logId, e.slot, new Date().toISOString(), lines);
+    const own = put.find((p) => p.id === id) ?? { ...e, updatedAt: new Date().toISOString() };
+    await db.entries.bulkPut([...put.filter((p) => p.id !== id), { ...own, ink }]);
+  });
 }

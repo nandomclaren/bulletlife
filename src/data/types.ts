@@ -70,6 +70,10 @@ export interface Settings {
   spreadMode: 'flow' | 'next';
   /** Settings › number on the Open items button. */
   openCount: boolean;
+  /** Settings › Handwriting: the language handwriting is transcribed in, and the MyScript keys (this device only). */
+  handwritingLang: 'pt_BR' | 'en_US';
+  myscriptAppKey?: string;
+  myscriptHmacKey?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -85,5 +89,6 @@ export const DEFAULT_SETTINGS: Settings = {
   closeDay: true,
   closeDayAt: '20:00',
   openCount: true,
+  handwritingLang: 'pt_BR',
   exportReminder: true,
 };

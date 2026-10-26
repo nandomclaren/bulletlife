@@ -5,6 +5,7 @@ import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from '
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
 import { DONE_ANIMATIONS, playDoneFx } from './editor/doneFx';
+import { useTranscriptionStatus } from './ink/transcribe';
 import { getPalette, getTheme, PALETTES, setPalette, setTheme, THEMES, type Palette, type ThemePref } from './theme';
 
 const TIME_LOGS: TimeLog[] = ['monthly', 'weekly', 'daily'];
@@ -282,6 +283,8 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <HandwritingSettings />
+
       <section className="setting">
         <h2 id="palette-label">{t.settings.palette}</h2>
         <div className="options" role="radiogroup" aria-labelledby="palette-label">
@@ -329,5 +332,64 @@ function Switch(props: { label: string; hint?: ReactNode; checked: boolean; disa
       </span>
       <span className="switch" aria-hidden />
     </button>
+  );
+}
+
+function HandwritingSettings() {
+  const settings = useSettings();
+  const status = useTranscriptionStatus();
+  const note =
+    status.state === 'error'
+      ? status.message === 'auth'
+        ? t.settings.transcription.auth
+        : t.settings.transcription.error + status.message
+      : t.settings.transcription[status.state];
+  return (
+    <section className="setting">
+      <h2 id="handwriting-label">{t.settings.handwriting}</h2>
+      <div className="options" role="radiogroup" aria-labelledby="handwriting-label">
+        {(['pt_BR', 'en_US'] as const).map((l) => (
+          <button
+            key={l}
+            role="radio"
+            aria-checked={settings.handwritingLang === l}
+            className="option"
+            onClick={() => void updateSettings({ handwritingLang: l })}
+          >
+            <span className="option-text">
+              <span className="option-title">{t.settings.handwritingLangs[l]}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <label className="key-field">
+        <span>{t.settings.myscriptAppKey}</span>
+        <input
+          className="field"
+          type="text"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          key={settings.myscriptAppKey ?? ''}
+          defaultValue={settings.myscriptAppKey ?? ''}
+          onBlur={(e) => void updateSettings({ myscriptAppKey: e.target.value.trim() })}
+        />
+      </label>
+      <label className="key-field">
+        <span>{t.settings.myscriptHmacKey}</span>
+        <input
+          className="field"
+          type="password"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          key={settings.myscriptHmacKey ?? ''}
+          defaultValue={settings.myscriptHmacKey ?? ''}
+          onBlur={(e) => void updateSettings({ myscriptHmacKey: e.target.value.trim() })}
+        />
+      </label>
+      <p className="setting-hint">{t.settings.handwritingHint}</p>
+      {note && <p className="setting-hint">{note}</p>}
+    </section>
   );
 }

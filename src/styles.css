@@ -805,3 +805,15 @@ h1 {
 .pd-note {
   background: var(--dot-note);
 }
+
+.key-field {
+  display: block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.key-field .field {
+  margin-top: 4px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}

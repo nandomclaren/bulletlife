@@ -1,5 +1,7 @@
 // A free page's body: the text editor, or the ruled sheet in Pen mode (iPad).
-import type { ComponentProps } from 'react';
+import { useEffect, type ComponentProps } from 'react';
+import { useLoadedSettings } from '../data/repo';
+import { transcribePage } from './transcribe';
 import { PageEditor } from '../pages/PageEditor';
 import { flushAll } from '../pages/flush';
 import { usePane } from '../pages/pane';
@@ -11,6 +13,16 @@ export function PageBody(props: ComponentProps<typeof PageEditor>) {
   const pen = usePen();
   const available = usePenAvailable();
   const { secondary } = usePane();
+  const settings = useLoadedSettings();
+  // Handwriting not transcribed yet (written offline, or before the keys were set) is read when the page opens
+  // and when the connection comes back.
+  useEffect(() => {
+    if (!settings) return;
+    const run = () => void transcribePage(props.log.id, props.slot ?? '', settings);
+    run();
+    window.addEventListener('online', run);
+    return () => window.removeEventListener('online', run);
+  }, [props.log.id, props.slot, settings?.myscriptAppKey, settings?.myscriptHmacKey, settings?.handwritingLang]);
   if (pen.on && available && !secondary) return <PenSheet log={props.log} slot={props.slot} label={props.label} />;
   return <PageEditor {...props} />;
 }

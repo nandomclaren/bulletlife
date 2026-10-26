@@ -20,11 +20,22 @@ export interface Stroke {
   p: number[];
   /** Pressure came from a real pen (otherwise it is simulated from speed). */
   pen?: boolean;
+  /** The hand-drawn bullet of the line (found when transcribing): drawn in the entry's color. */
+  b?: boolean;
 }
 
 export interface Ink {
   strokes: Stroke[];
+  /** Text the last transcription wrote; while the entry's text still equals it, a new transcription may replace it. */
+  tx?: string;
+  /** Writing strokes the last transcription read; a different count means the ink changed since. */
+  n?: number;
 }
+
+export const writingCount = (ink: Ink | undefined) => ink?.strokes.filter((s) => s.k === 'w').length ?? 0;
+export const hasWriting = (ink: Ink | undefined) => writingCount(ink) > 0;
+/** Needs (re)transcribing: has writing the last transcription did not read. */
+export const needsTranscription = (ink: Ink | undefined) => hasWriting(ink) && ink!.n !== writingCount(ink);
 
 export const hasInk = (ink: Ink | undefined): ink is Ink => !!ink && ink.strokes.length > 0;
 
@@ -116,7 +127,11 @@ export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen'>, dy = 0, scale = 1
 const SVG = 'http://www.w3.org/2000/svg';
 
 /** An <svg> holding these strokes, positioned by the caller. */
-export function inkSvg(doc: Document, ink: Ink, opts: { width: number; height: number; dx?: number; dy?: number; scale?: number }): SVGSVGElement {
+export function inkSvg(
+  doc: Document,
+  ink: Ink,
+  opts: { width: number; height: number; dx?: number; dy?: number; scale?: number; bulletColor?: InkColor },
+): SVGSVGElement {
   const svg = doc.createElementNS(SVG, 'svg');
   svg.setAttribute('class', 'ink-svg');
   svg.setAttribute('width', String(opts.width));
@@ -128,7 +143,7 @@ export function inkSvg(doc: Document, ink: Ink, opts: { width: number; height: n
   ink.strokes.forEach((s, i) => {
     const path = doc.createElementNS(SVG, 'path');
     path.setAttribute('d', strokePath(s, 0, scale));
-    path.setAttribute('class', `ink-${s.c}`);
+    path.setAttribute('class', s.b ? `ink-${opts.bulletColor ?? s.c} ink-b` : `ink-${s.c}`);
     path.dataset.i = String(i);
     g.append(path);
   });
