@@ -3,7 +3,7 @@ import { usePane } from './pane';
 import { addDays, fmt, todayIso, weekKey, weekKeyStart, type Weekday } from '../dates';
 import { periodLog, useSettings } from '../data/repo';
 import { t } from '../i18n/en';
-import { PageEditor } from './PageEditor';
+import { PageBody, PenToggle } from '../ink/PageBody';
 import { PageFooter, TimeHeader } from './TimeHeader';
 import { PageMenu } from '../export/PageMenu';
 import { Banners } from '../open/Banners';
@@ -27,12 +27,13 @@ export function DayPage({ iso }: { iso: string }) {
       <p className="eyebrow">{isToday ? t.pages.today : fmt(iso, { weekday: 'long' })}</p>
       <div className="title-row">
         <h1>{fmt(iso, isToday ? { weekday: 'long', month: 'short', day: 'numeric' } : { month: 'long', day: 'numeric', year: 'numeric' })}</h1>
+        <PenToggle />
         <OpenItemsButton />
         <SpreadButton />
         <SplitButton />
         <PageMenu page={{ kind: 'daily', key: iso }} />
       </div>
-      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} flow />
+      <PageBody key={log.id} log={log} autoFocus={!secondary} label={log.title} flow />
       <PageFooter />
     </main>
   );
@@ -64,12 +65,13 @@ export function WeekPage({ weekKey: key }: { weekKey: string }) {
       </p>
       <div className="title-row">
         <h1>{range}</h1>
+        <PenToggle />
         <OpenItemsButton />
         <SpreadButton />
         <SplitButton />
         <PageMenu page={{ kind: 'weekly', key }} />
       </div>
-      <PageEditor key={log.id} log={log} autoFocus={!secondary} label={log.title} flow />
+      <PageBody key={log.id} log={log} autoFocus={!secondary} label={log.title} flow />
       <PageFooter />
     </main>
   );

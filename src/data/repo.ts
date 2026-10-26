@@ -4,6 +4,7 @@ import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { ulid } from 'ulid';
 import { addDays, daysInMonth, fmt, todayIso, weekKeyStart, type Weekday } from '../dates';
 import type { Line } from '../editor/lines';
+import type { Stroke } from '../ink/ink';
 import { backupFileName, buildBackup, parseBackup, planRestore, snapshotsToPrune, type Backup } from './backup';
 import { backupDb, type Snapshot } from './backupDb';
 import { diffEntries, entriesToLines } from './convert';
@@ -365,5 +366,87 @@ export async function linkRewrite(sourceId: string, placedEntryId: string): Prom
     if (!e) return;
     const state = e.state === 'migrated' || e.state === 'scheduled' ? e.state : 'migrated';
     await db.entries.put({ ...e, state, placement: { status: 'placed', placedEntryId, confirmedAt: now }, updatedAt: now });
+  });
+}
+
+// ---------- Pen mode ----------
+
+/** The page's lines, live (Pen mode redraws when anything on the page changes). */
+export function usePageLines(logId: string, slot = ''): Line[] | undefined {
+  return useLiveQuery(async () => entriesToLines(await db.entries.where('[logId+slot]').equals([logId, slot]).toArray()), [logId, slot]);
+}
+
+/** What some entries were before a pen action, to undo it: null = did not exist. */
+export type InkSnapshot = Map<string, Entry | null>;
+
+async function snapshot(ids: string[]): Promise<InkSnapshot> {
+  const rows = await db.entries.bulkGet(ids);
+  return new Map(ids.map((id, i) => [id, rows[i] ?? null]));
+}
+
+/** Adds strokes to an entry the user wrote on. Returns how to undo it. */
+export async function addInk(log: LogRef, entryId: string, strokes: Stroke[]): Promise<InkSnapshot> {
+  return db.transaction('rw', db.logs, db.entries, async () => {
+    const before = await snapshot([entryId]);
+    const e = before.get(entryId);
+    if (!e) return new Map();
+    const now = new Date().toISOString();
+    await db.entries.put({ ...e, ink: { strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
+    if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
+    return before;
+  });
+}
+
+/**
+ * The user wrote below the last line: new lines go at the end of the page,
+ * the empty ones standing for ruled lines skipped (as on paper) and the last
+ * one holding the strokes. The caller makes the lines, so it can keep
+ * writing on them before this is stored.
+ */
+export async function addInkLines(log: LogRef, slot: string, added: Line[]): Promise<InkSnapshot> {
+  return db.transaction('rw', db.logs, db.entries, async () => {
+    const existing = await db.entries.where('[logId+slot]').equals([log.id, slot]).toArray();
+    const lines = entriesToLines(existing);
+    const now = new Date().toISOString();
+    const { put } = diffEntries([...lines, ...added], existing, log.id, slot, now, lines);
+    await db.entries.bulkPut(put);
+    if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
+    return new Map(added.map((l) => [l.id, null]));
+  });
+}
+
+/** Removes strokes the eraser touched (by entry: stroke indexes). */
+export async function eraseInk(log: LogRef, hits: Map<string, number[]>): Promise<InkSnapshot> {
+  return db.transaction('rw', db.logs, db.entries, async () => {
+    const before = await snapshot([...hits.keys()]);
+    const now = new Date().toISOString();
+    for (const [id, idx] of hits) {
+      const e = before.get(id);
+      if (!e?.ink) continue;
+      const gone = new Set(idx);
+      const strokes = e.ink.strokes.filter((_, i) => !gone.has(i));
+      // An emptied line stays as a blank ruled line, so nothing below moves up; only the last line of the page goes.
+      const page = await db.entries.where('[logId+slot]').equals([e.logId, e.slot]).toArray();
+      const last = page.every((o) => o.order <= e.order);
+      if (!strokes.length && !e.text.trim() && e.type === 'text' && last) await db.entries.delete(id);
+      else {
+        const next: Entry = { ...e, updatedAt: now };
+        if (strokes.length) next.ink = { strokes };
+        else delete next.ink;
+        await db.entries.put(next);
+      }
+    }
+    if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
+    return before;
+  });
+}
+
+/** Undo of a pen action: puts the entries back as they were. */
+export async function restoreInk(before: InkSnapshot): Promise<void> {
+  await db.transaction('rw', db.entries, async () => {
+    for (const [id, e] of before) {
+      if (e) await db.entries.put({ ...e, updatedAt: new Date().toISOString() });
+      else await db.entries.delete(id);
+    }
   });
 }

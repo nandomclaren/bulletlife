@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { collectionRef, renameCollection, useLog } from '../data/repo';
 import { t } from '../i18n/en';
 import { PageMenu } from '../export/PageMenu';
-import { PageEditor } from './PageEditor';
+import { PageBody, PenToggle } from '../ink/PageBody';
 import { OpenItemsButton } from '../open/OpenItemsButton';
 import { SplitButton, SpreadButton } from './SplitPane';
 
@@ -57,12 +57,13 @@ export function CollectionPage({ id }: { id: string }) {
           }}
           enterKeyHint="done"
         />
+        <PenToggle />
         <OpenItemsButton />
         <SpreadButton flowOnly />
         <SplitButton />
         <PageMenu page={{ kind: 'collection', id: log.id, title: log.title }} />
       </div>
-      <PageEditor key={log.id} log={collectionRef(log)} label={log.title} flow />
+      <PageBody key={log.id} log={collectionRef(log)} label={log.title} flow />
     </main>
   );
 }

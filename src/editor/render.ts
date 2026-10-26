@@ -3,6 +3,7 @@ import { t } from '../i18n/en';
 import { todayIso, type Weekday } from '../dates';
 import { DUE_TOKEN, dueLabel, dueStatus, type DateOrder } from './due';
 import { parseInline, type Inline } from './inline';
+import { inkBox, inkSvg, type Ink } from '../ink/ink';
 import { glyph, hasStates, numberPrefix, type Line, type LineType } from './lines';
 
 /** How due dates are read and shown (Settings › Date format, First day of week); set by the app. */
@@ -156,4 +157,31 @@ export function textShapeMatches(el: Element, text: string) {
       .replace(/&nbsp;/g, ' ')
       .replace(/<br>$/, '');
   return norm(fresh.innerHTML) === norm(el.innerHTML);
+}
+
+/**
+ * Pen mode ink shown inside a line of the text editor (until it is
+ * transcribed): handwriting a little smaller than written, drawings as a
+ * small picture. Not editable; the line around it is.
+ */
+export function inkPreview(ink: Ink): HTMLElement {
+  const box = inkBox(ink)!;
+  const drawing = ink.strokes.every((s) => s.k === 'd');
+  const scale = drawing ? Math.min(0.6, 240 / Math.max(1, box.x1 - box.x0)) : 0.7;
+  const pad = 4;
+  const el = document.createElement('div');
+  el.className = `line-ink${drawing ? ' is-drawing' : ''}`;
+  el.contentEditable = 'false';
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', drawing ? t.pen.drawing : t.pen.handwriting);
+  el.append(
+    inkSvg(document, ink, {
+      width: Math.ceil((box.x1 - box.x0 + pad * 2) * scale),
+      height: Math.ceil((box.y1 - box.y0 + pad * 2) * scale),
+      dx: pad - box.x0,
+      dy: pad - box.y0,
+      scale,
+    }),
+  );
+  return el;
 }

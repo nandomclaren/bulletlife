@@ -2,6 +2,7 @@
 // A page is a flat list of lines with an indent level; parents are derived
 // (the nearest previous line with a smaller indent), which maps 1:1 to Entry.
 import { ulid } from 'ulid';
+import type { Ink } from '../ink/ink';
 
 export type LineType = 'task' | 'event' | 'note' | 'text' | 'heading';
 export type LineState = 'open' | 'done' | 'cancelled' | 'migrated' | 'scheduled';
@@ -16,6 +17,8 @@ export interface Line {
   inspiration?: boolean;
   explore?: boolean;
   text: string;
+  /** Pen mode handwriting or drawing on this line (read-only in the text editor). */
+  ink?: Ink;
 }
 
 export interface Prefixes {

@@ -2,6 +2,7 @@
 import { dueOf } from '../editor/due';
 import { parentIds, signifiersOf, type Line } from '../editor/lines';
 import { assignOrders } from './order';
+import { hasInk } from '../ink/ink';
 import type { Entry } from './types';
 
 /** Stored entries (any order) → editor lines in document order with indents. */
@@ -21,12 +22,13 @@ export function entriesToLines(entries: Entry[]): Line[] {
       inspiration: e.signifiers.includes('inspiration'),
       explore: e.signifiers.includes('explore'),
       text: e.text,
+      ...(hasInk(e.ink) ? { ink: e.ink } : {}),
     };
   });
 }
 
 export function isBlank(lines: Line[]) {
-  return lines.every((l) => l.text.trim() === '' && (l.type === 'text' || l.type === 'heading'));
+  return lines.every((l) => l.text.trim() === '' && (l.type === 'text' || l.type === 'heading') && !hasInk(l.ink));
 }
 
 export interface EntryDiff {
@@ -95,6 +97,8 @@ export function diffEntries(lines: Line[], existing: Entry[], logId: string, slo
       updatedAt: old?.updatedAt ?? now,
     } as Entry;
     // Marked > or < : pending until the user confirms they wrote it at the destination (CLAUDE.md 4.3).
+    // Ink is written by Pen mode; the text editor only carries it along (e.g. a line deleted and undone).
+    if (!old?.ink && hasInk(l.ink)) next.ink = l.ink;
     if (migrating) next.placement = old?.placement ?? { status: 'pending' };
     else delete next.placement;
     // The date written as "due:YYYY-MM-DD" in the text, kept as a field for queries.

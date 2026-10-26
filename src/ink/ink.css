@@ -1,0 +1,192 @@
+/* Pen mode: ruled sheet, ink, pen toolbar, and ink shown inside typed lines. */
+
+:root {
+  --ink-ink: var(--text);
+  --ink-task: var(--task);
+  --ink-event: var(--event);
+  --ink-note: var(--note);
+}
+
+.ink-ink {
+  fill: var(--ink-ink);
+}
+.ink-task {
+  fill: var(--ink-task);
+}
+.ink-event {
+  fill: var(--ink-event);
+}
+.ink-note {
+  fill: var(--ink-note);
+}
+
+/* A 1 px rule in the theme's rule color on every line; nothing else. The sheet
+   starts at the gutter, like the text editor, so bullets can be drawn there. */
+.pen-sheet {
+  --gutter: 60px;
+  --step: 26px;
+  position: relative;
+  margin: 8px 0 0 -20px;
+  background-image: linear-gradient(to bottom, transparent 39px, var(--rule) 39px);
+  background-size: 100% 40px;
+  cursor: crosshair;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.pen-row {
+  position: relative;
+}
+
+/* Typed entries sit on the rules: one 40 px line per line of text. */
+.pen-typed.line {
+  --pad-top: 0px;
+  line-height: 40px;
+  font-size: var(--fs-body);
+  pointer-events: none;
+}
+
+.pen-typed .line-text {
+  transform: translateY(5px);
+}
+
+.pen-typed .gutter {
+  top: 5px;
+  height: 40px;
+  line-height: 40px;
+}
+
+.pen-ink,
+.pen-pending {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pen-ink path.erasing {
+  opacity: 0.2;
+}
+
+.pen-live {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Title-row capsule: keyboard | pen. */
+.pen-switch {
+  flex: none;
+  display: flex;
+  align-self: center;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+
+.pen-switch button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pen-switch button.on {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Floating pen toolbar, bottom center. */
+.pen-toolbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 15;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.08);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.pen-tool {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pen-tool.on {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.pen-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pen-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--rule);
+}
+
+.pen-color {
+  width: 24px;
+  height: 24px;
+  margin: 10px 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.pen-color.on {
+  outline: 2px solid var(--muted);
+  outline-offset: 3px;
+}
+
+/* Ink inside a typed line (Type mode). */
+.line-ink {
+  display: block;
+  margin: 2px 0 4px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.line-ink svg {
+  display: block;
+  overflow: visible;
+}
+
+.line-ink.is-drawing {
+  display: inline-block;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+}

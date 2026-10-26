@@ -1,5 +1,6 @@
 // Data model (CLAUDE.md section 9).
 import type { LineState, LineType } from '../editor/lines';
+import type { Ink } from '../ink/ink';
 
 export type EntryType = LineType;
 export type EntryState = LineState;
@@ -18,6 +19,8 @@ export interface Entry {
   signifiers: Signifier[];
   collapsed: boolean;
   dueDate?: string;
+  /** Written or drawn with the pen (Pen mode): vector strokes. */
+  ink?: Ink;
   placement?: { status: 'pending' | 'placed'; placedEntryId?: string; confirmedAt?: string };
   createdAt: string;
   updatedAt: string;

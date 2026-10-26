@@ -157,6 +157,17 @@ export const en = {
     settings: 'Settings',
     index: 'Index',
   },
+  pen: {
+    mode: 'Writing mode',
+    type: 'Type',
+    pen: 'Pen',
+    toolbar: 'Pen tools',
+    tools: { write: 'Write', draw: 'Draw', erase: 'Eraser' },
+    colors: { ink: 'Ink', task: 'Red', event: 'Blue', note: 'Green' },
+    undo: 'Undo',
+    handwriting: 'Handwriting',
+    drawing: 'Drawing',
+  },
   open: {
     title: 'Open items',
     close: 'Close',

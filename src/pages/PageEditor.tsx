@@ -174,6 +174,7 @@ function sameLines(a: Line[], b: Line[] | null) {
       l.state === o.state &&
       l.indent === o.indent &&
       l.collapsed === o.collapsed &&
+      (l.ink?.strokes.length ?? 0) === (o.ink?.strokes.length ?? 0) &&
       !!l.priority === !!o.priority &&
       !!l.inspiration === !!o.inspiration &&
       !!l.explore === !!o.explore

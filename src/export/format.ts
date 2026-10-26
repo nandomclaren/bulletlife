@@ -26,7 +26,14 @@ function signifiers(l: Line): string {
   return s ? `${s} ` : '';
 }
 
+/** Pen mode ink not transcribed yet is exported as a marker, so the line isn't lost silently. */
+function withInkText(l: Line): Line {
+  if (l.text.trim() || !l.ink?.strokes.length) return l;
+  return { ...l, text: l.ink.strokes.every((s) => s.k === 'd') ? '(drawing)' : '(handwriting)' };
+}
+
 function markdownLine(l: Line, style: GlyphStyle, headingLevel: number): string {
+  l = withInkText(l);
   const pad = INDENT.repeat(l.indent);
   const text = signifiers(l) + l.text;
   if (l.type === 'heading') return `${'#'.repeat(headingLevel)} ${l.text}`;
@@ -61,6 +68,7 @@ export function toMarkdown(doc: ExportDoc, style: GlyphStyle = 'checkboxes'): st
 const strike = (s: string) => [...s].map((c) => c + '̶').join('');
 
 function plainLine(l: Line): string {
+  l = withInkText(l);
   const pad = INDENT.repeat(l.indent);
   if (l.type === 'heading') return stripInline(l.text).toUpperCase();
   if (l.type === 'text') return `${pad}${stripInline(l.text)}`;
@@ -118,6 +126,7 @@ function listHtml(lines: Line[], inSection: boolean): string {
 }
 
 function itemHtml(l: Line): string {
+  l = withInkText(l);
   if (l.type === 'text') return inlineHtml(l.text, esc);
   const color = l.type === 'note' ? COLORS.note : l.type === 'event' ? COLORS.event : COLORS.task;
   const glyph =
