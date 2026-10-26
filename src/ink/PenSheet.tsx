@@ -4,13 +4,13 @@
 // Fingers scroll; only the pen (or a mouse) leaves ink. Bullets of typed
 // entries still work: a tap cycles the state, holding opens the states menu.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { addInk, addInkLines, eraseInk, markInkState, restoreInk, usePageLines, useSettings, type InkSnapshot, type LogRef } from '../data/repo';
+import { addInk, addInkLines, eraseInk, markInkState, moveInk, restoreInk, usePageLines, useSettings, type InkSnapshot, type LogRef } from '../data/repo';
 import { playDoneFx } from '../editor/doneFx';
 import { colorTypes, glyph, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState } from '../editor/lines';
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
-import { compact, DEFAULT_SIZE, PEN_SIZES, hasInk, hasWriting, inkRows, inkSvg, ROW, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
-import { placeStroke, strokeRow } from './structure';
+import { compact, DEFAULT_SIZE, PEN_SIZES, type Box, hasInk, hasWriting, inkRows, inkSvg, ROW, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
+import { lassoed, placeStroke, rowWithin, strokeRow } from './structure';
 import { setPenColor, setPenSize, setPenTool, usePen, type PenTool } from './penStore';
 import { transcribePage } from './transcribe';
 import type { InkColor } from './ink';
@@ -31,6 +31,13 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const pen = usePen();
   const sheet = useRef<HTMLDivElement>(null);
   const live = useRef<SVGPathElement>(null);
+  /** Strokes the lasso holds (by entry and stroke index), and their box on the page. */
+  const [sel, setSel] = useState<{ items: Array<{ id: string; i: number }>; box: Box } | null>(null);
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const boxEl = useRef<HTMLDivElement>(null);
+  const mode = useRef<'ink' | 'lasso' | 'drag'>('ink');
+  const dragFrom = useRef({ x: 0, y: 0, dx: 0, dy: 0 });
   const settings = useSettings();
   const [menu, setMenu] = useState<{ id: string; x: number; y: number; state: LineState } | null>(null);
   const blocks = useRef<Block[]>([]);
@@ -90,6 +97,15 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     });
     blocks.current = out;
     contentEnd.current = top;
+    // A lasso selection survives the page being redrawn (e.g. a transcription arriving), if its strokes do.
+    const held = selRef.current;
+    if (held) {
+      const items = held.items.filter(({ id, i }) => out.some((b) => b.id === id && b.line.ink?.strokes[i]));
+      if (items.length) {
+        markSelection(items);
+        setSel({ items, box: selectionBox(items) });
+      } else setSel(null);
+    }
     const spare = Math.max(SPARE_ROWS, Math.ceil((window.innerHeight - host.getBoundingClientRect().top - top) / ROW));
     host.style.minHeight = `${top + spare * ROW}px`;
   };
@@ -267,6 +283,141 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     }
   };
 
+  // ---------- lasso ----------
+
+  const pathsOf = (items: Array<{ id: string; i: number }>) =>
+    items
+      .map(({ id, i }) => sheet.current?.querySelector<SVGPathElement>(`.pen-row[data-id="${id}"] .pen-ink path[data-i="${i}"]`))
+      .filter((p): p is SVGPathElement => !!p);
+
+  function markSelection(items: Array<{ id: string; i: number }>) {
+    sheet.current?.querySelectorAll('.lassoed').forEach((p) => p.classList.remove('lassoed'));
+    pathsOf(items).forEach((p) => p.classList.add('lassoed'));
+  }
+
+  function selectionBox(items: Array<{ id: string; i: number }>): Box {
+    const boxes = items.map(({ id, i }) => {
+      const b = blocks.current.find((x) => x.id === id)!;
+      const s = strokeBox(b.line.ink!.strokes[i].p);
+      return { x0: s.x0, x1: s.x1, y0: s.y0 + b.top, y1: s.y1 + b.top };
+    });
+    return boxes.reduce((a, b) => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) }));
+  }
+
+  const clearSelection = () => {
+    sheet.current?.querySelectorAll('.lassoed').forEach((p) => p.classList.remove('lassoed'));
+    setSel(null);
+  };
+
+  useEffect(() => {
+    if (pen.tool !== 'lasso' && selRef.current) clearSelection();
+  }, [pen.tool]);
+
+  const PAD = 10;
+
+  const lassoDown = (e: React.PointerEvent) => {
+    const o = origin();
+    const x = e.clientX - o.left;
+    const y = e.clientY - o.top;
+    const box = selRef.current?.box;
+    // Inside the selection: drag it. Anywhere else: a new loop.
+    if (box && x >= box.x0 - PAD && x <= box.x1 + PAD && y >= box.y0 - PAD && y <= box.y1 + PAD) {
+      mode.current = 'drag';
+      dragFrom.current = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
+      return;
+    }
+    clearSelection();
+    mode.current = 'lasso';
+    points.current = [x, y, 0.5];
+    live.current?.setAttribute('class', 'lasso-line');
+  };
+
+  const lassoMove = (e: React.PointerEvent) => {
+    if (mode.current === 'drag') {
+      const dx = e.clientX - dragFrom.current.x;
+      const dy = e.clientY - dragFrom.current.y;
+      dragFrom.current.dx = dx;
+      dragFrom.current.dy = dy;
+      for (const p of pathsOf(selRef.current?.items ?? [])) p.setAttribute('transform', `translate(${dx} ${dy})`);
+      if (boxEl.current) boxEl.current.style.transform = `translate(${dx}px, ${dy}px)`;
+      return;
+    }
+    add(e.nativeEvent);
+    const p = points.current;
+    let d = '';
+    for (let i = 0; i < p.length; i += 3) d += `${i ? 'L' : 'M'}${p[i].toFixed(1)} ${p[i + 1].toFixed(1)}`;
+    live.current?.setAttribute('d', `${d}Z`);
+  };
+
+  const lassoUp = async () => {
+    if (mode.current === 'drag') {
+      mode.current = 'ink';
+      const { dx, dy } = dragFrom.current;
+      if (Math.hypot(dx, dy) < 3) {
+        flush();
+        return;
+      }
+      return moveSelection(dx, dy);
+    }
+    mode.current = 'ink';
+    const p = points.current;
+    const loop: Array<[number, number]> = [];
+    for (let i = 0; i < p.length; i += 3) loop.push([p[i], p[i + 1]]);
+    clearLive();
+    live.current?.removeAttribute('class');
+    flush();
+    const items = lassoed(
+      blocks.current.map((b) => ({ id: b.id, top: b.top, strokes: b.line.ink?.strokes ?? [] })),
+      loop,
+    );
+    if (!items.length) return;
+    markSelection(items);
+    setSel({ items, box: selectionBox(items) });
+  };
+
+  /** Drops the lassoed strokes where they were dragged: onto the line they now sit on, or a new one. */
+  const moveSelection = async (dx: number, dy: number) => {
+    const items = selRef.current?.items ?? [];
+    const picked = new Map<string, Set<number>>();
+    for (const { id, i } of items) {
+      if (!picked.has(id)) picked.set(id, new Set());
+      picked.get(id)!.add(i);
+    }
+    const moved: Stroke[] = items.map(({ id, i }) => {
+      const b = blocks.current.find((x) => x.id === id)!;
+      const s = b.line.ink!.strokes[i];
+      return { ...s, p: s.p.map((v, j) => (j % 3 === 0 ? v + dx : j % 3 === 1 ? v + b.top + dy : v)) };
+    });
+    // The page as it will be once the strokes leave their lines (emptied lines stay as blank lines).
+    let top = 0;
+    const after = blocks.current.map((b) => {
+      const strokes = (b.line.ink?.strokes ?? []).filter((_, i) => !picked.get(b.id)?.has(i));
+      const typed = isTyped(b.line);
+      const height = typed ? b.height : Math.max(ROW, inkRows({ strokes }) * ROW);
+      const placed = { id: b.id, top, height, typed, strokes };
+      top += height;
+      return placed;
+    });
+    const anchor = moved.find((s) => s.k === 'w') ?? moved[0];
+    const row = Math.max(0, strokeRow(strokeBox(anchor.p), anchor.k, null, 0));
+    const placed = placeStroke(after, top, anchor, row);
+    const strokes = moved.map((s) => ({ ...s, r: s.k === 'w' ? rowWithin(s.p, placed.top) : 0, p: s.p.map((v, j) => (j % 3 === 1 ? v - placed.top : v)) }));
+    const to = 'join' in placed ? { join: placed.join } : { after: placed.after, blanks: placed.blanks };
+    clearSelection();
+    flush();
+    pushUndo(await write(moveInk(log, slot, new Map([...picked].map(([id, s]) => [id, [...s]])), to, strokes), true));
+    soon();
+  };
+
+  const deleteSelection = async () => {
+    const items = selRef.current?.items ?? [];
+    const hits = new Map<string, number[]>();
+    for (const { id, i } of items) hits.set(id, [...(hits.get(id) ?? []), i]);
+    clearSelection();
+    if (hits.size) pushUndo(await write(eraseInk(log, hits), true));
+    soon();
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button > 0 || bulletDown(e)) return;
     if (e.pointerType === 'touch') return;
@@ -281,6 +432,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     isPen.current = e.pointerType === 'pen';
     points.current = [];
     erased.current = new Map();
+    if (tool.current === 'lasso') return lassoDown(e);
     add(e.nativeEvent);
     if (tool.current === 'erase') eraseAt();
     else if (!frame.current) frame.current = requestAnimationFrame(paintLive);
@@ -288,6 +440,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!drawing.current || e.pointerType === 'touch') return;
+    if (tool.current === 'lasso') return lassoMove(e);
     add(e.nativeEvent);
     if (tool.current === 'erase') eraseAt();
     else if (!frame.current) frame.current = requestAnimationFrame(paintLive);
@@ -298,6 +451,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     if (!drawing.current || e.pointerType === 'touch') return;
     cancelAnimationFrame(frame.current);
     frame.current = 0;
+    if (tool.current === 'lasso') return lassoUp();
     if (tool.current === 'erase') {
       const hits = new Map([...erased.current].map(([id, s]) => [id, [...s]]));
       flush();
@@ -402,6 +556,22 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         <svg className="pen-live" aria-hidden>
           <path ref={live} />
         </svg>
+        {sel && (
+          <div
+            ref={boxEl}
+            className="lasso-box"
+            style={{ left: sel.box.x0 - PAD, top: sel.box.y0 - PAD, width: sel.box.x1 - sel.box.x0 + PAD * 2, height: sel.box.y1 - sel.box.y0 + PAD * 2 }}
+          >
+            <button
+              className="lasso-delete"
+              aria-label={t.pen.deleteSelection}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => void deleteSelection()}
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
       {menu && (
         <StateMenu
@@ -520,6 +690,13 @@ function PenToolbar({ canUndo, onUndo }: { canUndo: boolean; onUndo: () => void 
         'erase',
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
           <path d="M9 20h11M4 15l9-9 6 6-8 8H8z" />
+        </svg>,
+      )}
+      {tool(
+        'lasso',
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+          <ellipse cx="12" cy="10" rx="8" ry="5.5" strokeDasharray="2.6 2.6" />
+          <path d="M8 15.5c-1 2.5 0 4.5 2.5 4.5" />
         </svg>,
       )}
       <span className="pen-sep" />

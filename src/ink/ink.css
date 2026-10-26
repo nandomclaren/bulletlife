@@ -390,3 +390,46 @@
 .line-ink.is-drawing.selected .ink-delete {
   display: block;
 }
+
+/* Lasso: the loop being drawn, the selected strokes, and their box. */
+.pen-live path.lasso-line {
+  fill: color-mix(in srgb, var(--accent) 6%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 4;
+}
+
+.pen-ink path.lassoed {
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--accent) 70%, transparent));
+}
+
+.lasso-box {
+  position: absolute;
+  z-index: 3;
+  border: 1.5px dashed var(--accent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.lasso-delete {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--bg);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 22px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.lasso-delete::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}

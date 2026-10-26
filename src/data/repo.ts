@@ -560,3 +560,52 @@ export async function setInkView(id: string, view: { w: number; x: number }): Pr
     await db.entries.put({ ...e, ink: { ...e.ink, view }, updatedAt: new Date().toISOString() });
   });
 }
+
+/**
+ * Lasso move: takes strokes off their lines and puts them on the line they were dropped on (or a new
+ * line), in one step so a single Undo puts everything back. Lines emptied by the move stay as blank
+ * lines (the page does not shift under the pen); their transcription goes with their handwriting.
+ */
+export async function moveInk(
+  log: LogRef,
+  slot: string,
+  removals: Map<string, number[]>,
+  to: { join: string } | { after: string | null; blanks: number },
+  strokes: Stroke[],
+): Promise<InkSnapshot> {
+  return db.transaction('rw', db.logs, db.entries, async () => {
+    const ids = [...new Set([...removals.keys(), ...('join' in to ? [to.join] : [])])];
+    const before = await snapshot(ids);
+    const now = new Date().toISOString();
+    for (const [id, idx] of removals) {
+      const e = await db.entries.get(id);
+      if (!e?.ink) continue;
+      const gone = new Set(idx);
+      const left = e.ink.strokes.filter((_, i) => !gone.has(i));
+      const next: Entry = { ...e, updatedAt: now };
+      if (!left.some((s) => s.k === 'w') && e.ink.tx !== undefined && e.text === e.ink.tx) {
+        next.text = '';
+        next.type = 'text';
+        next.state = 'open';
+        delete next.placement;
+      }
+      if (left.length) next.ink = { ...e.ink, strokes: left };
+      else delete next.ink;
+      await db.entries.put(next);
+    }
+    if ('join' in to) {
+      const e = await db.entries.get(to.join);
+      if (e) await db.entries.put({ ...e, ink: { ...e.ink, strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
+    } else {
+      const page = await db.entries.where('[logId+slot]').equals([log.id, slot]).toArray();
+      const lines = entriesToLines(page);
+      const added = [...Array.from({ length: to.blanks }, () => newLine()), newLine({ ink: { strokes } })];
+      const at = to.after ? lines.findIndex((l) => l.id === to.after) + 1 || lines.length : lines.length;
+      const { put } = diffEntries([...lines.slice(0, at), ...added, ...lines.slice(at)], page, log.id, slot, now, lines);
+      await db.entries.bulkPut(put);
+      for (const l of added) before.set(l.id, null);
+    }
+    if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
+    return before;
+  });
+}

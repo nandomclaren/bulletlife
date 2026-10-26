@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_SIZE, type InkColor } from './ink';
 
-export type PenTool = 'write' | 'draw' | 'erase';
+export type PenTool = 'write' | 'draw' | 'erase' | 'lasso';
 
 const read = (key: string, fallback: string) => {
   try {

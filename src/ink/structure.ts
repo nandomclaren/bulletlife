@@ -144,3 +144,35 @@ export function placeStroke(blocks: PlacedBlock[], contentEnd: number, s: Stroke
   }
   return { after: null, blanks, top: contentEnd + blanks * ROW };
 }
+
+// ---------- Lasso ----------
+
+function inside(x: number, y: number, poly: Array<[number, number]>): boolean {
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+/** Strokes the lasso goes around: most of their points inside the loop (page coordinates). */
+export function lassoed(blocks: Array<Pick<PlacedBlock, 'id' | 'top' | 'strokes'>>, loop: Array<[number, number]>): Array<{ id: string; i: number }> {
+  if (loop.length < 3) return [];
+  const out: Array<{ id: string; i: number }> = [];
+  for (const b of blocks)
+    b.strokes.forEach((s, i) => {
+      let n = 0;
+      let k = 0;
+      for (let j = 0; j < s.p.length; j += 3, n++) if (inside(s.p[j], s.p[j + 1] + b.top, loop)) k++;
+      if (n && k / n >= 0.6) out.push({ id: b.id, i });
+    });
+  return out;
+}
+
+/** A writing stroke's ruled line within an entry starting at `top` (see strokeRow). */
+export function rowWithin(p: number[], top: number): number {
+  const b = strokeBox(p);
+  return Math.max(0, Math.floor((b.y0 - top + Math.min(b.y1 - b.y0, ROW * 0.6) * 0.5) / ROW));
+}

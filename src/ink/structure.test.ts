@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { Stroke } from './ink';
 import { hmac, requestBody } from './myscript';
-import { placeStroke, readLineShape, strokeRow, type PlacedBlock } from './structure';
+import { lassoed, placeStroke, readLineShape, rowWithin, strokeRow, type PlacedBlock } from './structure';
 
 const s = (pts: Array<[number, number]>): Stroke => ({ k: 'w', c: 'ink', r: 0, p: pts.flatMap(([x, y]) => [x, y, 0.5]) });
 const word = (x: number) =>
@@ -356,5 +356,26 @@ describe('placing a stroke', () => {
         0,
       ),
     ).toEqual({ after: 'a', blanks: 0, top: 40 });
+  });
+});
+
+describe('lasso', () => {
+  const st = (pts: Array<[number, number]>): Stroke => ({ k: 'w', c: 'ink', r: 0, p: pts.flatMap(([x, y]) => [x, y, 0.5]) });
+  const blocks = [
+    { id: 'a', top: 0, strokes: [st([[20, 10], [60, 30]]), st([[200, 10], [240, 30]])] },
+    { id: 'b', top: 40, strokes: [st([[20, 10], [60, 30]])] },
+  ];
+  it('takes the strokes the loop goes around, across lines', () => {
+    const loop: Array<[number, number]> = [[0, 0], [100, 0], [100, 80], [0, 80]];
+    expect(lassoed(blocks, loop)).toEqual([
+      { id: 'a', i: 0 },
+      { id: 'b', i: 0 },
+    ]);
+  });
+  it('leaves strokes mostly outside the loop', () => {
+    expect(lassoed(blocks, [[0, 0], [30, 0], [30, 40], [0, 40]])).toEqual([]);
+  });
+  it('reads the ruled line of a dropped stroke within its new entry', () => {
+    expect(rowWithin([20, 90, 0.5, 60, 110, 0.5], 40)).toBe(1);
   });
 });
