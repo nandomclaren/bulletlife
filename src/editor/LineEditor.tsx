@@ -18,6 +18,7 @@ import {
   hasChildren,
   hasStates,
   hiddenMask,
+  leadingPrefix,
   matchPrefix,
   newLine,
   nextNumber,
@@ -54,6 +55,11 @@ class LineEditorCore {
   private undoStack: Snapshot[] = [];
   private redoStack: Snapshot[] = [];
   private lastTyping = 0;
+  /** When a key was last pressed: text arriving without one comes from handwriting (Scribble), dictation and the like. */
+  private lastKey = 0;
+  private bulk = false;
+  /** A line written by hand (Scribble) whose prefix is read once the writing pauses or the line is left. */
+  private pendingPrefix: { id: string; timer: number } | null = null;
   private composing = false;
   private detachGutter: () => void;
   private detachSwipe: () => void;
@@ -141,6 +147,7 @@ class LineEditorCore {
     this.detachGutter();
     this.detachSwipe();
     this.detachDrawings();
+    if (this.pendingPrefix) clearTimeout(this.pendingPrefix.timer);
   }
 
   // ---------- rendering ----------
@@ -360,7 +367,36 @@ class LineEditorCore {
     return caret;
   }
 
+  /** Reads the rapid-logging prefix of a handwritten line (see onInput), keeping the caret where it was. */
+  private applyPendingPrefix() {
+    const pending = this.pendingPrefix;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingPrefix = null;
+    const i = this.lines.findIndex((l) => l.id === pending.id);
+    const line = this.lines[i];
+    if (!line) return;
+    const m = leadingPrefix(line.text);
+    const bulletless = line.type === 'text' || line.type === 'heading';
+    if (!m || (m.type === 'text' && bulletless)) return;
+    const sel = this.readSelection();
+    this.snapshot(sel?.start ?? { index: i, offset: 0 });
+    line.text = line.text.slice(m.length);
+    if (m.type !== 'text') Object.assign(line, { type: m.type, state: 'open' });
+    line.priority = m.priority || line.priority;
+    const focused = this.root.contains(document.activeElement);
+    this.renumber();
+    this.renderAll();
+    if (focused && sel) this.placeCaret(sel.start.index === i ? { index: i, offset: Math.max(0, sel.start.offset - m.length) } : sel.start);
+    this.emit();
+  }
+
   private enter(at: Caret) {
+    if (this.pendingPrefix?.id === this.lines[at.index]?.id) {
+      const before = this.lines[at.index].text.length;
+      this.applyPendingPrefix();
+      at = { index: at.index, offset: Math.max(0, at.offset - (before - this.lines[at.index].text.length)) };
+    }
     // A due date finished by Enter becomes a pill too.
     const resolved = this.resolveDueAt(at.index, at.offset);
     if (resolved !== null) at = { index: at.index, offset: resolved };
@@ -503,6 +539,8 @@ class LineEditorCore {
   // ---------- events ----------
 
   private onBeforeInput = (e: InputEvent) => {
+    // Several characters at once: handwriting (Scribble), dictation or an autocorrection, not a key.
+    this.bulk = e.inputType.startsWith('insert') && (e.data?.length ?? 0) > 1;
     if (this.composing) return;
     const sel = this.readSelection();
     if (!sel) return;
@@ -603,8 +641,18 @@ class LineEditorCore {
     const text = (el?.querySelector('.line-text')?.textContent ?? '').replace(/ /g, ' ');
     const line = this.lines[i];
     if (line.text !== text && this.suggestions.has(line.id)) this.setSuggestion(line.id, null);
+    const grew = text.length - line.text.length;
     line.text = text;
 
+    // Text that came without a key press (Scribble writes a word or a phrase at once, then corrects it in
+    // place): touching the line now would throw those corrections off ("# Anchor" became "Ancho_"). The
+    // prefix is read once the writing pauses or the line is left.
+    if (this.bulk || grew > 1 || Date.now() - this.lastKey > 150) {
+      if (this.pendingPrefix) clearTimeout(this.pendingPrefix.timer);
+      this.pendingPrefix = { id: line.id, timer: window.setTimeout(() => this.applyPendingPrefix(), 1500) };
+      this.emit();
+      return;
+    }
     // Rapid logging prefix typed at the start of the line.
     const m = sel.start.offset <= 5 ? matchPrefix(text.slice(0, sel.start.offset)) : null;
     // A lone "* " marks priority only on a line that already has a bullet;
@@ -639,6 +687,7 @@ class LineEditorCore {
   };
 
   private onKeyDown = (e: KeyboardEvent) => {
+    this.lastKey = Date.now();
     const sel = this.readSelection();
     if (!sel) return;
     const atLineStart = sel.start.index === sel.end.index && sel.start.offset === 0 && sel.end.offset === 0;
@@ -793,6 +842,14 @@ class LineEditorCore {
   }
 
   private onSelectionChange = () => {
+    // Leaving a handwritten line reads its prefix.
+    if (this.pendingPrefix) {
+      const sel = document.getSelection();
+      const id = sel?.anchorNode
+        ? (sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode.parentElement)?.closest<HTMLElement>('.line')?.dataset.id
+        : undefined;
+      if (id !== this.pendingPrefix.id) this.applyPendingPrefix();
+    }
     this.updateActiveMarks();
     const sel = document.getSelection();
     if (sel && !sel.isCollapsed && sel.anchorNode && this.root.contains(sel.anchorNode)) {
@@ -882,6 +939,7 @@ class LineEditorCore {
 
   /** Leaving the editor finishes any due date still being written. */
   private onBlur = () => {
+    this.applyPendingPrefix();
     const sel = this.readSelection();
     if (sel) this.lineDone(this.lines[sel.start.index]);
     let changed = false;

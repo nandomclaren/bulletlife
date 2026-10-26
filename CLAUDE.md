@@ -80,6 +80,7 @@ Texto de uma tarefa ou evento concluído fica atenuado; cancelado fica riscado e
 - `o. ` → evento *(com o ponto, para não disparar ao digitar a palavra "o"/"of" no início de uma frase)*
 - `- ` → nota
 - `* ` antes de um bullet → prioridade
+- Os glifos também valem como prefixo (`• `/`· ` tarefa, `○ ` evento, `– `/`— ` nota), porque o Scribble do iPad transforma o ponto escrito em "•". Com o Scribble (texto que chega sem tecla), o prefixo é lido quando a escrita pausa (1,5 s), ao sair da linha ou no Enter, para não atrapalhar as correções que ele faz na hora.
 - `# ` → título
 - Linha sem prefixo → texto livre
 

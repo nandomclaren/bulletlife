@@ -37,6 +37,26 @@ export function newLine(partial: Partial<Line> = {}): Line {
   return { id: ulid(), type: 'text', state: 'open', indent: 0, collapsed: false, priority: false, inspiration: false, explore: false, text: '', ...partial };
 }
 
+const GLYPH_PREFIXES: Record<string, Exclude<LineType, 'text' | 'heading'>> = {
+  '•': 'task',
+  '·': 'task',
+  '●': 'task',
+  '○': 'event',
+  '◦': 'event',
+  '–': 'note',
+  '—': 'note',
+};
+
+/** A rapid-logging prefix at the start of a whole line of text (not just what was typed so far). */
+export function leadingPrefix(text: string, prefixes: Prefixes = DEFAULT_PREFIXES): PrefixMatch | null {
+  for (let k = 2; k <= Math.min(text.length, 6); k++) {
+    if (text[k - 1] !== ' ') continue;
+    const m = matchPrefix(text.slice(0, k), prefixes);
+    if (m && m.length === k) return m;
+  }
+  return null;
+}
+
 export interface PrefixMatch {
   type: LineType;
   priority: boolean;
@@ -72,6 +92,9 @@ export function matchPrefix(textBeforeCaret: string, prefixes: Prefixes = DEFAUL
       return { type, priority, length: consumed + p.length + 1 };
     }
   }
+  // Bullet glyphs work as prefixes too: handwriting (Scribble) turns a written dot into "•" or "·", a dash into "–".
+  const glyph = GLYPH_PREFIXES[rest.slice(0, -1)];
+  if (glyph && rest.length === 2) return { type: glyph, priority, length: consumed + 2 };
   if (priority && rest === '') return { type: 'text', priority: true, length: consumed };
   return null;
 }

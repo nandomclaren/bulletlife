@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { colorTypes, glyph, hiddenMask, matchPrefix, nextState, parentIds, shiftIndent, subtreeEnd } from './lines';
+import { colorTypes, glyph, hiddenMask, leadingPrefix, matchPrefix, nextState, parentIds, shiftIndent, subtreeEnd } from './lines';
 
 describe('matchPrefix', () => {
   it('recognizes each bullet prefix with a trailing space', () => {
@@ -205,5 +205,23 @@ describe('colors under a heading', () => {
       { type: 'event' as const, indent: 1 },
     ];
     expect(colorTypes(lines)).toEqual(['heading', 'task', 'task', 'event']);
+  });
+});
+
+
+describe('prefixes written by hand (Scribble)', () => {
+  it('a bullet glyph works as a prefix', () => {
+    expect(matchPrefix('• ')).toEqual({ type: 'task', priority: false, length: 2 });
+    expect(matchPrefix('· ')).toEqual({ type: 'task', priority: false, length: 2 });
+    expect(matchPrefix('○ ')).toEqual({ type: 'event', priority: false, length: 2 });
+    expect(matchPrefix('– ')).toEqual({ type: 'note', priority: false, length: 2 });
+    expect(matchPrefix('* • ')).toEqual({ type: 'task', priority: true, length: 4 });
+  });
+  it('reads the prefix at the start of a whole line written at once', () => {
+    expect(leadingPrefix('• devocional')).toEqual({ type: 'task', priority: false, length: 2 });
+    expect(leadingPrefix('# Anchor')).toEqual({ type: 'heading', priority: false, length: 2 });
+    expect(leadingPrefix('o. Call at 3')).toEqual({ type: 'event', priority: false, length: 3 });
+    expect(leadingPrefix('devocional')).toBeNull();
+    expect(leadingPrefix('#hashtag')).toBeNull();
   });
 });
