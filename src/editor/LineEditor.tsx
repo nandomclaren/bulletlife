@@ -367,6 +367,51 @@ class LineEditorCore {
     return caret;
   }
 
+  /**
+   * Text the browser put outside the page's line structure (a stray block or text node, or a cloned
+   * line, e.g. after an Enter it handled itself) becomes regular lines where it stands, and the caret
+   * goes back into the text. Returns whether anything was fixed.
+   */
+  private adoptStrays(): boolean {
+    const kids = Array.from(this.root.childNodes);
+    const seen = new Set<string>();
+    const isLine = (n: Node): n is HTMLElement => n instanceof HTMLElement && n.classList.contains('line') && !!n.dataset.id;
+    if (kids.every((n) => isLine(n) && !seen.has(n.dataset.id!) && seen.add(n.dataset.id!))) return false;
+    const byId = new Map(this.lines.map((l) => [l.id, l]));
+    const sel = document.getSelection();
+    const caretNode = sel?.anchorNode ?? null;
+    const used = new Set<string>();
+    const next: Line[] = [];
+    let caret: Caret | null = null;
+    for (const n of kids) {
+      const own = isLine(n) && byId.has(n.dataset.id!) && !used.has(n.dataset.id!) ? byId.get(n.dataset.id!)! : null;
+      const textEl = n instanceof HTMLElement ? (n.querySelector('.line-text') ?? n) : n;
+      const text = (textEl.textContent ?? '').replace(/\u00a0/g, ' ').replace(/\n/g, '');
+      const holdsCaret = !!caretNode && (n === caretNode || n.contains(caretNode));
+      if (own) {
+        used.add(own.id);
+        own.text = text;
+        next.push(own);
+      } else if (text || holdsCaret) {
+        const prev = next[next.length - 1];
+        next.push(newLine({ text, indent: prev?.indent ?? 0, type: prev ? continuationType(prev.type) : 'text' }));
+      } else continue;
+      if (holdsCaret) caret = { index: next.length - 1, offset: text.length };
+    }
+    if (!next.length) next.push(newLine());
+    this.lines = next;
+    this.renumber();
+    this.renderAll();
+    if (caret) {
+      this.placeCaret(caret);
+      // Written by hand into the stray line: its prefix is read once the writing pauses, as usual.
+      if (this.pendingPrefix) clearTimeout(this.pendingPrefix.timer);
+      this.pendingPrefix = { id: next[caret.index].id, timer: window.setTimeout(() => this.applyPendingPrefix(), 1500) };
+    }
+    this.emit();
+    return true;
+  }
+
   /** Reads the rapid-logging prefix of a handwritten line (see onInput), keeping the caret where it was. */
   private applyPendingPrefix() {
     const pending = this.pendingPrefix;
@@ -557,6 +602,16 @@ class LineEditorCore {
     const multi = start.index !== end.index;
     const collapsed = !multi && start.offset === end.offset;
 
+    // A line break sent as text (the return key of the Scribble palette): an Enter, done on the model.
+    // Left to the browser it made a line outside the page's structure, with the caret in the left margin.
+    if (e.inputType === 'insertText' && e.data?.includes('\n')) {
+      e.preventDefault();
+      this.snapshot(start);
+      const at = collapsed ? start : this.deleteRange(start, end);
+      if (e.data === '\n') return this.enter(at);
+      return this.commit(this.insertText(at, e.data));
+    }
+
     switch (e.inputType) {
       case 'insertParagraph':
       case 'insertLineBreak': {
@@ -643,6 +698,7 @@ class LineEditorCore {
 
   private onInput = () => {
     if (this.composing) return;
+    if (this.adoptStrays()) return;
     const sel = this.readSelection();
     if (!sel) return;
     const i = sel.start.index;
