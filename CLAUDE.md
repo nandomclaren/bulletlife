@@ -409,7 +409,7 @@ interface Settings { /* seção 12 */ }
 - Prefixos de rapid logging (configuráveis).
 - Estilo de glifos no Markdown.
 - Tema: Papel / Grafite / Noite / automático. Fonte: Avenir Next (padrão) ou fallback.
-- **Paleta** (pedido do Fernando): cores dos bullets de tarefa, evento e nota. Classic (padrão, as cores da seção 8), Earth, Dusk, Citrus e Muted; cada uma tem versão clara e escura, e o tema escolhe qual usar. A cor de destaque acompanha a tarefa. Guardada no aparelho, como o tema.
+- **Paleta** (pedido do Fernando): cores dos bullets de tarefa, evento e nota. Classic (padrão, as cores da seção 8; tarefa vermelha), Ocean (tarefa azul), Forest (tarefa verde), Dusk (tarefa violeta) e Ink (tarefa cor de tinta, o resto em tons quietos); cada uma lidera com uma cor diferente e tem versão clara e escura, e o tema escolhe qual usar. A cor de destaque acompanha a tarefa. O Rich Text exportado usa a paleta em uso (versão clara). Guardada no aparelho, como o tema.
 - Exportar tudo (JSON + Markdown) e importar JSON.
 
 ---

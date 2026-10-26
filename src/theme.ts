@@ -1,3 +1,5 @@
+import { COLORS } from './export/format';
+
 // Theme preference. Stored locally for now; moves into synced Settings later in Phase 1.
 export type ThemePref = 'auto' | 'paper' | 'graphite' | 'night';
 export const THEMES: ThemePref[] = ['auto', 'paper', 'graphite', 'night'];
@@ -35,8 +37,8 @@ export function applyTheme(pref: ThemePref = getTheme()) {
 }
 
 // Palette: the colors of the task, event and note bullets. Per device, like the theme.
-export type Palette = 'classic' | 'earth' | 'dusk' | 'citrus' | 'muted';
-export const PALETTES: Palette[] = ['classic', 'earth', 'dusk', 'citrus', 'muted'];
+export type Palette = 'classic' | 'ocean' | 'forest' | 'dusk' | 'ink';
+export const PALETTES: Palette[] = ['classic', 'ocean', 'forest', 'dusk', 'ink'];
 const PALETTE_KEY = 'settings.palette';
 
 export function getPalette(): Palette {
@@ -58,6 +60,10 @@ export function setPalette(p: Palette) {
 }
 
 export function applyPalette(p: Palette = getPalette()) {
-  if (p === 'classic') delete document.documentElement.dataset.palette;
-  else document.documentElement.dataset.palette = p;
+  const root = document.documentElement;
+  if (p === 'classic') delete root.dataset.palette;
+  else root.dataset.palette = p;
+  // Rich Text copies and exports use the same colors, in their light version (pasted documents are usually white).
+  const css = getComputedStyle(root);
+  for (const k of ['task', 'event', 'note'] as const) COLORS[k] = css.getPropertyValue(`--p-${k}`).trim() || COLORS[k];
 }

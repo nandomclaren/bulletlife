@@ -723,40 +723,43 @@ h1 {
 /* Palettes (Settings › Palette): task / event / note, light and dark versions.
    Classic is the default above. Dark versions are lighter and a touch softer,
    so the bullets keep the same weight on a near-black page. */
-[data-palette='earth'] {
-  --p-task: #c2562b;
-  --p-event: #56679f;
-  --p-note: #6b8a3a;
-  --p-task-dark: #e0794c;
-  --p-event-dark: #8e9cd4;
-  --p-note-dark: #9dbd66;
+/* Each palette leads with a different color (the task bullet, and with it
+   the app's accent), so they read as different notebooks, not shades of one. */
+[data-palette='ocean'] {
+  --p-task: #2563a8;
+  --p-event: #d2603f;
+  --p-note: #b0852a;
+  --p-task-dark: #6aa3e8;
+  --p-event-dark: #f08a70;
+  --p-note-dark: #d9ac55;
+}
+
+[data-palette='forest'] {
+  --p-task: #2f7d4f;
+  --p-event: #b0683a;
+  --p-note: #7a6aa8;
+  --p-task-dark: #5cb37f;
+  --p-event-dark: #d8905f;
+  --p-note-dark: #a99be0;
 }
 
 [data-palette='dusk'] {
-  --p-task: #c9405d;
-  --p-event: #6a55b5;
-  --p-note: #c27f17;
-  --p-task-dark: #ea6c86;
-  --p-event-dark: #a08fe8;
-  --p-note-dark: #e6a84c;
+  --p-task: #6b4fbb;
+  --p-event: #c4467a;
+  --p-note: #2c8f8a;
+  --p-task-dark: #a690ee;
+  --p-event-dark: #e6789f;
+  --p-note-dark: #4fbdb6;
 }
 
-[data-palette='citrus'] {
-  --p-task: #e2572b;
-  --p-event: #0f7b8a;
-  --p-note: #6f8f0a;
-  --p-task-dark: #ff7d52;
-  --p-event-dark: #3fb6c4;
-  --p-note-dark: #b2cc3e;
-}
-
-[data-palette='muted'] {
-  --p-task: #b5584b;
-  --p-event: #4e7194;
-  --p-note: #5c8a69;
-  --p-task-dark: #d98a7d;
-  --p-event-dark: #8aa9c8;
-  --p-note-dark: #91bb9c;
+/* Ink: like a fountain pen notebook; tasks in ink, the rest in quiet tones. */
+[data-palette='ink'] {
+  --p-task: #2b2d31;
+  --p-event: #5a7898;
+  --p-note: #9a8f80;
+  --p-task-dark: #e4e1db;
+  --p-event-dark: #8fa9c4;
+  --p-note-dark: #a39a8c;
 }
 
 /* Settings › Palette: each row shows its own colors, in the current theme's tone. */

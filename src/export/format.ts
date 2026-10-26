@@ -90,7 +90,8 @@ export function toPlain(doc: ExportDoc): string {
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const COLORS = { task: '#E0533D', event: '#3B82C4', note: '#2A9D8F', muted: '#8A857C' };
+/** Bullet colors in Rich Text: the palette in use, light version (set by the app; Classic until then). */
+export const COLORS = { task: '#E0533D', event: '#3B82C4', note: '#2A9D8F', muted: '#8A857C' };
 
 /** Rich text for pasting into Notes, Mail, Docs: nested lists, colored bullets, struck-through cancellations. */
 export function toHtml(doc: ExportDoc): string {

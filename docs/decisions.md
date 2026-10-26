@@ -290,4 +290,4 @@ Short log of technical decisions. Newest last.
 
 ## Palettes
 
-- Settings › Palette: Classic (default), Earth, Dusk, Citrus, Muted. Each sets `--p-task/event/note` and `--p-*-dark` on `[data-palette]`; the theme rules map `--task/--event/--note` to the light or dark set, so palette and theme combine freely. `--accent` follows `--task`. Stored per device (`settings.palette`) and applied before first paint, like the theme. Export HTML keeps the Classic colors (a document, not the screen).
+- Settings › Palette: Classic (default), Ocean, Forest, Dusk, Ink — each leads with a different task color (Fernando: with red always leading, the first set read as variations of one theme). Each sets `--p-task/event/note` and `--p-*-dark` on `[data-palette]`; the theme rules map `--task/--event/--note` to the light or dark set, so palette and theme combine freely. `--accent` follows `--task`. Stored per device (`settings.palette`) and applied before first paint, like the theme. Rich Text (export HTML) uses the palette in use, light version.

@@ -357,7 +357,7 @@ export const en = {
     theme: 'Theme',
     palette: 'Palette',
     paletteHint: 'Colors of task, event and note bullets. Each palette has a light and a dark version.',
-    palettes: { classic: 'Classic', earth: 'Earth', dusk: 'Dusk', citrus: 'Citrus', muted: 'Muted' },
+    palettes: { classic: 'Classic', ocean: 'Ocean', forest: 'Forest', dusk: 'Dusk', ink: 'Ink' },
     themes: { auto: 'Automatic', paper: 'Paper', graphite: 'Graphite', night: 'Night' },
     themeHints: {
       auto: 'Follows the system',
