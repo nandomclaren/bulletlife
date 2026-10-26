@@ -348,7 +348,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     // even before storage answers. Storage keeps the writes in order.
     if ('join' in placed) {
       const target = blocks.current.find((b) => b.id === placed.join)!;
-      target.line = { ...target.line, ink: { strokes: [...(target.line.ink?.strokes ?? []), stroke] } };
+      target.line = { ...target.line, ink: { ...target.line.ink, strokes: [...(target.line.ink?.strokes ?? []), stroke] } };
       reflow();
       lastStroke.current = { id: target.id, row, at: now };
       pushUndo(await write(addInk(log, target.id, [stroke])));

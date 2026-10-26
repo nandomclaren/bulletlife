@@ -393,7 +393,9 @@ export async function addInk(log: LogRef, entryId: string, strokes: Stroke[]): P
     const e = before.get(entryId);
     if (!e) return new Map();
     const now = new Date().toISOString();
-    await db.entries.put({ ...e, ink: { strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
+    // Keeps what the transcription knew (tx, n) and a drawing's view: dropping tx made the transcribed text
+    // look typed, and the next pass moved the ink out to a new line below it.
+    await db.entries.put({ ...e, ink: { ...e.ink, strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
     if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
     return before;
   });
