@@ -9,8 +9,9 @@ import { playDoneFx } from '../editor/doneFx';
 import { colorTypes, glyph, hasChildren, hasStates, hiddenMask, newLine, nextState, type Line, type LineState } from '../editor/lines';
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
-import { compact, hasInk, hasWriting, inkRows, inkSvg, ROW, rowOf, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
-import { setPenColor, setPenTool, usePen, type PenTool } from './penStore';
+import { compact, DEFAULT_SIZE, PEN_SIZES, hasInk, hasWriting, inkRows, inkSvg, ROW, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
+import { placeStroke, strokeRow } from './structure';
+import { setPenColor, setPenSize, setPenTool, usePen, type PenTool } from './penStore';
 import { transcribePage } from './transcribe';
 import type { InkColor } from './ink';
 
@@ -38,7 +39,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const deferred = useRef<Line[] | null>(null);
   const undo = useRef<InkSnapshot[]>([]);
   const [canUndo, setCanUndo] = useState(false);
-  const lastStroke = useRef<{ id: string; r: number; at: number } | null>(null);
+  const lastStroke = useRef<{ id: string; row: number; at: number } | null>(null);
   const toolRef = useRef(pen);
   toolRef.current = pen;
 
@@ -60,8 +61,8 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       row.className = 'pen-row';
       row.dataset.id = l.id;
       // Handwritten lines show the hand, not their transcription (the ink is the original).
-      const handwritten = hasWriting(l.ink);
-      const typed = !handwritten && (l.text.trim() !== '' || l.type !== 'text');
+      const typed = isTyped(l);
+      const handwritten = hasWriting(l.ink) && !typed;
       let typedRows = 0;
       if (typed) {
         const el = document.createElement('div');
@@ -93,10 +94,22 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     host.style.minHeight = `${top + spare * ROW}px`;
   };
 
+  // The page keeps its own layout while the pen is down, and until storage has caught up with every stroke
+  // already placed (a stale page would send the next stroke to the wrong line).
+  const caughtUp = (ls: Line[]) => {
+    const stored = new Map(ls.map((l) => [l.id, l.ink?.strokes.length ?? 0]));
+    return blocks.current.every((b) => stored.has(b.id) && stored.get(b.id)! >= (b.line.ink?.strokes.length ?? 0));
+  };
+  const inflight = useRef(0);
+  const apply = (ls: Line[]) => {
+    if (drawing.current || (inflight.current > 0 && !caughtUp(ls))) deferred.current = ls;
+    else {
+      deferred.current = null;
+      build(ls);
+    }
+  };
   useLayoutEffect(() => {
-    if (!lines) return;
-    if (drawing.current) deferred.current = lines;
-    else build(lines);
+    if (lines) apply(lines);
   }, [lines]);
 
   useEffect(() => {
@@ -144,9 +157,17 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
 
   const flush = () => {
     drawing.current = false;
-    if (deferred.current) {
-      build(deferred.current);
-      deferred.current = null;
+    if (deferred.current) apply(deferred.current);
+  };
+
+  /** Runs a write, holding back stale pages until it lands. */
+  const write = async <T,>(w: Promise<T>): Promise<T> => {
+    inflight.current++;
+    try {
+      return await w;
+    } finally {
+      inflight.current--;
+      if (deferred.current) apply(deferred.current);
     }
   };
 
@@ -269,7 +290,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     if (tool.current === 'erase') {
       const hits = new Map([...erased.current].map(([id, s]) => [id, [...s]]));
       flush();
-      if (hits.size) pushUndo(await eraseInk(log, hits));
+      if (hits.size) pushUndo(await write(eraseInk(log, hits)));
       soon();
       return;
     }
@@ -282,14 +303,27 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const commit = async (p: number[]) => {
     const kind = tool.current === 'draw' ? 'd' : 'w';
     const box = strokeBox(p);
-    const anchor = kind === 'w' ? (box.y0 + box.y1) / 2 : box.y0;
     const now = Date.now();
-    const target = blocks.current.find((b) => anchor < b.top + b.height && anchor >= b.top - (b === blocks.current[0] ? ROW : 0));
-    const top = target ? target.top : contentEnd.current + Math.max(0, Math.floor((anchor - contentEnd.current) / ROW)) * ROW;
+    const recent = lastStroke.current;
+    const row = Math.max(0, strokeRow(box, kind, recent && { row: recent.row, at: recent.at }, now));
+    const draft: Stroke = {
+      k: kind,
+      c: toolRef.current.color,
+      r: 0,
+      p,
+      ...(isPen.current ? { pen: true } : {}),
+      ...(toolRef.current.size !== DEFAULT_SIZE ? { s: toolRef.current.size } : {}),
+    };
+    const placed = placeStroke(
+      blocks.current.map((b) => ({ id: b.id, top: b.top, height: b.height, typed: isTyped(b.line), strokes: b.line.ink?.strokes ?? [] })),
+      contentEnd.current,
+      draft,
+      row,
+    );
+    const top = placed.top;
     const local = p.map((v, i) => (i % 3 === 1 ? v - top : v));
-    const prev = lastStroke.current && (target ? lastStroke.current.id === target.id : false) ? lastStroke.current : null;
-    const r = kind === 'w' ? rowOf(strokeBox(local), prev, now) : 0;
-    const stroke: Stroke = { k: kind, c: toolRef.current.color, r, p: local, ...(isPen.current ? { pen: true } : {}) };
+    const r = 'join' in placed ? placed.r : 0;
+    const stroke: Stroke = { ...draft, r: kind === 'w' ? r : 0, p: local };
     // Keep the stroke on screen until the page is rebuilt with it.
     const host = sheet.current!;
     const ghost = inkSvg(document, { strokes: [stroke] }, { width: host.clientWidth, height: Math.max(ROW, box.y1 - top + ROW), dy: 0 });
@@ -300,22 +334,21 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     flush();
     // The layout takes the stroke right away, so the next one (often a few ms later) lands on the same line
     // even before storage answers. Storage keeps the writes in order.
-    if (target) {
+    if ('join' in placed) {
+      const target = blocks.current.find((b) => b.id === placed.join)!;
       target.line = { ...target.line, ink: { strokes: [...(target.line.ink?.strokes ?? []), stroke] } };
       reflow();
-      lastStroke.current = { id: target.id, r, at: now };
-      pushUndo(await addInk(log, target.id, [stroke]));
-      soon();
+      lastStroke.current = { id: target.id, row, at: now };
+      pushUndo(await write(addInk(log, target.id, [stroke])));
     } else {
-      const blanks = Math.round((top - contentEnd.current) / ROW);
-      const added = [...Array.from({ length: blanks }, () => newLine()), newLine({ ink: { strokes: [stroke] } })];
-      for (const l of added) blocks.current.push({ id: l.id, top: 0, height: ROW, line: l });
+      const added = [...Array.from({ length: placed.blanks }, () => newLine()), newLine({ ink: { strokes: [stroke] } })];
+      const at = placed.after ? blocks.current.findIndex((b) => b.id === placed.after) + 1 : blocks.current.length;
+      blocks.current.splice(at, 0, ...added.map((l) => ({ id: l.id, top: 0, height: ROW, line: l })));
       reflow();
-      const id = added[added.length - 1].id;
-      lastStroke.current = { id, r, at: now };
-      pushUndo(await addInkLines(log, slot, added));
-      soon();
+      lastStroke.current = { id: added[added.length - 1].id, row, at: now };
+      pushUndo(await write(addInkLines(log, slot, added, placed.after)));
     }
+    soon();
   };
 
   /** Block positions after a local change (before the page is rebuilt from storage). */
@@ -372,6 +405,13 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       <PenToolbar canUndo={canUndo} onUndo={onUndo} />
     </>
   );
+}
+
+/** Has typed content of its own (not a transcription of its ink): it shows as text in Pen mode and never takes ink. */
+export function isTyped(l: Line): boolean {
+  const transcribed = l.ink?.tx !== undefined && l.text === l.ink.tx;
+  if (l.text.trim() && !transcribed) return true;
+  return l.type !== 'text' && !hasWriting(l.ink);
 }
 
 /**
@@ -469,6 +509,21 @@ function PenToolbar({ canUndo, onUndo }: { canUndo: boolean; onUndo: () => void 
           <path d="M9 20h11M4 15l9-9 6 6-8 8H8z" />
         </svg>,
       )}
+      <span className="pen-sep" />
+      {PEN_SIZES.map((size) => (
+        <button
+          key={size}
+          className={`pen-tool pen-size${pen.size === size ? ' on' : ''}`}
+          aria-label={t.pen.sizes[PEN_SIZES.indexOf(size)]}
+          aria-pressed={pen.size === size}
+          onClick={() => {
+            setPenSize(size);
+            if (pen.tool === 'erase') setPenTool('write');
+          }}
+        >
+          <span style={{ height: [1.5, 2.5, 4][PEN_SIZES.indexOf(size)] }} />
+        </button>
+      ))}
       <span className="pen-sep" />
       {COLORS.map((c) => (
         <button

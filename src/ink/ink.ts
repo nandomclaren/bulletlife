@@ -22,6 +22,8 @@ export interface Stroke {
   pen?: boolean;
   /** The hand-drawn bullet of the line (found when transcribing): drawn in the entry's color. */
   b?: boolean;
+  /** Pen size (stroke diameter, px) when not the default. */
+  s?: number;
 }
 
 export interface Ink {
@@ -76,19 +78,6 @@ export function inkRows(ink: Ink | undefined): number {
   return rows;
 }
 
-/**
- * The row a writing stroke belongs to, given its box relative to the entry top.
- * A small mark (accent, i-dot, crossbar) written right after a stroke on the
- * row next to it joins that row, since accents often poke above the line.
- */
-export function rowOf(box: Box, previous: { r: number; at: number } | null, now: number): number {
-  const mid = (box.y0 + box.y1) / 2;
-  const row = Math.max(0, Math.floor((mid + ROW * 0.12) / ROW));
-  const small = box.y1 - box.y0 < ROW * 0.35;
-  if (small && previous && now - previous.at < 2500 && Math.abs(previous.r - row) === 1) return previous.r;
-  return row;
-}
-
 /** Rounds points so stored ink stays small: 0.1 px and 0.01 pressure. */
 export function compact(points: number[]): number[] {
   return points.map((v, i) => (i % 3 === 2 ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10));
@@ -105,17 +94,20 @@ export function strokeHit(p: number[], dy: number, eraser: Array<[number, number
   return false;
 }
 
-const SIZE: Record<StrokeKind, number> = { w: 3, d: 2.6 };
+/** Pen sizes in the toolbar (stroke diameter, px): fine, medium, bold. */
+export const PEN_SIZES = [1.8, 2.4, 3.4] as const;
+export const DEFAULT_SIZE = 2.4;
 
 /** SVG path of a stroke's outline (variable width from pressure). */
-export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen'>, dy = 0, scale = 1): string {
+export function strokePath(s: Pick<Stroke, 'k' | 'p' | 'pen' | 's'>, dy = 0, scale = 1): string {
   const pts: number[][] = [];
   for (let i = 0; i < s.p.length; i += 3) pts.push([s.p[i] * scale, (s.p[i + 1] + dy) * scale, s.p[i + 2]]);
   const outline = getStroke(pts, {
-    size: SIZE[s.k] * Math.max(scale, 0.6),
-    thinning: 0.55,
-    smoothing: 0.5,
-    streamline: 0.4,
+    // A fine ballpoint feel: little width change with pressure, smooth curves.
+    size: (s.s ?? DEFAULT_SIZE) * Math.max(scale, 0.6),
+    thinning: 0.35,
+    smoothing: 0.65,
+    streamline: 0.45,
     simulatePressure: !s.pen,
     last: true,
   });

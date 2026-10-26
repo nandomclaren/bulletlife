@@ -275,3 +275,31 @@
   background: var(--muted);
   pointer-events: none;
 }
+
+.pen-size {
+  width: 36px;
+}
+
+.pen-size span {
+  display: block;
+  width: 18px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Typed lines in Pen mode take exactly their ruled lines (a heading too), so handwriting below
+   them lands on its own line. */
+.pen-typed.line,
+.pen-typed.line.t-heading {
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.pen-typed.t-heading .line-text {
+  line-height: 40px;
+}
+
+.pen-typed.t-heading .line-text {
+  padding-top: 0;
+}

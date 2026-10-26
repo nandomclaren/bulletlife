@@ -1,6 +1,6 @@
 // Pen mode on this device: whether it is on, and the pen's tool and color.
 import { useSyncExternalStore } from 'react';
-import type { InkColor } from './ink';
+import { DEFAULT_SIZE, type InkColor } from './ink';
 
 export type PenTool = 'write' | 'draw' | 'erase';
 
@@ -23,6 +23,7 @@ let state = {
   on: read('pen.mode', 'type') === 'pen',
   tool: read('pen.tool', 'write') as PenTool,
   color: read('pen.color', 'ink') as InkColor,
+  size: Number(read('pen.size', String(DEFAULT_SIZE))) || DEFAULT_SIZE,
 };
 const listeners = new Set<() => void>();
 const set = (next: Partial<typeof state>) => {
@@ -30,12 +31,14 @@ const set = (next: Partial<typeof state>) => {
   write('pen.mode', state.on ? 'pen' : 'type');
   write('pen.tool', state.tool);
   write('pen.color', state.color);
+  write('pen.size', String(state.size));
   listeners.forEach((l) => l());
 };
 
 export const setPenMode = (on: boolean) => set({ on });
 export const setPenTool = (tool: PenTool) => set({ tool });
 export const setPenColor = (color: InkColor) => set({ color });
+export const setPenSize = (size: number) => set({ size });
 
 export function usePen() {
   return useSyncExternalStore(

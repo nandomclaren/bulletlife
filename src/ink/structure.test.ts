@@ -2,33 +2,76 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { Stroke } from './ink';
 import { hmac, requestBody } from './myscript';
-import { readLineShape } from './structure';
+import { placeStroke, readLineShape, strokeRow, type PlacedBlock } from './structure';
 
 const s = (pts: Array<[number, number]>): Stroke => ({ k: 'w', c: 'ink', r: 0, p: pts.flatMap(([x, y]) => [x, y, 0.5]) });
-const word = (x: number) => s([[x, 20], [x + 20, 10], [x + 40, 22], [x + 60, 12]]);
+const word = (x: number) =>
+  s([
+    [x, 20],
+    [x + 20, 10],
+    [x + 40, 22],
+    [x + 60, 12],
+  ]);
 const circle = (cx: number, cy: number, r: number) =>
   s(Array.from({ length: 13 }, (_, i) => [cx + r * Math.cos((i / 12) * 2 * Math.PI), cy + r * Math.sin((i / 12) * 2 * Math.PI)] as [number, number]));
 
 describe('reading a handwritten line', () => {
   it('a dot before the words is a task', () => {
-    const shape = readLineShape([s([[40, 20], [42, 21]]), word(62)]);
+    const shape = readLineShape([
+      s([
+        [40, 20],
+        [42, 21],
+      ]),
+      word(62),
+    ]);
     expect(shape).toEqual({ type: 'task', bullet: [0], indent: 0 });
   });
   it('a small circle is an event, a dash is a note', () => {
     expect(readLineShape([circle(42, 20, 6), word(62)]).type).toBe('event');
-    expect(readLineShape([s([[34, 20], [50, 21]]), word(62)]).type).toBe('note');
+    expect(
+      readLineShape([
+        s([
+          [34, 20],
+          [50, 21],
+        ]),
+        word(62),
+      ]).type,
+    ).toBe('note');
   });
   it('words without a bullet are free text', () => {
     expect(readLineShape([word(62), word(140)])).toEqual({ type: 'text', bullet: [], indent: 0 });
   });
   it('a lone mark is not a bullet (it may be a word)', () => {
-    expect(readLineShape([s([[40, 20], [42, 21]])]).type).toBe('text');
+    expect(
+      readLineShape([
+        s([
+          [40, 20],
+          [42, 21],
+        ]),
+      ]).type,
+    ).toBe('text');
   });
   it('a big first stroke is a letter, not a bullet', () => {
-    expect(readLineShape([s([[60, 4], [64, 36]]), word(70)]).type).toBe('text');
+    expect(
+      readLineShape([
+        s([
+          [60, 4],
+          [64, 36],
+        ]),
+        word(70),
+      ]).type,
+    ).toBe('text');
   });
   it('starting further right indents, about a centimeter per level', () => {
-    expect(readLineShape([s([[78, 20], [80, 21]]), word(98)]).indent).toBe(1);
+    expect(
+      readLineShape([
+        s([
+          [78, 20],
+          [80, 21],
+        ]),
+        word(98),
+      ]).indent,
+    ).toBe(1);
     expect(readLineShape([word(60 + 72)]).indent).toBe(2);
     expect(readLineShape([word(70)]).indent).toBe(0);
   });
@@ -39,7 +82,16 @@ describe('reading a handwritten line', () => {
 
 describe('MyScript request', () => {
   it('sends strokes as x/y/t/p arrays in writing order, in mm', () => {
-    const body = requestBody([s([[1, 2], [3, 4]]), s([[5, 6]])], 'pt_BR');
+    const body = requestBody(
+      [
+        s([
+          [1, 2],
+          [3, 4],
+        ]),
+        s([[5, 6]]),
+      ],
+      'pt_BR',
+    );
     expect(body.configuration.lang).toBe('pt_BR');
     expect(body.contentType).toBe('Text');
     expect(body.scaleX).toBe(0.265);
@@ -50,5 +102,191 @@ describe('MyScript request', () => {
     const keys = { applicationKey: 'app', hmacKey: 'secret' };
     const expected = createHmac('sha512', 'appsecret').update('{"a":1}').digest('hex');
     expect(await hmac('{"a":1}', keys)).toBe(expected);
+  });
+});
+
+const at = (pts: Array<[number, number]>, k: 'w' | 'd' = 'w'): Stroke => ({ k, c: 'ink', r: 0, p: pts.flatMap(([x, y]) => [x, y, 0.5]) });
+const box = (s: Stroke) => {
+  const xs = s.p.filter((_, i) => i % 3 === 0);
+  const ys = s.p.filter((_, i) => i % 3 === 1);
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+};
+
+describe('which ruled line a stroke is on', () => {
+  it('reads a descender (g, q, p) by its top, so it stays on its line', () => {
+    const g = at([
+      [100, 18],
+      [110, 38],
+      [104, 62],
+    ]); // x-height on line 0, tail deep into line 1
+    expect(strokeRow(box(g), 'w', null, 0)).toBe(0);
+  });
+  it('a capital reaching above the line still belongs to it', () => {
+    expect(
+      strokeRow(
+        box(
+          at([
+            [100, 36],
+            [100, 72],
+          ]),
+        ),
+        'w',
+        null,
+        0,
+      ),
+    ).toBe(1);
+  });
+  it('an accent made right after a letter on the line below stays with it', () => {
+    const accent = box(
+      at([
+        [100, 34],
+        [104, 30],
+      ]),
+    );
+    expect(strokeRow(accent, 'w', null, 0)).toBe(0);
+    expect(strokeRow(accent, 'w', { row: 1, at: 1000 }, 1500)).toBe(1);
+  });
+  it('a short word opening the next line stays on that line', () => {
+    const e = box(
+      at([
+        [20, 98],
+        [30, 110],
+      ]),
+    );
+    expect(strokeRow(e, 'w', { row: 1, at: 1000 }, 1300)).toBe(2);
+  });
+});
+
+describe('placing a stroke', () => {
+  const typed = (id: string, top: number, rows = 1): PlacedBlock => ({ id, top, height: rows * 40, typed: true, strokes: [] });
+  const hand = (id: string, top: number, rows: number, startX = 20): PlacedBlock => ({
+    id,
+    top,
+    height: rows * 40,
+    typed: false,
+    strokes: Array.from({ length: rows }, (_, r) => ({
+      ...at([
+        [startX, 20],
+        [startX + 80, 24],
+      ]),
+      r,
+    })),
+  });
+
+  it('writing under a typed heading starts a new entry after it, never inside it', () => {
+    const p = placeStroke(
+      [typed('h', 0, 2)],
+      80,
+      at([
+        [20, 50],
+        [80, 60],
+      ]),
+      1,
+    );
+    expect(p).toEqual({ after: 'h', blanks: 0, top: 80 });
+  });
+  it('more writing on a handwritten line joins it', () => {
+    expect(
+      placeStroke(
+        [hand('a', 0, 1)],
+        40,
+        at([
+          [150, 20],
+          [200, 25],
+        ]),
+        0,
+      ),
+    ).toEqual({ join: 'a', r: 0, top: 0 });
+  });
+  it('the line right below continues the paragraph', () => {
+    expect(
+      placeStroke(
+        [hand('a', 0, 2)],
+        80,
+        at([
+          [22, 100],
+          [90, 110],
+        ]),
+        2,
+      ),
+    ).toEqual({ join: 'a', r: 2, top: 0 });
+  });
+  it('a line opening with a dot or dash, or clearly further right, is a new entry', () => {
+    expect(
+      placeStroke(
+        [hand('a', 0, 1)],
+        40,
+        at([
+          [10, 60],
+          [11, 61],
+        ]),
+        1,
+      ),
+    ).toEqual({ after: null, blanks: 0, top: 40 });
+    expect(
+      placeStroke(
+        [hand('a', 0, 1)],
+        40,
+        at([
+          [10, 60],
+          [26, 61],
+        ]),
+        1,
+      ),
+    ).toEqual({ after: null, blanks: 0, top: 40 });
+    expect(
+      placeStroke(
+        [hand('a', 0, 1)],
+        40,
+        at([
+          [80, 60],
+          [140, 66],
+        ]),
+        1,
+      ),
+    ).toEqual({ after: null, blanks: 0, top: 40 });
+  });
+  it('after a skipped line, a new entry with a blank line before it', () => {
+    expect(
+      placeStroke(
+        [hand('a', 0, 1)],
+        40,
+        at([
+          [20, 100],
+          [90, 110],
+        ]),
+        2,
+      ),
+    ).toEqual({ after: null, blanks: 1, top: 80 });
+  });
+  it('a blank line takes what is written on it', () => {
+    const blank: PlacedBlock = { id: 'b', top: 40, height: 40, typed: false, strokes: [] };
+    expect(
+      placeStroke(
+        [hand('a', 0, 1), blank, hand('c', 80, 1)],
+        120,
+        at([
+          [20, 60],
+          [90, 66],
+        ]),
+        1,
+      ),
+    ).toEqual({ join: 'b', r: 0, top: 40 });
+  });
+  it('a drawing gets its own entry instead of joining handwriting', () => {
+    expect(
+      placeStroke(
+        [hand('a', 0, 1)],
+        40,
+        at(
+          [
+            [20, 10],
+            [90, 30],
+          ],
+          'd',
+        ),
+        0,
+      ),
+    ).toEqual({ after: 'a', blanks: 0, top: 40 });
   });
 });

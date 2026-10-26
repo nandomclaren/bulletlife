@@ -164,6 +164,7 @@ export const en = {
     toolbar: 'Pen tools',
     tools: { write: 'Write', draw: 'Draw', erase: 'Eraser' },
     colors: { ink: 'Ink', task: 'Red', event: 'Blue', note: 'Green' },
+    sizes: ['Fine', 'Medium', 'Bold'],
     undo: 'Undo',
     handwriting: 'Handwriting',
     drawing: 'Drawing',

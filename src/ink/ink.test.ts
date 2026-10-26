@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { diffEntries, entriesToLines, isBlank } from '../data/convert';
 import type { Entry } from '../data/types';
 import { newLine } from '../editor/lines';
-import { compact, inkRows, ROW, rowOf, strokeHit, type Stroke } from './ink';
+import { compact, inkRows, ROW, strokeHit, type Stroke } from './ink';
 
 const w = (r: number, p: number[]): Stroke => ({ k: 'w', c: 'ink', r, p });
 
@@ -17,19 +17,6 @@ describe('ink rows', () => {
   it('is 0 without ink', () => {
     expect(inkRows(undefined)).toBe(0);
     expect(inkRows({ strokes: [] })).toBe(0);
-  });
-});
-
-describe('rowOf', () => {
-  it('puts a stroke on the row of its middle', () => {
-    expect(rowOf({ x0: 0, y0: 10, x1: 30, y1: 34 }, null, 0)).toBe(0);
-    expect(rowOf({ x0: 0, y0: 48, x1: 30, y1: 74 }, null, 0)).toBe(1);
-  });
-  it('keeps a quick small mark (an accent above the line) with the stroke just written', () => {
-    const accent = { x0: 0, y0: 28, x1: 6, y1: 34 };
-    expect(rowOf(accent, null, 0)).toBe(0);
-    expect(rowOf(accent, { r: 1, at: 1000 }, 1500)).toBe(1);
-    expect(rowOf(accent, { r: 1, at: 1000 }, 9000)).toBe(0);
   });
 });
 
