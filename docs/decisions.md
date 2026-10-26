@@ -352,3 +352,7 @@ Short log of technical decisions. Newest last.
   - Pen-mode Undo kept a full copy of the entry before every stroke, 100 deep. Writing a stroke now keeps only the stroke count; Undo cuts back to it.
   - A row is redrawn whole when a stroke joins it, so every stroke of a paragraph was recomputed on each new one. Computed paths are kept (up to 1500, keyed by the stroke's content); the stroke in progress bypasses this.
   Result: the heap stays at ~7 MB through the same session, and the 370-stroke fluidity test at 6× CPU throttling has no long tasks.
+- Sync paused with HTTP 413 (2026-10-26): Dexie Cloud sends every pending change in one request, and each stroke had been stored as a full write (`put`) of its entry. A long handwritten paragraph left hundreds of full copies of all its strokes waiting, and the request outgrew the server's limit. Dexie Cloud merges pending `update`s of the same entry but never `put`s. Fixes:
+  - Writing a stroke is now an `update` of the entry's ink.
+  - Stroke points are stored to 0.1 px and 2-digit pressure (raw floats were ~17 digits each), about 3× smaller.
+  - At launch, and whenever sync reports an error (at most once a minute), `startSyncUpkeep` rounds the points of older handwriting (one full write per entry) and `compactPendingSync` drops pending changes that a later full write or delete of the same entries replaces, then pushes again. It only touches Dexie Cloud's `$…_mutations` tables; what the server ends up with is unchanged. Sync now also compacts first.

@@ -161,8 +161,75 @@ export function signOut() {
   return db.cloud.logout();
 }
 
-export function syncNow() {
+export async function syncNow() {
+  await compactPendingSync();
   return db.cloud.sync({ purpose: 'pull', wait: true });
+}
+
+/** Stored stroke points to 0.1 px and 2-digit pressure (as new strokes are stored). */
+function roundedInk(ink: Ink): Ink | null {
+  let changed = false;
+  const strokes = ink.strokes.map((st) => {
+    const p = st.p.map((v, i) => (i % 3 === 2 ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10));
+    if (p.some((v, i) => v !== st.p[i])) changed = true;
+    return { ...st, p };
+  });
+  return changed ? { ...ink, strokes } : null;
+}
+
+/**
+ * Keeps sync able to send what is waiting: rounds the points of handwriting stored before rounding
+ * existed (a full write each, so it replaces the large pending copies), then drops the replaced
+ * changes. Runs at launch and again when sync reports an error (at most once a minute).
+ */
+export function startSyncUpkeep(): void {
+  let last = 0;
+  const run = async () => {
+    if (Date.now() - last < 60_000) return;
+    last = Date.now();
+    await db.transaction('rw', db.entries, async () => {
+      const inked = await db.entries.filter((e) => !!e.ink).toArray();
+      const tidy = inked.flatMap((e) => {
+        const ink = roundedInk(e.ink!);
+        return ink ? [{ ...e, ink }] : [];
+      });
+      if (tidy.length) await db.entries.bulkPut(tidy);
+    });
+    if ((await compactPendingSync()) > 0 && db.cloud.currentUser.value?.isLoggedIn) void db.cloud.sync({ purpose: 'push', wait: false });
+  };
+  void run();
+  db.cloud.syncState.subscribe((state) => {
+    if (state.phase === 'error' || state.status === 'error') void run();
+  });
+}
+
+/**
+ * Drops pending sync changes that a later full write of the same entries replaces. Every stroke used to
+ * be stored as a full write of its entry, so a long handwritten paragraph left hundreds of full copies
+ * waiting, all sent in one request, which the server refused as too large (413). Only the last full
+ * write of each entry matters, so the earlier ones go; nothing the server ends up with changes.
+ * Returns how many were dropped.
+ */
+export async function compactPendingSync(): Promise<number> {
+  let dropped = 0;
+  for (const table of db.tables.filter((t) => t.name.startsWith('$') && t.name.endsWith('_mutations'))) {
+    await db.transaction('rw', table, async () => {
+      const muts: Array<{ rev: number; type: string; keys?: unknown[] }> = await table.toArray();
+      const covered = new Set<string>();
+      const drop: number[] = [];
+      for (let i = muts.length - 1; i >= 0; i--) {
+        const m = muts[i];
+        const keys = (m.keys ?? []).map(String);
+        if (!keys.length) continue;
+        const full = m.type === 'upsert' || m.type === 'insert' || m.type === 'delete';
+        if ((full || m.type === 'update') && keys.every((k) => covered.has(k))) drop.push(m.rev);
+        else if (full) keys.forEach((k) => covered.add(k));
+      }
+      if (drop.length) await table.bulkDelete(drop);
+      dropped += drop.length;
+    });
+  }
+  return dropped;
 }
 
 /** Changes whenever the stored entries of one (log, slot) change, locally or from sync. */
@@ -401,7 +468,9 @@ export async function addInk(log: LogRef, entryId: string, strokes: Stroke[]): P
     const now = new Date().toISOString();
     // Keeps what the transcription knew (tx, n) and a drawing's view: dropping tx made the transcribed text
     // look typed, and the next pass moved the ink out to a new line below it.
-    await db.entries.put({ ...e, ink: { ...e.ink, strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
+    // An update, not a put: sync merges pending updates of the same entry into the last one, while every
+    // put went up whole. One put per stroke of a long paragraph made the sync request too large (413).
+    await db.entries.update(entryId, { ink: { ...e.ink, strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
     if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
     return before;
   });

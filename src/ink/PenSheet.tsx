@@ -521,7 +521,9 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       recent && now - recent.at < 4000 ? recent.id : null,
     );
     const top = placed.top;
-    const local = p.map((v, i) => (i % 3 === 1 ? v - top : v));
+    // Stored to 0.1 px and 2-digit pressure: the raw floats (17 digits each) made a long paragraph several
+    // times larger to store and sync, with no visible difference.
+    const local = p.map((v, i) => (i % 3 === 2 ? Math.round(v * 100) / 100 : Math.round((i % 3 === 1 ? v - top : v) * 10) / 10));
     const r = 'join' in placed ? placed.r : 0;
     const stroke: Stroke = { ...draft, r: kind === 'w' ? r : 0, p: local };
     // Keep the stroke on screen until the page is rebuilt with it.

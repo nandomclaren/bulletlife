@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
-import { startBackups } from './data/repo';
+import { startBackups, startSyncUpkeep } from './data/repo';
 import { recordLaunch } from './data/spikeDb';
 import { applyPalette, applyTheme } from './theme';
 import './styles.css';
@@ -17,6 +17,7 @@ applyPalette();
 registerSW({ immediate: true });
 void recordLaunch();
 startBackups();
+startSyncUpkeep();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
