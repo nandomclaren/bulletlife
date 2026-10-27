@@ -247,7 +247,6 @@ export const en = {
     signedInAs: 'Signed in as',
     states: { synced: 'Up to date', syncing: 'Syncing…', offline: 'Offline. Changes will sync when you are back online.', error: 'Sync paused' },
     indicator: { offline: 'Offline', error: 'Sync paused', syncing: 'Syncing' },
-    resending: (n: number) => `Sending ${n} ${n === 1 ? 'entry' : 'entries'} again in small batches`,
   },
   pageMenu: {
     open: 'Page options',

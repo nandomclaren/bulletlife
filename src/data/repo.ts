@@ -13,7 +13,7 @@ import { diffEntries, entriesToLines } from './convert';
 import { openItems, type OpenItem } from './openItems';
 import { bestMatch } from './similar';
 import { db } from './db';
-import { readResend, writeResend } from './syncQueue';
+import { compactSyncQueue } from './syncQueue';
 import { DEFAULT_SETTINGS, type Entry, type EntryState, type Log, type LogKind, type Settings } from './types';
 
 export type PeriodKind = Exclude<LogKind, 'collection'>;
@@ -163,70 +163,24 @@ export function signOut() {
 }
 
 export async function syncNow() {
-  await resendPending();
+  await compactSyncQueue();
   return db.cloud.sync({ purpose: 'pull', wait: true });
 }
 
-/** How many entries set aside from an oversized sync queue still wait to be sent again. */
-export function resendLeft(): number {
-  return Object.values(readResend()).reduce((n, v) => n + v.put.length + v.del.length, 0);
-}
-
-const RESEND_BATCH = 300_000;
-let resending = false;
-
 /**
- * Sends again, in small batches, the entries named by a sync queue that was set aside at launch because
- * it had grown too large (syncQueue.ts). Each batch is written back as it is (a full write, which sync
- * picks up) and pushed before the next one, so no request or memory peak grows with the page. Stops at
- * the first sync error and goes on later (next launch, a minute later, or Sync now).
+ * Keeps the sync queue small while the app runs (it is also done at launch, in main.tsx): writing by
+ * hand while sync is slow or offline queues a change per stroke. Checked every 20 s and when sync
+ * reports an error; the check is cheap while the queue is short.
  */
-export async function resendPending(): Promise<void> {
-  if (resending || !db.cloud.currentUser.value?.isLoggedIn || !resendLeft()) return;
-  resending = true;
-  try {
-    const todo = readResend();
-    for (const [name, list] of Object.entries(todo)) {
-      const table = db.tables.find((t) => t.name === name);
-      if (!table) {
-        delete todo[name];
-        continue;
-      }
-      if (list.del.length) {
-        await table.bulkDelete(list.del);
-        list.del = [];
-        writeResend(todo);
-      }
-      while (list.put.length) {
-        const batch: unknown[] = [];
-        let size = 0;
-        while (list.put.length && size < RESEND_BATCH) {
-          const row = await table.get(list.put.shift()!);
-          if (!row) continue;
-          size += JSON.stringify(row).length;
-          batch.push(row);
-        }
-        if (batch.length) await table.bulkPut(batch);
-        writeResend(todo);
-        await db.cloud.sync({ purpose: 'push', wait: true });
-        const state = db.cloud.syncState.value;
-        if (state?.phase === 'error' || state?.status === 'error') return;
-      }
-    }
-    writeResend(todo);
-  } catch {
-    // Sync failed: what is left stays noted and goes later.
-  } finally {
-    resending = false;
-  }
-}
-
-/** Starts sending again what an oversized queue set aside: on sign-in, and every minute while some is left. */
 export function startSyncUpkeep(): void {
-  db.cloud.currentUser.subscribe((u) => {
-    if (u.isLoggedIn) void resendPending();
+  const run = () =>
+    void compactSyncQueue().then((n) => {
+      if (n > 0 && db.cloud.currentUser.value?.isLoggedIn) void db.cloud.sync({ purpose: 'push', wait: false });
+    });
+  window.setInterval(run, 20_000);
+  db.cloud.syncState.subscribe((state) => {
+    if (state.phase === 'error' || state.status === 'error') run();
   });
-  window.setInterval(() => void resendPending(), 60_000);
 }
 
 /** Changes whenever the stored entries of one (log, slot) change, locally or from sync. */
