@@ -86,21 +86,30 @@ function lastLineStart(block: PlacedBlock): { row: number; x: number } | null {
   return { row, x: Math.min(...writing.filter((s) => s.r === row).map((s) => strokeBox(s.p).x0)) };
 }
 
+/** The stroke written just before: its ruled line, when, and its sideways extent. */
+export type LastStroke = { row: number; at: number; x0: number; x1: number };
+
 /**
- * The ruled line a writing stroke belongs to. Letters sit on the rule and
- * descenders (g, p, q, j) reach into the line below, so the line is read
- * from the top part of the stroke, not its middle. A small mark made right
- * after a stroke, poking into the line above it (an accent, an i-dot), stays
- * with it.
+ * The ruled line a writing stroke belongs to. Letters sit on the rule and descenders (g, p, q, j) reach
+ * into the line below, so the line is read from the top part of the stroke, not its middle. Two
+ * corrections use the stroke written just before (within 2.5 s):
+ * - a stroke that starts on that stroke's line, right after it, and only reaches down past the rule
+ *   stays on it (a tall "p" opening a word was read one line down, and took the next letters with it);
+ * - a small mark poking into the line above, over or before that stroke (an accent, an i-dot), stays
+ *   with it. A small letter after it (to its right) is not an accent.
  */
-export function strokeRow(box: Box, kind: 'w' | 'd', last: { row: number; at: number } | null, now: number): number {
+export function strokeRow(box: Box, kind: 'w' | 'd', last: LastStroke | null, now: number): number {
   if (kind === 'd') return Math.floor(box.y0 / ROW);
   const ay = box.y0 + Math.min(box.y1 - box.y0, ROW * 0.6) * 0.5;
   const row = Math.floor(ay / ROW);
+  const recent = last && now - last.at < 2500 ? last : null;
+  if (!recent) return row;
+  const sameLine = box.x0 >= recent.x0 - 8 && box.x0 <= recent.x1 + 60;
+  if (row === recent.row + 1 && Math.floor(box.y0 / ROW) === recent.row && sameLine) return recent.row;
   const small = box.y1 - box.y0 < ROW * 0.35;
   // Only upward: accents and i-dots sit above their letter. A short word at the start of the next line
   // ("o", "e", "a") is small too, and must stay on its own line.
-  if (small && last && now - last.at < 2500 && row === last.row - 1) return last.row;
+  if (small && row === recent.row - 1 && box.x0 <= recent.x1 + 4) return recent.row;
   return row;
 }
 

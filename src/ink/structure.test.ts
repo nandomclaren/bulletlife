@@ -160,7 +160,7 @@ describe('which ruled line a stroke is on', () => {
       ]),
     );
     expect(strokeRow(accent, 'w', null, 0)).toBe(0);
-    expect(strokeRow(accent, 'w', { row: 1, at: 1000 }, 1500)).toBe(1);
+    expect(strokeRow(accent, 'w', { row: 1, at: 1000, x0: 96, x1: 110 }, 1500)).toBe(1);
   });
   it('a short word opening the next line stays on that line', () => {
     const e = box(
@@ -169,7 +169,47 @@ describe('which ruled line a stroke is on', () => {
         [30, 110],
       ]),
     );
-    expect(strokeRow(e, 'w', { row: 1, at: 1000 }, 1300)).toBe(2);
+    expect(strokeRow(e, 'w', { row: 1, at: 1000, x0: 600, x1: 640 }, 1300)).toBe(2);
+  });
+});
+
+describe('which ruled line a stroke is on, after the stroke before it', () => {
+  // The case from Fernando's page: "...Cada deploy / um pouco mais": a tall "p" opening "pouco", written low
+  // on the line, was read one line down, and the small letters after it followed it there.
+  const p = box(
+    at([
+      [130, 30],
+      [131, 66],
+      [131, 34],
+      [140, 30],
+      [138, 44],
+    ]),
+  ); // starts just above the rule of line 0, its tail deep into line 1
+  const o = box(
+    at([
+      [150, 26],
+      [158, 32],
+      [150, 38],
+    ]),
+  ); // a small "o" on line 0
+  it('a tall letter written right after a stroke on its line stays on that line', () => {
+    expect(strokeRow(p, 'w', null, 0)).toBe(1);
+    expect(strokeRow(p, 'w', { row: 0, at: 1000, x0: 100, x1: 122 }, 1200)).toBe(0);
+  });
+  it('a small letter to the right of the stroke before is not an accent', () => {
+    expect(strokeRow(o, 'w', { row: 1, at: 1000, x0: 130, x1: 140 }, 1200)).toBe(0);
+  });
+  it('a capital opening the next line, back at the margin, stays on the next line', () => {
+    const capital = box(
+      at([
+        [20, 36],
+        [20, 72],
+      ]),
+    );
+    expect(strokeRow(capital, 'w', { row: 0, at: 1000, x0: 600, x1: 640 }, 1200)).toBe(1);
+  });
+  it('after a pause, nothing carries over', () => {
+    expect(strokeRow(p, 'w', { row: 0, at: 1000, x0: 100, x1: 122 }, 4000)).toBe(1);
   });
 });
 

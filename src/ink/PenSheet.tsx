@@ -10,7 +10,7 @@ import { colorTypes, glyph, hasChildren, hasStates, hiddenMask, newLine, nextSta
 import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
 import { compact, DEFAULT_SIZE, PEN_SIZES, type Box, hasInk, hasWriting, inkRows, inkSvg, ROW, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
-import { lassoed, placeStroke, rowWithin, strokeRow } from './structure';
+import { lassoed, placeStroke, rowWithin, strokeRow, type LastStroke } from './structure';
 import { setPenColor, setPenSize, setPenTool, usePen, type PenTool } from './penStore';
 import { transcribePage } from './transcribe';
 import type { InkColor } from './ink';
@@ -46,7 +46,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const deferred = useRef<Line[] | null>(null);
   const undo = useRef<InkSnapshot[]>([]);
   const [canUndo, setCanUndo] = useState(false);
-  const lastStroke = useRef<{ id: string; row: number; at: number } | null>(null);
+  const lastStroke = useRef<(LastStroke & { id: string }) | null>(null);
   const toolRef = useRef(pen);
   toolRef.current = pen;
 
@@ -504,7 +504,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     const box = strokeBox(p);
     const now = Date.now();
     const recent = lastStroke.current;
-    const row = Math.max(0, strokeRow(box, kind, recent && { row: recent.row, at: recent.at }, now));
+    const row = Math.max(0, strokeRow(box, kind, recent, now));
     const draft: Stroke = {
       k: kind,
       c: toolRef.current.color,
@@ -541,14 +541,14 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       target.line = { ...target.line, ink: { ...target.line.ink, strokes: [...(target.line.ink?.strokes ?? []), stroke] } };
       if (placed.absorb) blocks.current = blocks.current.filter((b) => b.id !== placed.absorb);
       reflow();
-      lastStroke.current = { id: target.id, row, at: now };
+      lastStroke.current = { id: target.id, row, at: now, x0: box.x0, x1: box.x1 };
       pushUndo(await write(addInk(log, target.id, [stroke], placed.absorb)));
     } else {
       const added = [...Array.from({ length: placed.blanks }, () => newLine()), newLine({ ink: { strokes: [stroke] } })];
       const at = placed.after ? blocks.current.findIndex((b) => b.id === placed.after) + 1 : blocks.current.length;
       blocks.current.splice(at, 0, ...added.map((l) => ({ id: l.id, top: 0, height: ROW, line: l })));
       reflow();
-      lastStroke.current = { id: added[added.length - 1].id, row, at: now };
+      lastStroke.current = { id: added[added.length - 1].id, row, at: now, x0: box.x0, x1: box.x1 };
       pushUndo(await write(addInkLines(log, slot, added, placed.after)));
     }
     soon();
