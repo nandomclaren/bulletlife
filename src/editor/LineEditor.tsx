@@ -160,11 +160,12 @@ class LineEditorCore {
     text.className = 'line-text';
     fillText(text, line.text);
     el.append(buildGutter(document, line, collapsed), text);
-    // Handwriting shows until it has a transcription (then the line shows the text); drawings always show.
+    // Handwriting shows only until its first transcription (then the line shows the text, even once that
+    // text is erased: Type mode never shows the letters again); drawings always show.
     if (hasInk(line.ink)) {
       const writing = line.ink.strokes.filter((s) => s.k === 'w');
       const drawing = line.ink.strokes.filter((s) => s.k === 'd');
-      if (writing.length && !line.text.trim()) el.append(inkPreview({ strokes: writing }));
+      if (writing.length && !line.text.trim() && line.ink.tx === undefined) el.append(inkPreview({ strokes: writing }));
       if (drawing.length) el.append(inkPreview({ ...line.ink, strokes: drawing }));
     }
     const s = this.suggestions.get(line.id);
@@ -172,15 +173,28 @@ class LineEditorCore {
     return el;
   }
 
+  /**
+   * Handwritten lines whose text was erased in Type mode: hidden there (the handwriting stays, in Pen mode).
+   * Decided when the page is drawn, not while editing, so erasing a transcription to type a correction
+   * does not hide the line under the caret.
+   */
+  private erasedHand = new Set<string>();
+
   private renderAll() {
+    this.erasedHand = new Set(this.lines.filter((l) => !l.text.trim() && hasWriting(l.ink) && l.ink!.tx !== undefined && !drawingIn(l)).map((l) => l.id));
     this.root.replaceChildren(...this.lines.map((l) => this.renderLine(l, l.collapsed)));
     this.refreshDecor();
+  }
+
+  /** Lines not shown: under a collapsed parent, or handwriting erased in Type mode. */
+  private hiddenLines(): boolean[] {
+    return hiddenMask(this.lines).map((h, i) => h || this.erasedHand.has(this.lines[i].id));
   }
 
   /** Re-applies derived classes and gutters without touching line text. */
   private refreshDecor() {
     const colors = colorTypes(this.lines);
-    const hidden = hiddenMask(this.lines);
+    const hidden = this.hiddenLines();
     const els = this.root.children;
     this.lines.forEach((l, i) => {
       const el = els[i] as HTMLElement;
@@ -880,7 +894,7 @@ class LineEditorCore {
       this.lines.splice(at.index + 1, 0, ...fresh, ...rest);
     }
     // Caret at the end of the last pasted line that is not folded away.
-    const hidden = hiddenMask(this.lines);
+    const hidden = this.hiddenLines();
     let last = this.lines.indexOf(fresh[fresh.length - 1]);
     while (last > 0 && hidden[last]) last--;
     this.commit({ index: last, offset: this.lines[last].text.length });
@@ -1110,7 +1124,7 @@ class LineEditorCore {
   /** Caret at the end of a line, or of the last visible line (the first line of an empty page). */
   focusEnd(lineId?: string) {
     this.root.focus();
-    const hidden = hiddenMask(this.lines);
+    const hidden = this.hiddenLines();
     let index = lineId ? this.lines.findIndex((l) => l.id === lineId) : -1;
     if (index < 0 || hidden[index]) {
       index = this.lines.length - 1;
@@ -1280,6 +1294,11 @@ function StatusToast({ text, onDone }: { text: string; onDone: () => void }) {
       <span>{text}</span>
     </div>
   );
+}
+
+/** A line that also holds a drawing (always shown in Type mode, where it can be moved and deleted). */
+function drawingIn(l: Line): boolean {
+  return !!l.ink?.strokes.some((s) => s.k === 'd');
 }
 
 /** A line holding handwriting (writing strokes, not only a drawing). */
