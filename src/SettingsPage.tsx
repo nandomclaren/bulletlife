@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { usePane } from './pages/pane';
 import { BackupSection } from './BackupSection';
 import { PdfSection } from './export/PdfSection';
-import { signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
+import { resendLeft, signIn, signOut, syncNow, updateSettings, useSettings, useSync } from './data/repo';
 import { isLastActive, toggleActiveLog, type TimeLog } from './data/settings';
 import { t } from './i18n/en';
 import { DONE_ANIMATIONS, playDoneFx } from './editor/doneFx';
@@ -41,6 +41,7 @@ export function SettingsPage() {
                 <span className="option-hint">
                   {t.sync.signedInAs} {sync.email}
                   {sync.kind === 'error' && sync.message ? ` · ${sync.message}` : ''}
+                  {resendLeft() > 0 ? ` · ${t.sync.resending(resendLeft())}` : ''}
                 </span>
               </span>
               <span className={`sync-dot sync-${sync.kind}`} aria-hidden />

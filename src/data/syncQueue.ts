@@ -1,59 +1,99 @@
 // Upkeep of Dexie Cloud's queue of changes waiting to be sent (its `$<table>_mutations` stores).
-// Uses IndexedDB directly so it can run before the app (and the sync, which reads the whole queue) opens.
+// Uses IndexedDB directly so it runs before the app (and sync, which reads the whole queue) opens.
+
+/** What must be sent again after the queue was set aside, per synced table (kept across launches). */
+export type Resend = Record<string, { put: string[]; del: string[] }>;
+
+const RESEND_KEY = 'sync.resend';
+/**
+ * A healthy queue is near empty (it is sent within seconds). Setting it aside is always safe (its
+ * entries are sent again), so it is not measured, only counted: measuring meant holding each change
+ * as text as well.
+ */
+const QUEUE_LIMIT = 60;
+
+export function readResend(): Resend {
+  try {
+    return JSON.parse(localStorage.getItem(RESEND_KEY) ?? '{}') as Resend;
+  } catch {
+    return {};
+  }
+}
+
+export function writeResend(r: Resend): void {
+  const left = Object.fromEntries(Object.entries(r).filter(([, v]) => v.put.length || v.del.length));
+  try {
+    if (Object.keys(left).length) localStorage.setItem(RESEND_KEY, JSON.stringify(left));
+    else localStorage.removeItem(RESEND_KEY);
+  } catch {
+    // Storage full or blocked: the queue is gone, but the data is all on this device.
+  }
+}
+
+const req = <T>(r: IDBRequest<T>) =>
+  new Promise<T>((resolve, reject) => {
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
 
 /**
- * Drops pending sync changes that a later full write (or delete) of the same entries replaces. Every
- * stroke used to be stored as a full write of its entry, so a long handwritten paragraph left hundreds
- * of full copies waiting; sync sends the whole queue in one request, which the server refused (413),
- * and reading it all at once ran the iPad out of memory. Only the last full write of each entry
- * matters, so the earlier ones go: what the server ends up with is unchanged. The queue is walked
- * newest first with a cursor, one change in memory at a time. Never throws; returns how many went.
+ * Sets an oversized sync queue aside. Every stroke used to be stored as a full write of its entry, so
+ * a long handwritten paragraph left hundreds of full copies waiting; sync reads the whole queue and
+ * sends it as one request, which ran the iPad out of memory at every launch (and the server refuses it,
+ * 413). The data itself is all in the tables: the queue only says what to send. So when it is far too
+ * long, it is read one change at a time to note which entries it names, then cleared; the app sends
+ * those entries again in small batches (`resendPending` in repo.ts). Never throws.
  */
-export function compactSyncQueue(dbName = 'bullet-life'): Promise<number> {
-  return new Promise((resolve) => {
-    let dropped = 0;
-    let rq: IDBOpenDBRequest;
-    try {
-      rq = indexedDB.open(dbName);
-    } catch {
-      return resolve(0);
-    }
+export async function setAsideLargeQueue(dbName = 'bullet-life'): Promise<number> {
+  let idb: IDBDatabase;
+  try {
+    const rq = indexedDB.open(dbName);
     // No database yet: do not create one (Dexie must create it with its own schema).
     rq.onupgradeneeded = () => rq.transaction?.abort();
-    rq.onerror = () => resolve(0);
-    rq.onblocked = () => resolve(0);
-    rq.onsuccess = () => {
-      const idb = rq.result;
-      idb.onversionchange = () => idb.close();
-      const stores = [...idb.objectStoreNames].filter((n) => n.startsWith('$') && n.endsWith('_mutations'));
-      if (!stores.length) {
-        idb.close();
-        return resolve(0);
+    idb = await req(rq);
+  } catch {
+    return 0;
+  }
+  try {
+    idb.onversionchange = () => idb.close();
+    const stores = [...idb.objectStoreNames].filter((n) => n.startsWith('$') && n.endsWith('_mutations'));
+    let cleared = 0;
+    for (const store of stores) {
+      const table = store.slice(1, -'_mutations'.length);
+      const revs = await req(idb.transaction(store).objectStore(store).getAllKeys());
+      if (!revs.length) continue;
+      if (revs.length < QUEUE_LIMIT) continue;
+      // One change in memory at a time: the entries it names.
+      const last = new Map<string, 'put' | 'del'>();
+      for (const rev of revs) {
+        const m = (await req(idb.transaction(store).objectStore(store).get(rev))) as { type?: string; keys?: unknown[] } | undefined;
+        if (!m) continue;
+        for (const k of m.keys ?? []) last.set(String(k), m.type === 'delete' ? 'del' : 'put');
       }
-      const tx = idb.transaction(stores, 'readwrite');
-      for (const name of stores) {
-        const covered = new Set<string>();
-        const cur = tx.objectStore(name).openCursor(null, 'prev');
-        cur.onsuccess = () => {
-          const c = cur.result;
-          if (!c) return;
-          const m = c.value as { type?: string; keys?: unknown[] };
-          const keys = (m.keys ?? []).map(String);
-          const full = m.type === 'upsert' || m.type === 'insert' || m.type === 'delete';
-          if (keys.length && (full || m.type === 'update') && keys.every((k) => covered.has(k))) {
-            c.delete();
-            dropped++;
-          } else if (full) keys.forEach((k) => covered.add(k));
-          c.continue();
-        };
+      const resend = readResend();
+      const prev = resend[table] ?? { put: [], del: [] };
+      const put = new Set(prev.put);
+      const del = new Set(prev.del);
+      for (const [k, op] of last) {
+        (op === 'put' ? put : del).add(k);
+        (op === 'put' ? del : put).delete(k);
       }
-      const done = () => {
-        idb.close();
-        resolve(dropped);
-      };
-      tx.oncomplete = done;
-      tx.onerror = done;
-      tx.onabort = done;
-    };
-  });
+      resend[table] = { put: [...put], del: [...del] };
+      writeResend(resend);
+      const names = ['$baseRevs', store].filter((n) => idb.objectStoreNames.contains(n));
+      const tx = idb.transaction(names, 'readwrite');
+      tx.objectStore(store).clear();
+      if (names.includes('$baseRevs')) tx.objectStore('$baseRevs').delete(IDBKeyRange.bound([table, -Infinity], [table, Infinity]));
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = tx.onabort = () => reject(tx.error);
+      });
+      cleared += revs.length;
+    }
+    return cleared;
+  } catch {
+    return 0;
+  } finally {
+    idb.close();
+  }
 }
