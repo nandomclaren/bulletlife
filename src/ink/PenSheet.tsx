@@ -25,6 +25,8 @@ interface Block {
 /** Empty ruled lines kept below the last entry, so there is always room to write. */
 const SPARE_ROWS = 12;
 const ERASER_RADIUS = 10;
+/** How long after the pen was last on the page a finger (a resting palm) does not scroll it, in ms. */
+const PALM_HOLD = 1500;
 
 export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string; label?: string }) {
   const lines = usePageLines(log.id, slot);
@@ -161,11 +163,16 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     return () => window.removeEventListener('resize', onResize);
   }, [lines]);
 
-  // The pen must not scroll the page (Safari would turn a stroke into a scroll); fingers still do.
+  // The pen must not scroll the page (Safari would turn a stroke into a scroll); fingers still do, except
+  // while writing: a palm resting on the page (from just before the pen lands to a moment after it lifts)
+  // scrolled it.
+  const penAt = useRef(0);
   useEffect(() => {
     const host = sheet.current!;
     const stylus = (e: TouchEvent) => {
-      if (Array.from(e.touches).some((t) => (t as Touch & { touchType?: string }).touchType === 'stylus')) e.preventDefault();
+      const pen = Array.from(e.touches).some((t) => (t as Touch & { touchType?: string }).touchType === 'stylus');
+      if (pen) penAt.current = Date.now();
+      if (pen || Date.now() - penAt.current < PALM_HOLD) e.preventDefault();
     };
     host.addEventListener('touchstart', stylus, { passive: false });
     host.addEventListener('touchmove', stylus, { passive: false });
@@ -453,6 +460,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button > 0 || bulletDown(e)) return;
     if (e.pointerType === 'touch') return;
+    if (e.pointerType === 'pen') penAt.current = Date.now();
     e.preventDefault();
     try {
       (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -482,6 +490,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   const onPointerUp = async (e: React.PointerEvent) => {
     if (bulletUp(e)) return;
     if (!drawing.current || e.pointerType === 'touch') return;
+    if (e.pointerType === 'pen') penAt.current = Date.now();
     originRect.current = null;
     cancelAnimationFrame(frame.current);
     frame.current = 0;
@@ -582,9 +591,16 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => {
+        onPointerCancel={(e) => {
           if (press.current) clearTimeout(press.current.timer);
           press.current = null;
+          // Safari can cancel the pen in the middle of a stroke (a palm touching down): keep what was written
+          // rather than losing it.
+          const t = tool.current;
+          if (drawing.current && e.pointerType !== 'touch' && (t === 'write' || t === 'draw') && points.current.length >= 6) {
+            void onPointerUp(e);
+            return;
+          }
           clearLive();
           flush();
         }}

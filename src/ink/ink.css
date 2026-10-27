@@ -33,6 +33,9 @@
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  /* Fingers only scroll the page: no pinch or double-tap zoom, which a resting palm set off, and which made
+     Safari cancel the pen's stroke. */
+  touch-action: pan-y;
 }
 
 .pen-row {
