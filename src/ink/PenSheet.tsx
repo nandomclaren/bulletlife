@@ -539,9 +539,10 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     if ('join' in placed) {
       const target = blocks.current.find((b) => b.id === placed.join)!;
       target.line = { ...target.line, ink: { ...target.line.ink, strokes: [...(target.line.ink?.strokes ?? []), stroke] } };
+      if (placed.absorb) blocks.current = blocks.current.filter((b) => b.id !== placed.absorb);
       reflow();
       lastStroke.current = { id: target.id, row, at: now };
-      pushUndo(await write(addInk(log, target.id, [stroke])));
+      pushUndo(await write(addInk(log, target.id, [stroke], placed.absorb)));
     } else {
       const added = [...Array.from({ length: placed.blanks }, () => newLine()), newLine({ ink: { strokes: [stroke] } })];
       const at = placed.after ? blocks.current.findIndex((b) => b.id === placed.after) + 1 : blocks.current.length;

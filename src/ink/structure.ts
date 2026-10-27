@@ -68,7 +68,8 @@ export interface PlacedBlock {
   strokes: Stroke[];
 }
 
-export type Placement = { join: string; r: number; top: number } | { after: string | null; blanks: number; top: number };
+/** `absorb`: a blank line the stroke was written on, taken over by the paragraph above (it goes away). */
+export type Placement = { join: string; r: number; top: number; absorb?: string } | { after: string | null; blanks: number; top: number };
 
 /** Small marks that start a new item when they open a line: a dot, a dash, a small circle left of the text. */
 function bulletish(s: Stroke, b: Box, lineStart: number | null): boolean {
@@ -124,6 +125,14 @@ export function placeStroke(blocks: PlacedBlock[], contentEnd: number, s: Stroke
   if (i >= 0) {
     const b = blocks[i];
     const blank = !b.typed && !b.strokes.length;
+    // A blank line right under a handwritten paragraph (often left by an Enter in Type mode): writing on it
+    // from the margin continues the paragraph, as below the last line of the page.
+    const prev = blocks[i - 1];
+    if (blank && s.k === 'w' && prev && !prev.typed && !drawingOnly(prev)) {
+      const start = lastLineStart(prev);
+      if (start && y === prev.top + (start.row + 1) * ROW && !bulletish(s, box, start.x) && box.x0 <= start.x + PEN_STEP * 0.8)
+        return { join: prev.id, r: start.row + 1, top: prev.top, absorb: b.id };
+    }
     if (b.typed) {
       // The entry just started for writing on this typed line keeps the rest of it (each stroke must not
       // start yet another entry in the same place).

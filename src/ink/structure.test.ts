@@ -275,12 +275,31 @@ describe('placing a stroke', () => {
       ),
     ).toEqual({ after: null, blanks: 1, top: 80 });
   });
-  it('a blank line takes what is written on it', () => {
+  it('writing from the margin on a blank line right under a handwritten paragraph continues the paragraph', () => {
     const blank: PlacedBlock = { id: 'b', top: 40, height: 40, typed: false, strokes: [] };
     expect(
       placeStroke(
         [hand('a', 0, 1), blank, hand('c', 80, 1)],
         120,
+        at([
+          [20, 60],
+          [90, 66],
+        ]),
+        1,
+      ),
+    ).toEqual({ join: 'a', r: 1, top: 0, absorb: 'b' });
+  });
+  it('a blank line takes what is written on it further right, or under a typed line', () => {
+    const blank: PlacedBlock = { id: 'b', top: 40, height: 40, typed: false, strokes: [] };
+    const word = at([
+      [120, 60],
+      [190, 66],
+    ]);
+    expect(placeStroke([hand('a', 0, 1), blank, hand('c', 80, 1)], 120, word, 1)).toEqual({ join: 'b', r: 0, top: 40 });
+    expect(
+      placeStroke(
+        [typed('a', 0, 1), blank],
+        80,
         at([
           [20, 60],
           [90, 66],

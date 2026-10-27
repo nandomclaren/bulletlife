@@ -34,7 +34,7 @@ import {
   type Line,
 } from './lines';
 import { buildGutter, dueView, fillText, inkPreview, lineClass, textShapeMatches } from './render';
-import { hasInk } from '../ink/ink';
+import { hasInk, hasWriting } from '../ink/ink';
 import { attachDrawingHandles, type DrawingView } from '../ink/drawingHandles';
 import { DUE_TOKEN, dateRuns, resolveDue, sortRun } from './due';
 import { todayIso } from '../dates';
@@ -340,11 +340,21 @@ class LineEditorCore {
     this.emit();
   }
 
+  /**
+   * Deletes text from `start` to `end`. Handwriting is never deleted from Type mode (strokes are costly to
+   * write again; only the Pen eraser removes them): lines in the range that hold some stay, with their text
+   * cleared, and a last line holding some keeps its remaining text instead of joining the first.
+   */
   private deleteRange(start: Caret, end: Caret): Caret {
     const a = this.lines[start.index];
     const b = this.lines[end.index];
-    a.text = a.text.slice(0, start.offset) + b.text.slice(end.offset);
-    this.lines.splice(start.index + 1, end.index - start.index);
+    const keepB = end.index > start.index && handwritten(b);
+    const tail = b.text.slice(end.offset);
+    a.text = a.text.slice(0, start.offset) + (keepB ? '' : tail);
+    if (keepB) b.text = tail;
+    const kept = this.lines.slice(start.index + 1, end.index).filter(handwritten);
+    for (const l of kept) l.text = '';
+    this.lines.splice(start.index + 1, end.index - start.index, ...kept, ...(keepB ? [b] : []));
     return start;
   }
 
@@ -508,6 +518,9 @@ class LineEditorCore {
       return this.commit(at);
     }
     if (at.index === 0) return;
+    // A handwritten line is never joined into the one above (its strokes would go): Backspace stops here,
+    // rather than moving on and eating the line above.
+    if (handwritten(line)) return;
     const prev = this.lines[at.index - 1];
     const offset = prev.text.length;
     this.deleteRange({ index: at.index - 1, offset }, { index: at.index, offset: 0 });
@@ -762,9 +775,10 @@ class LineEditorCore {
       // move the caret into the gutter.
       e.preventDefault();
       this.snapshot(sel.start);
-      // An empty line holding ink: the first Backspace removes the ink, like deleting a picture.
+      // An empty line holding only a drawing: the first Backspace removes it, like deleting a picture.
+      // Handwriting is never removed from Type mode (see deleteRange).
       const line = this.lines[sel.start.index];
-      if (!line.text && hasInk(line.ink)) {
+      if (!line.text && hasInk(line.ink) && !handwritten(line)) {
         line.ink = undefined;
         line.inkEdit = null;
         this.renderAll();
@@ -858,7 +872,7 @@ class LineEditorCore {
     const fresh = pasted.map((p) => newLine({ ...p, indent: line.indent + p.indent }));
     const head = line.text.slice(0, at.offset);
     const tail = line.text.slice(at.offset);
-    if (!line.text) this.lines.splice(at.index, 1, ...fresh);
+    if (!line.text && !hasInk(line.ink)) this.lines.splice(at.index, 1, ...fresh);
     else if (!head) this.lines.splice(at.index, 0, ...fresh);
     else {
       line.text = head;
@@ -1266,4 +1280,9 @@ function StatusToast({ text, onDone }: { text: string; onDone: () => void }) {
       <span>{text}</span>
     </div>
   );
+}
+
+/** A line holding handwriting (writing strokes, not only a drawing). */
+function handwritten(l: Line): boolean {
+  return hasWriting(l.ink);
 }

@@ -410,7 +410,7 @@ async function snapshot(ids: string[]): Promise<Map<string, Entry | null>> {
 }
 
 /** Adds strokes to an entry the user wrote on. Returns how to undo it. */
-export async function addInk(log: LogRef, entryId: string, strokes: Stroke[]): Promise<InkSnapshot> {
+export async function addInk(log: LogRef, entryId: string, strokes: Stroke[], absorb?: string): Promise<InkSnapshot> {
   return db.transaction('rw', db.logs, db.entries, async () => {
     const e = await db.entries.get(entryId);
     if (!e) return new Map();
@@ -422,6 +422,15 @@ export async function addInk(log: LogRef, entryId: string, strokes: Stroke[]): P
     // An update, not a put: sync merges pending updates of the same entry into the last one, while every
     // put went up whole. One put per stroke of a long paragraph made the sync request too large (413).
     await db.entries.update(entryId, { ink: { ...e.ink, strokes: [...(e.ink?.strokes ?? []), ...strokes] }, updatedAt: now });
+    // The blank line written on goes (the paragraph above took that ruled line), if it is still blank.
+    if (absorb) {
+      const blank = await db.entries.get(absorb);
+      const children = await db.entries.where('parentId').equals(absorb).count();
+      if (blank && !blank.text.trim() && !blank.ink && !children) {
+        await db.entries.delete(absorb);
+        before.set(absorb, blank);
+      }
+    }
     if (log.kind === 'collection') await db.logs.update(log.id, { updatedAt: now });
     return before;
   });
