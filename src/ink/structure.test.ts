@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { Stroke } from './ink';
-import { hmac, requestBody } from './myscript';
+import { hmac, onOneLine, requestBody } from './myscript';
 import { lassoed, placeStroke, readLineShape, rowWithin, strokeRow, type PlacedBlock } from './structure';
 
 const s = (pts: Array<[number, number]>): Stroke => ({ k: 'w', c: 'ink', r: 0, p: pts.flatMap(([x, y]) => [x, y, 0.5]) });
@@ -97,6 +97,22 @@ describe('MyScript request', () => {
     expect(body.scaleX).toBe(0.265);
     expect(body.strokes[0]).toMatchObject({ x: [1, 3], y: [2, 4], p: [0.5, 0.5], pointerType: 'pen' });
     expect(body.strokes[1].t[0]).toBeGreaterThan(body.strokes[0].t[1]);
+  });
+  it('lays a paragraph over several ruled lines out as one line, in reading order', () => {
+    const row = (r: number, x: number): Stroke => ({ ...word(x), r, p: word(x).p.map((v, i) => (i % 3 === 1 ? v + r * 40 : v)) });
+    // Written: line 0 from x 100 to 360, then line 1 from x 60 (strokes stored in writing order).
+    const out = onOneLine([row(0, 100), row(0, 300), row(1, 60), row(1, 200)]);
+    const boxes = out.map((st) => ({ x0: Math.min(...st.p.filter((_, i) => i % 3 === 0)), y0: Math.min(...st.p.filter((_, i) => i % 3 === 1)) }));
+    // Same baseline for every line.
+    expect(new Set(boxes.map((b) => b.y0)).size).toBe(1);
+    // Line 1 starts after the end of line 0 (360), with a gap, and keeps its own spacing.
+    expect(boxes[2].x0).toBe(400);
+    expect(boxes[3].x0 - boxes[2].x0).toBe(140);
+    expect(boxes[0].x0).toBe(100);
+  });
+  it('leaves a single ruled line as it is', () => {
+    const one = [word(10), word(90)];
+    expect(onOneLine(one)).toBe(one);
   });
   it('signs the body with HMAC-SHA512 keyed by application key + HMAC key', async () => {
     const keys = { applicationKey: 'app', hmacKey: 'secret' };

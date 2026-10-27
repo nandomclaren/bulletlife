@@ -1,7 +1,7 @@
 // Handwriting recognition by MyScript's cloud (stage 2, a test before an
 // on-device recognizer). The request format follows MyScript's own client,
 // iink-ts (HTTPClientV2): strokes in mm, signed with HMAC-SHA512.
-import { strokeBox, type Stroke } from './ink';
+import { ROW, strokeBox, type Stroke } from './ink';
 
 export type HandwritingLang = 'pt_BR' | 'en_US';
 
@@ -61,10 +61,39 @@ export class RecognizeError extends Error {
   }
 }
 
-/** Plain text of these strokes (one handwritten line). */
+/** Space left between two ruled lines laid end to end: wider than a gap between words, so it reads as one. */
+const LINE_GAP = 40;
+
+/**
+ * A paragraph written over several ruled lines, laid out as one long line in reading order: each
+ * ruled line goes to the right of the one before. Sent as written, the recognizer had to find the lines
+ * itself, and letters that reach into the next line (descenders, accents, a slanting line) came out of
+ * order, mostly at the start and end of lines. We know each stroke's ruled line (`r`), so it does not
+ * have to guess.
+ */
+export function onOneLine(strokes: Stroke[]): Stroke[] {
+  const rows = new Map<number, Stroke[]>();
+  for (const s of strokes) rows.set(s.r ?? 0, [...(rows.get(s.r ?? 0) ?? []), s]);
+  if (rows.size < 2) return strokes;
+  const out: Stroke[] = [];
+  let right: number | null = null;
+  for (const r of [...rows.keys()].sort((a, b) => a - b)) {
+    const row = rows.get(r)!;
+    const x0 = Math.min(...row.map((s) => strokeBox(s.p).x0));
+    const x1 = Math.max(...row.map((s) => strokeBox(s.p).x1));
+    const dx: number = right === null ? 0 : right + LINE_GAP - x0;
+    const dy = -r * ROW;
+    for (const s of row) out.push({ ...s, p: s.p.map((v, i) => (i % 3 === 0 ? v + dx : i % 3 === 1 ? v + dy : v)) });
+    right = x1 + dx;
+  }
+  return out;
+}
+
+/** Plain text of these strokes (one handwritten entry, which can span several ruled lines). */
 export async function recognize(strokes: Stroke[], lang: HandwritingLang, keys: MyScriptKeys): Promise<string> {
   if (!strokes.length) return '';
   // Shift to the origin: only the shapes matter, and smaller numbers keep the request small.
+  strokes = onOneLine(strokes);
   const box = strokes.map((s) => strokeBox(s.p)).reduce((a, b) => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: 0, y1: 0 }));
   const moved = strokes.map((s) => ({ ...s, p: s.p.map((v, i) => (i % 3 === 0 ? v - box.x0 : i % 3 === 1 ? v - box.y0 : v)) }));
   const body = JSON.stringify(requestBody(moved, lang));
