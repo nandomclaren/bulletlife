@@ -108,6 +108,11 @@ struct SlotEditor: View {
             action.apply(to: &lines, id: id, eventStates: eventStates)
         }
         .onAppear { lines = repo.lines(logId: logId, slot: slot) }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
+            if note.userInfo?["logId"] as? String == logId, note.userInfo?["slot"] as? String == slot {
+                lines = repo.lines(logId: logId, slot: slot)
+            }
+        }
         .onChange(of: lines) { repo.save(lines, logId: logId, slot: slot) }
     }
 }

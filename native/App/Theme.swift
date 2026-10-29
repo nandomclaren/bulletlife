@@ -95,6 +95,11 @@ enum S {
     static func weekShort(_ n: Int) -> String { "Wk \(n)" }
     static let thisMonth = "This Month"
     static let monthTasks = "Month tasks"
+    static let openItems = "Open items"
+    static let nothingOpen = "Nothing is open. Everything has a place."
+    static let wroteItThere = "I wrote it there"
+    static let close = "Close"
+    static func openCount(_ n: Int) -> String { "\(n) open \(n == 1 ? "item" : "items")" }
     static let typeMode = "Type"
     static let penMode = "Pen"
     static let write = "Write"

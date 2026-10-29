@@ -129,6 +129,27 @@ struct Repository {
         try? context.save()
     }
 
+    /// Posted when an entry changes from outside its page (Open items): the page showing it loads again, so it
+    /// never writes back what it showed before. userInfo: "logId", "slot".
+    static let changedOutside = Notification.Name("BulletLife.entriesChangedOutside")
+
+    /// Every entry (Open items is a query over all of them, CLAUDE.md 4.1).
+    func allEntries() -> [Entry] {
+        ((try? context.fetch(FetchDescriptor<EntryRecord>())) ?? []).map(\.entry)
+    }
+
+    /// Changes one entry from outside its page: always one entry, by the user's own gesture (CLAUDE.md 4.3).
+    func update(id: String, _ change: (inout Entry) -> Void) {
+        let descriptor = FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.uid == id })
+        guard let record = try? context.fetch(descriptor).first else { return }
+        var e = record.entry
+        change(&e)
+        e.updatedAt = Self.now()
+        record.update(from: e)
+        try? context.save()
+        NotificationCenter.default.post(name: Self.changedOutside, object: nil, userInfo: ["logId": e.logId, "slot": e.slot])
+    }
+
     func collections() -> [Log] {
         let descriptor = FetchDescriptor<LogRecord>(predicate: #Predicate { $0.kind == "collection" })
         return ((try? context.fetch(descriptor)) ?? []).map(\.log).sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }

@@ -7,11 +7,22 @@ import UIKit
 
 struct RootView: View {
     @State private var period: Period = .day(Dates.today())
+    @State private var showOpen = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         NavigationStack {
             page
+                // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
+                // iPhone (CLAUDE.md 4.2).
+                .inspector(isPresented: $showOpen) {
+                    OpenItemsPanel(period: $period) { if sizeClass == .compact { showOpen = false } }
+                        .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
+                }
                 .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        OpenItemsButton(isOpen: $showOpen)
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             SettingsView()
@@ -62,6 +73,9 @@ struct PageView: View {
         .background(Theme.paper)
         .onAppear(perform: load)
         .onChange(of: period) { load() }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
+            if note.userInfo?["logId"] as? String == period.logId { load() }
+        }
         .onChange(of: lines) { repo.save(lines, logId: period.logId) }
         // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
         .task(id: transcriptionKey) { await transcribe() }
