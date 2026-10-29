@@ -11,10 +11,10 @@ enum PenTool: String, CaseIterable {
     case write, draw, erase
 }
 
-/// Pen sizes (stroke diameter): fine, medium, bold (Fernando's choice: the PWA's fine and medium became medium
-/// and bold, and fine is 1.2).
-let penSizes: [Double] = [1.2, 1.8, 2.4]
-let defaultPenSize = 1.8
+/// Pen sizes, as the stroke's drawn diameter: fine, medium, bold (Fernando's choice: fine is the 2.4 stroke as
+/// redrawn from storage, then about 30% thicker each).
+let penSizes: [Double] = [2.4, 3.1, 4.1]
+let defaultPenSize = 3.1
 /// The size a stored stroke without `s` has (the PWA's format: its default size, 2.4).
 let storedDefaultSize = 2.4
 
@@ -23,8 +23,21 @@ let storedDefaultSize = 2.4
 /// was drawn again; with even width the stroke as written and as stored look the same.
 let penInk = PKInk.InkType.monoline
 
-/// The tool's width for a pen size (PencilKit draws the points larger; the stroke stores what it drew).
-func penWidth(_ size: Double) -> CGFloat { CGFloat(size) }
+/// PencilKit draws a stroke's points larger than the tool's width. This ratio is measured on every stroke
+/// (kept on the device) and the tool is set so the drawn stroke has the size asked for.
+enum PenCalibration {
+    private static let key = "penDrawRatio"
+    static var ratio: Double {
+        get {
+            let r = UserDefaults.standard.double(forKey: key)
+            return r > 0 ? r : 2.5  // first guess, corrected by the first stroke
+        }
+        set { if newValue > 0.5 && newValue < 10 { UserDefaults.standard.set(newValue, forKey: key) } }
+    }
+}
+
+/// The tool's width for a pen size (a drawn diameter).
+func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) }
 
 struct PenSheetView: UIViewRepresentable {
     @Binding var lines: [Line]
@@ -175,7 +188,12 @@ struct PenSheetView: UIViewRepresentable {
             // The size PencilKit actually drew (larger than the tool's nominal width), so the stroke looks the
             // same when the page is drawn again from what is stored.
             let sizes = pk.path.map { Double($0.size.width) }.sorted()
-            let drawn = sizes.isEmpty ? parent.size : (sizes[sizes.count / 2] * 10).rounded() / 10
+            let median = sizes.isEmpty ? parent.size : sizes[sizes.count / 2]
+            let drawn = (median * 10).rounded() / 10
+            if !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
+                // The next strokes come out at the size asked for (this one is stored as it was drawn).
+                PenCalibration.ratio = median / Double(tool.width)
+            }
             let stroke = Stroke(k: kind, c: parent.color, p: p, pen: true, s: drawn == storedDefaultSize ? nil : drawn)
             let box = stroke.box
             let now = Date().timeIntervalSinceReferenceDate

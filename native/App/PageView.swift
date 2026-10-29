@@ -219,6 +219,7 @@ struct PageView: View {
     // MARK: Editing
 
     private func load() {
+        if !penSizes.contains(penSize) { penSize = defaultPenSize }  // sizes from an earlier version
         lines = repo.lines(logId: period.logId)
         focus = nil
     }
