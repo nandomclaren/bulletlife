@@ -30,6 +30,7 @@ struct PageEditorView: UIViewRepresentable {
         view.smartQuotesType = .default
         c.textView = view
         c.lines = lines
+        c.erased = InkPage.erasedInType(lines)
         c.rebuild(caret: nil)
         return view
     }
@@ -43,6 +44,7 @@ struct PageEditorView: UIViewRepresentable {
             // keyboard's own undo steps would no longer match the text, so Undo starts afresh.
             let samePage = Set(c.lines.map(\.id)).intersection(lines.map(\.id)).count > 0
             c.lines = lines
+            if !samePage { c.erased = InkPage.erasedInType(lines) }
             c.undo.removeAllActions()
             c.rebuild(caret: samePage ? c.currentCaret() : nil)
         } else if restyle {
@@ -59,6 +61,9 @@ struct PageEditorView: UIViewRepresentable {
         /// not in the text).
         var lines: [Line] = []
         var visible: [Int] = []
+        /// Handwritten lines whose text was deleted in Type mode, as the page opened: left out of Type mode
+        /// (they stay in Pen mode, with their ink).
+        var erased: Set<String> = []
         let undo = UndoManager()
         private var bullets: [BulletView] = []
         private var chevrons: [UIButton] = []
@@ -76,7 +81,11 @@ struct PageEditorView: UIViewRepresentable {
             guard let view = textView else { return }
             if lines.isEmpty { lines = [Line()] }
             let hidden = Outline.hidden(lines)
-            visible = lines.indices.filter { !hidden[$0] }
+            visible = lines.indices.filter { !hidden[$0] && !erased.contains(lines[$0].id) }
+            if visible.isEmpty {
+                lines.append(Line())
+                visible = [lines.count - 1]
+            }
             let text = NSMutableAttributedString()
             for (k, i) in visible.enumerated() {
                 let l = lines[i]
@@ -193,6 +202,15 @@ struct PageEditorView: UIViewRepresentable {
                 var edited = PageEdit.deleteRange(lines, from: start, to: end)
                 if !text.isEmpty { edited = PageEdit.insertText(edited.lines, at: edited.caret, text) }
                 apply(edited)
+                return false
+            }
+            // Backspace with the caret at a line start that came as a deleted line break (some keyboards don't
+            // call deleteBackward): the same steps as Backspace at a line start.
+            if text.isEmpty && range.length == 1 && (textView.text as NSString).substring(with: range) == "\n"
+                && textView.selectedRange == NSRange(location: range.location + 1, length: 0)
+            {
+                let at = Caret(index: end.index, offset: 0)
+                if let edited = PageEdit.backspaceAtStart(lines, at: at) { apply(edited) }
                 return false
             }
             if (text as NSString).length > 1 { bulk = true }
@@ -331,12 +349,11 @@ struct PageEditorView: UIViewRepresentable {
                     rect = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: min(s[k], length - 1)), effectiveRange: nil)
                 }
                 rect = rect.offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
-                let handwritten = (l.ink?.hasWriting ?? false) && l.text.isEmpty
-                let glyph = handwritten ? "✎" : States.glyph(l.type, l.state, eventStates: parent.eventStates, doneMark: parent.doneMark)
+                let glyph = States.glyph(l.type, l.state, eventStates: parent.eventStates, doneMark: parent.doneMark)
                 if !glyph.isEmpty {
                     let b = bullet(used)
                     used += 1
-                    b.configure(line: l, glyph: glyph, color: handwritten ? Theme.ui("muted") : Theme.ui(colors[i].rawValue), coordinator: self)
+                    b.configure(line: l, glyph: glyph, color: Theme.ui(colors[i].rawValue), coordinator: self)
                     b.frame = CGRect(x: view.textContainerInset.left + EditorLayout.bulletX(l.indent), y: rect.minY, width: EditorLayout.bulletWidth, height: max(27, min(rect.height, 32)))
                 }
                 if Outline.hasChildren(lines, i) {

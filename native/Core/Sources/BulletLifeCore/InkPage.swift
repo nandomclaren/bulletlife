@@ -26,6 +26,15 @@ public enum InkPage {
         return l.type != .text && !(l.ink?.hasWriting ?? false)
     }
 
+    /// Handwritten lines whose transcription was deleted in Type mode: Type mode leaves them out (from the next
+    /// time the page opens); Pen mode still shows their ink.
+    public static func erasedInType(_ lines: [Line]) -> Set<String> {
+        Set(lines.filter { l in
+            guard let ink = l.ink, ink.hasWriting, ink.tx != nil else { return false }
+            return l.text.trimmingCharacters(in: .whitespaces).isEmpty
+        }.map(\.id))
+    }
+
     /// How the visible lines stack on the sheet: each takes whole ruled rows, as many as its typed text needs
     /// (`typedRows`, measured by the screen) or its ink covers, at least one.
     public static func blocks(_ lines: [Line], typedRows: (Line) -> Int) -> [PlacedBlock] {

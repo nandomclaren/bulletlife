@@ -579,3 +579,14 @@ final class EditingTests: XCTestCase {
         XCTAssertEqual(PageEdit.deleteLine([lines[0]], id: "a").count, 1)
     }
 }
+
+final class ErasedInTypeTests: XCTestCase {
+    func testOnlyTranscribedHandwritingWithItsTextDeleted() {
+        let w = [Stroke(k: .writing, p: [0, 0, 0.5])]
+        let erased = Line(id: "e", ink: Ink(strokes: w, tx: "hi", n: 1))
+        let kept = Line(id: "k", text: "hi", ink: Ink(strokes: w, tx: "hi", n: 1))
+        let waiting = Line(id: "w", ink: Ink(strokes: w))
+        let blank = Line(id: "b")
+        XCTAssertEqual(InkPage.erasedInType([erased, kept, waiting, blank]), ["e"])
+    }
+}
