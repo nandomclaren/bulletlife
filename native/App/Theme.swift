@@ -52,10 +52,11 @@ enum Theme {
 extension View {
     /// Liquid Glass where the system has it (iOS 26 and later, built with Xcode 26), the translucent material
     /// before that. Floating controls only (the pen toolbar, banners); the page itself stays paper.
-    @ViewBuilder func glassBackground(in shape: some Shape) -> some View {
+    @ViewBuilder func glassBackground(in shape: some Shape, interactive: Bool = false) -> some View {
         #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
-                self.glassEffect(.regular, in: shape)
+                // Interactive glass reacts to touch (it gives a little under the finger), as system bars do.
+                self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
             } else {
                 self.background(.regularMaterial, in: shape)
             }

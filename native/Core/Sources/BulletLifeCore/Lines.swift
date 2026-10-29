@@ -53,7 +53,7 @@ public struct PrefixMatch: Equatable, Sendable {
 let glyphPrefixes: [String: EntryType] = ["•": .task, "·": .task, "●": .task, "○": .event, "◦": .event, "–": .note, "—": .note]
 
 public enum Rapid {
-    /// A rapid-logging prefix typed up to and including its trailing space: ". ", "o. ", "- ", "# ", optionally
+    /// A rapid-logging prefix typed up to and including its trailing space: ". ", "o. " (or "O. "), "- ", "# ", optionally
     /// preceded by "* " for priority. "* " alone marks priority on the current type.
     public static func match(_ textBeforeCaret: String, prefixes: Prefixes = Prefixes()) -> PrefixMatch? {
         guard textBeforeCaret.hasSuffix(" ") else { return nil }
@@ -67,7 +67,8 @@ public enum Rapid {
             consumed += prio.count
         }
         let kinds: [(EntryType, String)] = [(.event, prefixes.event), (.task, prefixes.task), (.note, prefixes.note), (.heading, prefixes.heading)]
-        for (type, p) in kinds where rest == "\(p) " {
+        // Case doesn't matter: the keyboard capitalizes the start of a line ("O. " is an event too).
+        for (type, p) in kinds where rest.lowercased() == "\(p) ".lowercased() {
             if type == .heading && priority { return nil }
             return PrefixMatch(type: type, priority: priority, length: consumed + p.count + 1)
         }

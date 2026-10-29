@@ -81,6 +81,8 @@ final class LinesTests: XCTestCase {
     func testPrefixes() {
         XCTAssertEqual(Rapid.match(". ")?.type, .task)
         XCTAssertEqual(Rapid.match("o. ")?.type, .event)
+        XCTAssertEqual(Rapid.match("O. ")?.type, .event)
+        XCTAssertEqual(Rapid.leading("O. Dinner")?.type, .event)
         XCTAssertEqual(Rapid.match("- ")?.type, .note)
         XCTAssertEqual(Rapid.match("# ")?.type, .heading)
         XCTAssertEqual(Rapid.match("* . "), PrefixMatch(type: .task, priority: true, length: 4))
