@@ -11,9 +11,12 @@ enum PenTool: String, CaseIterable {
     case write, draw, erase
 }
 
-/// Pen sizes (stroke diameter): fine, medium, bold, as in the PWA.
-let penSizes: [Double] = [1.8, 2.4, 3.4]
-let defaultPenSize = 2.4
+/// Pen sizes (stroke diameter): fine, medium, bold (Fernando's choice: the PWA's fine and medium became medium
+/// and bold, and fine is smaller in the same proportion).
+let penSizes: [Double] = [1.35, 1.8, 2.4]
+let defaultPenSize = 1.8
+/// The size a stored stroke without `s` has (the PWA's format: its default size, 2.4).
+let storedDefaultSize = 2.4
 
 /// Ink of even width (a fine-liner, close to the PWA's "little width change with pressure"). The pen's own
 /// ink varies with force and tilt, which a stored stroke can't reproduce, so a stroke thickened when the page
@@ -165,7 +168,7 @@ struct PenSheetView: UIViewRepresentable {
             }
             guard !p.isEmpty else { return }
             let kind: StrokeKind = parent.tool == .draw ? .drawing : .writing
-            let stroke = Stroke(k: kind, c: parent.color, p: p, pen: true, s: parent.size == defaultPenSize ? nil : parent.size)
+            let stroke = Stroke(k: kind, c: parent.color, p: p, pen: true, s: parent.size == storedDefaultSize ? nil : parent.size)
             let box = stroke.box
             let now = Date().timeIntervalSinceReferenceDate
             let row = max(0, PenRules.strokeRow(box, kind: kind, last: lastStroke, now: now))
@@ -229,7 +232,7 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         static func pkStroke(_ s: Stroke, color: UIColor, date: Date) -> PKStroke {
-            let width = penWidth(s.s ?? defaultPenSize)
+            let width = penWidth(s.s ?? storedDefaultSize)
             var points: [PKStrokePoint] = []
             var i = 0
             var t: TimeInterval = 0
