@@ -174,11 +174,12 @@ public enum Period: Hashable, Sendable {
     }
 
     /// The navigation trail from the anchor, coarsest first: Year › Month › Week › Day (a week can span two
-    /// months; the month shown is the anchor's). Levels turned off are left out (`weekly: false`).
-    public static func trail(anchor: String, firstDay: Weekday, weekly: Bool = true) -> [Period] {
-        var out: [Period] = [.year(Dates.yearOf(anchor)), .month(Dates.monthOf(anchor))]
-        if weekly { out.append(.week(Dates.weekKey(anchor, firstDay: firstDay))) }
-        out.append(.day(anchor))
+    /// months; the month shown is the anchor's). Levels turned off are left out (the Year is always on).
+    public static func trail(anchor: String, firstDay: Weekday, active: ActiveLogs = ActiveLogs()) -> [Period] {
+        var out: [Period] = [.year(Dates.yearOf(anchor))]
+        if active.monthly { out.append(.month(Dates.monthOf(anchor))) }
+        if active.weekly { out.append(.week(Dates.weekKey(anchor, firstDay: firstDay))) }
+        if active.daily { out.append(.day(anchor)) }
         return out
     }
 
@@ -187,6 +188,59 @@ public enum Period: Hashable, Sendable {
         switch (self, other) {
         case (.day, .day), (.week, .week), (.month, .month), (.year, .year): return true
         default: return false
+        }
+    }
+}
+
+/// The time logs turned on (CLAUDE.md 3.2): Year and Index are always on, and at least one of Month, Week and
+/// Day stays on (migrating needs a source and a destination).
+public struct ActiveLogs: Equatable, Sendable {
+    public var monthly: Bool
+    public var weekly: Bool
+    public var daily: Bool
+
+    public init(monthly: Bool = true, weekly: Bool = true, daily: Bool = true) {
+        self.monthly = monthly
+        self.weekly = weekly
+        self.daily = daily
+        if !monthly && !weekly && !daily { self.daily = true }
+    }
+
+    /// Whether this one can be turned off (it isn't the last one on).
+    public func canTurnOff(_ kind: LogKind) -> Bool {
+        let on = [monthly, weekly, daily].filter { $0 }.count
+        switch kind {
+        case .monthly: return !monthly || on > 1
+        case .weekly: return !weekly || on > 1
+        case .daily: return !daily || on > 1
+        default: return false
+        }
+    }
+
+    /// The finest log on, holding a day: where the app opens and where Today goes.
+    public func finest(_ iso: String, firstDay: Weekday) -> Period {
+        if daily { return .day(iso) }
+        if weekly { return .week(Dates.weekKey(iso, firstDay: firstDay)) }
+        return .month(Dates.monthOf(iso))
+    }
+
+    /// Going down from a Month's day number: the Day, or the Week when days are off.
+    public func below(month day: String, firstDay: Weekday) -> Period? {
+        daily ? .day(day) : weekly ? .week(Dates.weekKey(day, firstDay: firstDay)) : nil
+    }
+
+    /// Going down from a Year's month name: the Month, or the Week of its first day when months are off.
+    public func below(year ym: String, firstDay: Weekday) -> Period {
+        monthly ? .month(ym) : finest("\(ym)-01", firstDay: firstDay)
+    }
+
+    /// Whether a period's level is on (Year always).
+    public func isOn(_ p: Period) -> Bool {
+        switch p {
+        case .day: return daily
+        case .week: return weekly
+        case .month: return monthly
+        case .year: return true
         }
     }
 }

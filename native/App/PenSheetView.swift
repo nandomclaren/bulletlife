@@ -432,8 +432,7 @@ struct PenToolbar: View {
         .foregroundStyle(Theme.text)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Theme.rule))
+        .glassBackground(in: Capsule())
     }
 
     private func toolButton(_ t: PenTool, icon: String, label: String) -> some View {

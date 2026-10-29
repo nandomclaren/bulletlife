@@ -49,6 +49,22 @@ enum Theme {
     }
 }
 
+extension View {
+    /// Liquid Glass where the system has it (iOS 26 and later, built with Xcode 26), the translucent material
+    /// before that. Floating controls only (the pen toolbar, banners); the page itself stays paper.
+    @ViewBuilder func glassBackground(in shape: some Shape) -> some View {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                self.glassEffect(.regular, in: shape)
+            } else {
+                self.background(.regularMaterial, in: shape)
+            }
+        #else
+            self.background(.regularMaterial, in: shape)
+        #endif
+    }
+}
+
 extension UIColor {
     convenience init(hex: UInt32) {
         self.init(
@@ -109,6 +125,40 @@ enum S {
     static func unpin(_ name: String) -> String { "Unpin \(name)" }
     static let goToDate = "Go to date"
     static let openItems = "Open items"
+    static let openToday = "Still open today"
+    static let back = "Back"
+    static func weekNotSetUp(_ n: Int) -> String { "Week \(n) isn't set up yet" }
+    static func monthNotSetUp(_ month: String) -> String { "\(month) isn't set up yet" }
+    static let setUpWeek = "Set up week"
+    static let setUpMonth = "Set up month"
+    static let closeDay = "Close the day"
+    static let closeDayHint = "See what is still open, then write tomorrow."
+    static let dismiss = "Dismiss"
+    static let pageMenu = "Page"
+    static let export = "Export"
+    static let copyAs = "Copy As"
+    static let share = "Share"
+    static let exportPDF = "Export PDF"
+    static let markdown = "Markdown"
+    static let richText = "Rich Text"
+    static let plainText = "Plain Text"
+    static let copied = "Copied"
+    static let selection = "Selection"
+    static let logs = "Logs"
+    static let logsHint = "Year and Index are always on. At least one of Month, Week and Day stays on."
+    static let month = "Month"
+    static let setupBanner = "Set-up banner"
+    static let closeDayTime = "From"
+    static let glyphStyle = "Markdown glyph style"
+    static let checkboxes = "Checkboxes"
+    static let dotNotation = "Dot notation"
+    static let print = "Print"
+    static let printHint = "A5 pages, in notebook order: the Year, then each Month with its weeks and days; collections last."
+    static let thisYear = "This year"
+    static let everything = "Everything"
+    static let thisMonthPrint = "This month"
+    static let weekPage = "Week"
+
     static let nothingOpen = "Nothing is open. Everything has a place."
     static let wroteItThere = "I wrote it there"
     static let close = "Close"

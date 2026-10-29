@@ -603,7 +603,7 @@ final class TrailTests: XCTestCase {
         XCTAssertEqual(
             Period.trail(anchor: "2026-10-29", firstDay: 1),
             [.year("2026"), .month("2026-10"), .week(Dates.weekKey("2026-10-29", firstDay: 1)), .day("2026-10-29")])
-        XCTAssertEqual(Period.trail(anchor: "2026-10-29", firstDay: 1, weekly: false).count, 3)
+        XCTAssertEqual(Period.trail(anchor: "2026-10-29", firstDay: 1, active: ActiveLogs(weekly: false)), [.year("2026"), .month("2026-10"), .day("2026-10-29")])
         XCTAssertTrue(Period.day("a").sameLevel(.day("b")))
         XCTAssertFalse(Period.day("a").sameLevel(.week("b")))
     }
@@ -699,5 +699,25 @@ final class OpenItemsTests: XCTestCase {
         reopened[0].state = .open
         let (again, _) = Outline.diff(lines: reopened, existing: put, logId: "daily:2026-10-19", slot: "", now: "t2")
         XCTAssertNil(again[0].placement)
+    }
+}
+
+final class ActiveLogsTests: XCTestCase {
+    func testAtLeastOneTimeLogStaysOn() {
+        XCTAssertEqual(ActiveLogs(monthly: false, weekly: false, daily: false), ActiveLogs(monthly: false, weekly: false, daily: true))
+        let onlyWeek = ActiveLogs(monthly: false, weekly: true, daily: false)
+        XCTAssertFalse(onlyWeek.canTurnOff(.weekly))
+        XCTAssertTrue(onlyWeek.canTurnOff(.daily))
+        XCTAssertTrue(ActiveLogs().canTurnOff(.weekly))
+    }
+
+    func testWhereThingsGo() {
+        let noDays = ActiveLogs(daily: false)
+        XCTAssertEqual(noDays.finest("2026-10-29", firstDay: 1), .week(Dates.weekKey("2026-10-29", firstDay: 1)))
+        XCTAssertEqual(noDays.below(month: "2026-10-29", firstDay: 1), .week(Dates.weekKey("2026-10-29", firstDay: 1)))
+        XCTAssertEqual(ActiveLogs(weekly: false).below(month: "2026-10-29", firstDay: 1), .day("2026-10-29"))
+        XCTAssertEqual(ActiveLogs(monthly: false).below(year: "2026-11", firstDay: 1), .day("2026-11-01"))
+        XCTAssertEqual(ActiveLogs().below(year: "2026-11", firstDay: 1), .month("2026-11"))
+        XCTAssertNil(ActiveLogs(monthly: true, weekly: false, daily: false).below(month: "2026-10-29", firstDay: 1))
     }
 }

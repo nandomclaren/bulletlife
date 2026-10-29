@@ -59,8 +59,8 @@ struct IndexPage: View {
                 Spacer()
                 DatePicker(S.goToDate, selection: $date, displayedComponents: .date)
                     .labelsHidden()
-                    .onChange(of: date) { period = .day(Dates.toIso(date)) }
-                Button(S.today) { period = .day(Dates.today()) }
+                    .onChange(of: date) { period = Prefs.active.finest(Dates.toIso(date), firstDay: Prefs.firstDay) }
+                Button(S.today) { period = Prefs.active.finest(Dates.today(), firstDay: Prefs.firstDay) }
                     .buttonStyle(.bordered)
                     .clipShape(Capsule())
             }

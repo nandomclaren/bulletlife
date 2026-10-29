@@ -13,6 +13,8 @@ struct TimeHeader<Accessory: View>: View {
     let title: String
     @ViewBuilder var accessory: Accessory
     @AppStorage("firstDay") private var firstDay = 1
+    @State private var picking = false
+    @State private var picked = Date()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -26,17 +28,41 @@ struct TimeHeader<Accessory: View>: View {
                     Image(systemName: "chevron.left")
                 }
                 .accessibilityLabel(S.previous)
-                Button(S.today) {
-                    period = Period.containing(Dates.today(), like: period, firstDay: firstDay)
-                }
-                .buttonStyle(.bordered)
-                .clipShape(Capsule())
+                // Today: this level's period of today; holding it goes to the finest log on, today.
+                Text(S.today)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.rule))
+                    .foregroundStyle(Theme.task)
+                    .onTapGesture { period = Period.containing(Dates.today(), like: period, firstDay: firstDay) }
+                    .onLongPressGesture { period = Prefs.active.finest(Dates.today(), firstDay: firstDay) }
+                    .accessibilityAddTraits(.isButton)
                 Button {
                     period = period.moved(1, firstDay: firstDay)
                 } label: {
                     Image(systemName: "chevron.right")
                 }
                 .accessibilityLabel(S.next)
+                // The calendar: any day, at this page's level.
+                Button {
+                    picked = Dates.fromIso(period.anchor(today: Dates.today(), firstDay: firstDay))
+                    picking = true
+                } label: {
+                    Image(systemName: "calendar")
+                }
+                .accessibilityLabel(S.goToDate)
+                .popover(isPresented: $picking) {
+                    DatePicker(S.goToDate, selection: $picked, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .frame(width: 320)
+                        .padding()
+                        .presentationCompactAdaptation(.popover)
+                        .onChange(of: picked) {
+                            period = Period.containing(Dates.toIso(picked), like: period, firstDay: firstDay)
+                            picking = false
+                        }
+                }
             }
             .font(Theme.body(15))
             if !label.isEmpty {
@@ -56,10 +82,14 @@ struct TimeHeader<Accessory: View>: View {
 struct Trail: View {
     @Binding var period: Period
     @AppStorage("firstDay") private var firstDay = 1
+    @AppStorage("logMonthly") private var monthly = true
+    @AppStorage("logWeekly") private var weekly = true
+    @AppStorage("logDaily") private var daily = true
 
     var body: some View {
         let anchor = period.anchor(today: Dates.today(), firstDay: firstDay)
-        let items = Period.trail(anchor: anchor, firstDay: firstDay)
+        // Levels turned off in Settings are left out (the Year is always on).
+        let items = Period.trail(anchor: anchor, firstDay: firstDay, active: ActiveLogs(monthly: monthly, weekly: weekly, daily: daily))
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(Array(items.enumerated()), id: \.offset) { n, item in
@@ -94,6 +124,7 @@ struct SlotEditor: View {
     let slot: String
     var minHeight: CGFloat = 27
     var fitOneLine = false
+    var highlight: String? = nil
     @Environment(\.modelContext) private var context
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("doneMark") private var doneMark = "×"
@@ -103,7 +134,9 @@ struct SlotEditor: View {
 
     var body: some View {
         PageEditorView(
-            lines: $lines, eventStates: eventStates, doneMark: doneMark, embedded: true, minHeight: minHeight, fitOneLine: fitOneLine
+            lines: $lines, eventStates: eventStates, doneMark: doneMark, embedded: true, minHeight: minHeight, fitOneLine: fitOneLine,
+            highlight: lines.contains { $0.id == highlight } ? highlight : nil,
+            onSelection: { PageSelection.set(logId: logId, $0) }
         ) { action, id in
             action.apply(to: &lines, id: id, eventStates: eventStates)
         }
@@ -118,55 +151,89 @@ struct SlotEditor: View {
 }
 
 /// Month: every day of the month (number, weekday initial, a line to write the day in), thin rules between
-/// weeks with a tappable "Wk 44", then Month tasks.
+/// weeks with a tappable "Wk 44", then Month tasks. Coming up from a day or week, it scrolls to that day and
+/// marks it briefly.
 struct MonthPage: View {
     let ym: String
     @Binding var period: Period
+    @EnvironmentObject private var nav: Navigator
     @AppStorage("firstDay") private var firstDay = 1
+    @AppStorage("logMonthly") private var monthly = true
+    @AppStorage("logWeekly") private var weekly = true
+    @AppStorage("logDaily") private var daily = true
+    @State private var marked: String?
+
+    private var active: ActiveLogs { ActiveLogs(monthly: monthly, weekly: weekly, daily: daily) }
 
     var body: some View {
         let today = Dates.today()
         let current = Dates.monthOf(today) == ym
         let logId = Period.month(ym).logId
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                TimeHeader(
-                    period: $period, label: PageView.format("\(ym)-01", "MMMM"),
-                    title: current ? S.thisMonth : PageView.format("\(ym)-01", "MMMM yyyy")
-                ) { EmptyView() }
-                .padding(.bottom, 16)
-                ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
-                    if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
-                    dayRow(iso, today: today, logId: logId)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    TimeHeader(
+                        period: $period, label: PageView.format("\(ym)-01", "MMMM"),
+                        title: current ? S.thisMonth : PageView.format("\(ym)-01", "MMMM yyyy")
+                    ) { EmptyView() }
+                    .padding(.bottom, 16)
+                    ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
+                        if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
+                        dayRow(iso, today: today, logId: logId)
+                    }
+                    Text(S.monthTasks)
+                        .font(Theme.body(13, weight: .semibold))
+                        .tracking(1.2)
+                        .textCase(.uppercase)
+                        .foregroundStyle(Theme.muted)
+                        .padding(.top, 28)
+                        .padding(.bottom, 8)
+                    SlotEditor(logId: logId, slot: "", minHeight: 96, highlight: nav.highlight)
+                        .id("\(logId)/tasks")
                 }
-                Text(S.monthTasks)
-                    .font(Theme.body(13, weight: .semibold))
-                    .tracking(1.2)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Theme.muted)
-                    .padding(.top, 28)
-                    .padding(.bottom, 8)
-                SlotEditor(logId: logId, slot: "", minHeight: 96)
-                    .id("\(logId)/tasks")
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 240)
+                .frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .padding(.bottom, 240)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            .scrollDismissesKeyboard(.interactively)
+            .background(Theme.paper)
+            .onAppear { reveal(proxy, logId: logId) }
+            .onChange(of: nav.focus) { reveal(proxy, logId: logId) }
+            .onChange(of: nav.highlight) { reveal(proxy, logId: logId) }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .background(Theme.paper)
     }
 
-    private func weekRule(_ iso: String) -> some View {
+    /// Scrolls to the day you came from (or an entry's day, from Open items) and marks it for a moment.
+    private func reveal(_ proxy: ScrollViewProxy, logId: String) {
+        let target: String
+        if let focus = nav.focus, Dates.monthOf(focus) == ym, focus.count == 10 {
+            target = focus
+        } else if nav.highlight != nil {
+            target = "tasks"
+        } else {
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo("\(logId)/\(target)", anchor: .center) }
+            if target != "tasks" {
+                marked = target
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { withAnimation { marked = nil } }
+            }
+        }
+    }
+
+    @ViewBuilder private func weekRule(_ iso: String) -> some View {
         let key = Dates.weekKey(iso, firstDay: firstDay)
-        return HStack(spacing: 8) {
+        HStack(spacing: 8) {
             Rectangle().fill(Theme.rule).frame(height: 1)
-            Button(S.weekShort(Dates.weekNumber(key))) { period = .week(key) }
-                .font(Theme.body(11, weight: .medium))
-                .foregroundStyle(Theme.muted)
-                .buttonStyle(.plain)
+            if weekly {
+                Button(S.weekShort(Dates.weekNumber(key))) { period = .week(key) }
+                    .font(Theme.body(11, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .buttonStyle(.plain)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -179,7 +246,7 @@ struct MonthPage: View {
         return HStack(alignment: .top, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Button {
-                    period = .day(iso)
+                    if let p = active.below(month: iso, firstDay: firstDay) { period = p }
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(String(Int(iso.suffix(2)) ?? 0))
@@ -195,12 +262,13 @@ struct MonthPage: View {
                     .frame(width: 22, alignment: .leading)
                     .accessibilityHidden(true)
             }
-            SlotEditor(logId: logId, slot: iso, minHeight: 27, fitOneLine: true)
-                .id("\(logId)/\(iso)")
+            SlotEditor(logId: logId, slot: iso, minHeight: 27, fitOneLine: true, highlight: nav.highlight)
         }
         .foregroundStyle(weekend ? Theme.muted : Theme.text)
         .frame(minHeight: 44, alignment: .top)
         .padding(.top, 8)
+        .background(Theme.task.opacity(marked == iso ? 0.1 : 0).padding(.horizontal, -8))
+        .id("\(logId)/\(iso)")
     }
 }
 
@@ -209,43 +277,64 @@ struct MonthPage: View {
 struct YearPage: View {
     let year: String
     @Binding var period: Period
+    @EnvironmentObject private var nav: Navigator
+    @AppStorage("firstDay") private var firstDay = 1
+    @AppStorage("logMonthly") private var monthly = true
+    @AppStorage("logWeekly") private var weekly = true
+    @AppStorage("logDaily") private var daily = true
+    @State private var marked: String?
 
     var body: some View {
         let currentMonth = Dates.monthOf(Dates.today())
         let logId = Period.year(year).logId
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                TimeHeader(period: $period, label: "", title: year) { EmptyView() }
-                    .padding(.bottom, 16)
-                ForEach(0..<12, id: \.self) { n in
-                    let ym = Dates.addMonths("\(year)-01", n)
-                    Section {
-                        SlotEditor(logId: logId, slot: ym, minHeight: 96)
-                            .id("\(logId)/\(ym)")
-                            .padding(.bottom, 20)
-                    } header: {
-                        Button {
-                            period = .month(ym)
-                        } label: {
-                            Text(PageView.format("\(ym)-01", "MMMM"))
-                                .font(Theme.body(17, weight: .semibold))
-                                .foregroundStyle(ym == currentMonth ? Theme.task : Theme.text)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 8)
-                                .background(Theme.paper)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    TimeHeader(period: $period, label: "", title: year) { EmptyView() }
+                        .padding(.bottom, 16)
+                    ForEach(0..<12, id: \.self) { n in
+                        let ym = Dates.addMonths("\(year)-01", n)
+                        Section {
+                            SlotEditor(logId: logId, slot: ym, minHeight: 96, highlight: nav.highlight)
+                                .padding(.bottom, 20)
+                                .background(Theme.task.opacity(marked == ym ? 0.08 : 0).padding(.horizontal, -8))
+                                .id("\(logId)/\(ym)")
+                        } header: {
+                            Button {
+                                period = ActiveLogs(monthly: monthly, weekly: weekly, daily: daily).below(year: ym, firstDay: firstDay)
+                            } label: {
+                                Text(PageView.format("\(ym)-01", "MMMM"))
+                                    .font(Theme.body(17, weight: .semibold))
+                                    .foregroundStyle(ym == currentMonth ? Theme.task : Theme.text)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .background(Theme.paper)
+                            }
+                            .buttonStyle(.plain)
+                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.rule).frame(height: 1) }
                         }
-                        .buttonStyle(.plain)
-                        .overlay(alignment: .bottom) { Rectangle().fill(Theme.rule).frame(height: 1) }
                     }
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 240)
+                .frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .padding(.bottom, 240)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            .scrollDismissesKeyboard(.interactively)
+            .background(Theme.paper)
+            .onAppear { reveal(proxy, logId: logId) }
+            .onChange(of: nav.focus) { reveal(proxy, logId: logId) }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .background(Theme.paper)
+    }
+
+    /// Scrolls to the month you came from (or an entry's month, from Open items) and marks it for a moment.
+    private func reveal(_ proxy: ScrollViewProxy, logId: String) {
+        guard let focus = nav.focus.map({ String($0.prefix(7)) }), focus.hasPrefix(year) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo("\(logId)/\(focus)", anchor: .top) }
+            marked = focus
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { withAnimation { marked = nil } }
+        }
     }
 }

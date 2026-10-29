@@ -150,6 +150,26 @@ struct Repository {
         NotificationCenter.default.post(name: Self.changedOutside, object: nil, userInfo: ["logId": e.logId, "slot": e.slot])
     }
 
+    func hasEntries(logId: String) -> Bool {
+        ((try? context.fetchCount(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.logId == logId }))) ?? 0) > 0
+    }
+
+    /// Every log id that has something written, for printing.
+    func writtenLogIds() -> Set<String> {
+        Set(((try? context.fetch(FetchDescriptor<EntryRecord>())) ?? []).map(\.logId))
+    }
+
+    /// "Set up week" / "Set up month": records that the empty page was set up, so the banner goes away (the
+    /// page itself stays empty). Its own id; it names the period it stands for.
+    func setUpPeriod(_ s: Source) {
+        let now = Self.now()
+        let log = Log(
+            id: "setup:\(ULID.make())", kind: s.kind, title: "", periodStart: s.start, periodEnd: s.end, periodLogId: s.logId,
+            createdAt: now, updatedAt: now)
+        context.insert(LogRecord(log))
+        try? context.save()
+    }
+
     /// A collection is created only by an explicit user action (CLAUDE.md principle 7).
     func createCollection(title: String) -> Log {
         let now = Self.now()

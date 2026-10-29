@@ -18,6 +18,10 @@ struct PageEditorView: UIViewRepresentable {
     /// Month day rows (CLAUDE.md 3.6): a phrase that doesn't fit on one line shrinks down to 85% (never below
     /// 14 pt) before it wraps; it is never cut.
     var fitOneLine = false
+    /// An entry to scroll to and mark briefly (opened from Open items).
+    var highlight: String? = nil
+    /// The lines selected (with collapsed children), for the page menu's Export, Copy As and Share.
+    var onSelection: ([Line]) -> Void = { _ in }
     var onAction: (LineAction, String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -69,6 +73,10 @@ struct PageEditorView: UIViewRepresentable {
             c.rebuild(caret: samePage ? c.currentCaret() : nil)
         } else if restyle {
             c.rebuild(caret: c.currentCaret())
+        }
+        if let highlight, highlight != c.flashed {
+            c.flashed = highlight
+            DispatchQueue.main.async { c.flash(highlight) }
         }
     }
 
@@ -335,7 +343,38 @@ struct PageEditorView: UIViewRepresentable {
             apply(Edited(lines: next, caret: caret ?? Caret(index: i, offset: 0)))
         }
 
+        // MARK: Selection and highlight
+
+        /// The selected lines as the model has them: every line the selection touches, with the children of
+        /// collapsed ones (collapsing never changes what is exported or copied, CLAUDE.md 7).
+        func selectedLines() -> [Line] {
+            guard let view = textView, view.selectedRange.length > 0 else { return [] }
+            let a = caret(at: view.selectedRange.location)
+            let b = caret(at: view.selectedRange.location + view.selectedRange.length)
+            let end = Outline.subtreeEnd(lines, b.index)
+            let last = lines[b.index].collapsed ? end : b.index + 1
+            return Array(lines[a.index..<max(last, a.index + 1)])
+        }
+
+        var flashed: String?
+
+        /// Scrolls to an entry and marks it for a moment.
+        func flash(_ id: String) {
+            guard let view = textView, let i = lines.firstIndex(where: { $0.id == id }), visible.contains(i) else { return }
+            let start = location(of: Caret(index: i, offset: 0))
+            let range = NSRange(location: start, length: (lines[i].text as NSString).length)
+            guard range.location + range.length <= view.textStorage.length else { return }
+            view.scrollRangeToVisible(range)
+            let mark = Theme.ui("task").withAlphaComponent(0.16)
+            view.textStorage.addAttribute(.backgroundColor, value: mark, range: range)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak view] in
+                guard let view, range.location + range.length <= view.textStorage.length else { return }
+                view.textStorage.removeAttribute(.backgroundColor, range: range)
+            }
+        }
+
         func textViewDidChangeSelection(_ textView: UITextView) {
+            parent.onSelection(selectedLines())
             // Leaving a line written by Scribble reads its prefix now.
             if let pendingId = pendingPrefix?.id, let at = currentCaret(), lines[at.index].id != pendingId { applyPendingPrefix() }
             updateTyping()
@@ -508,6 +547,16 @@ final class EditorTextView: UITextView {
     weak var coordinator: PageEditorView.Coordinator?
 
     override var undoManager: UndoManager? { coordinator?.undo ?? super.undoManager }
+
+    /// ⌘C and the Copy menu take the selected lines from the model, with collapsed children (CLAUDE.md 7), as
+    /// rich text and plain text.
+    override func copy(_ sender: Any?) {
+        guard let lines = coordinator?.selectedLines(), !lines.isEmpty else { return super.copy(sender) }
+        let doc = ExportDoc.selection(lines)
+        UIPasteboard.general.setItems([[
+            "public.html": Export.html(doc), "public.utf8-plain-text": Export.plain(doc),
+        ]])
+    }
 
     override func deleteBackward() {
         if coordinator?.backspaceAtLineStart() == true { return }

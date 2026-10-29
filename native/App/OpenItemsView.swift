@@ -28,8 +28,10 @@ struct OpenItemsButton: View {
 }
 
 struct OpenItemsPanel: View {
-    /// Opens the page an item is on (a time page or a collection).
-    var open: (Source) -> Void
+    /// Close the day: only what is still open on today's page.
+    var onlyToday = false
+    /// Opens the page an item is on (a time page or a collection), with the item marked.
+    var open: (OpenItem) -> Void
     @Environment(\.modelContext) private var context
     @Query private var records: [EntryRecord]
     @AppStorage("eventStates") private var eventStates = true
@@ -44,8 +46,11 @@ struct OpenItemsPanel: View {
         let today = Dates.today()
         let entries = records.map(\.entry)
         let byId = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        let items = OpenItems.withKept(
-            OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today), kept: kept, byId: byId)
+        let found =
+            onlyToday
+            ? OpenItems.openToday(entries, eventStates: eventStates, firstDay: firstDay, today: today)
+            : OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today)
+        let items = OpenItems.withKept(found, kept: kept, byId: byId)
         let groups = OpenItems.groups(items)
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
         List {
@@ -74,7 +79,7 @@ struct OpenItemsPanel: View {
         .scrollContentBackground(.hidden)
         .background(Theme.paper)
         .safeAreaInset(edge: .top) {
-            Text(S.openItems)
+            Text(onlyToday ? S.openToday : S.openItems)
                 .font(Theme.body(20, weight: .bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
@@ -104,7 +109,7 @@ struct OpenItemsPanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Tap the text: its page.
                 Button {
-                    open(item.source)
+                    open(item)
                 } label: {
                     Text(e.text.isEmpty ? "—" : e.text)
                         .font(Theme.body(16))

@@ -23,6 +23,14 @@ struct SettingsView: View {
     @State private var message: String?
     @State private var count = 0
     @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
+    @AppStorage("logMonthly") private var monthly = true
+    @AppStorage("logWeekly") private var weekly = true
+    @AppStorage("logDaily") private var daily = true
+    @AppStorage("setupBanner") private var setupBanner = true
+    @AppStorage("closeDay") private var closeDay = true
+    @AppStorage("closeDayAt") private var closeDayAt = "20:00"
+    @AppStorage("glyphStyle") private var glyphStyle = GlyphStyle.checkboxes.rawValue
+    @State private var printing: [Any]?
     @ObservedObject private var handwriting = Handwriting.shared
 
     var body: some View {
@@ -34,6 +42,39 @@ struct SettingsView: View {
                 Text(S.importTitle)
             } footer: {
                 Text(S.importHint)
+            }
+            Section {
+                // At least one of Month, Week and Day stays on (the last one can't be turned off).
+                let active = ActiveLogs(monthly: monthly, weekly: weekly, daily: daily)
+                Toggle(S.month, isOn: $monthly).disabled(monthly && !active.canTurnOff(.monthly))
+                Toggle(S.week, isOn: $weekly).disabled(weekly && !active.canTurnOff(.weekly))
+                Toggle(S.day, isOn: $daily).disabled(daily && !active.canTurnOff(.daily))
+            } header: {
+                Text(S.logs)
+            } footer: {
+                Text(S.logsHint)
+            }
+            Section {
+                Toggle(S.setupBanner, isOn: $setupBanner)
+                Toggle(S.closeDay, isOn: $closeDay)
+                if closeDay {
+                    DatePicker(S.closeDayTime, selection: closeDayTime, displayedComponents: .hourAndMinute)
+                }
+            }
+            Section {
+                Picker(S.glyphStyle, selection: $glyphStyle) {
+                    Text(S.checkboxes).tag(GlyphStyle.checkboxes.rawValue)
+                    Text(S.dotNotation).tag(GlyphStyle.dots.rawValue)
+                }
+            }
+            Section {
+                ForEach(PrintRange.allCases) { range in
+                    Button(range.name) { printRange(range) }
+                }
+            } header: {
+                Text(S.print)
+            } footer: {
+                Text(S.printHint)
             }
             Section {
                 Picker(S.firstDay, selection: $firstDay) {
@@ -66,6 +107,9 @@ struct SettingsView: View {
             }
         }
         .navigationTitle(S.settings)
+        .sheet(isPresented: Binding(get: { printing != nil }, set: { if !$0 { printing = nil } })) {
+            ActivityView(items: printing ?? [])
+        }
         .onAppear {
             count = Repository(context: context).entryCount()
             handwriting.prepare(HandwritingLang(rawValue: handwritingLang) ?? .ptBR)
@@ -84,5 +128,28 @@ struct SettingsView: View {
                 message = S.importFailed
             }
         }
+    }
+
+    /// The Close the day time, stored as "HH:mm".
+    private var closeDayTime: Binding<Date> {
+        Binding(
+            get: {
+                let f = DateFormatter()
+                f.dateFormat = "HH:mm"
+                return f.date(from: closeDayAt) ?? Date()
+            },
+            set: {
+                let f = DateFormatter()
+                f.dateFormat = "HH:mm"
+                closeDayAt = f.string(from: $0)
+            })
+    }
+
+    private func printRange(_ range: PrintRange) {
+        let pages = PrintPages.pages(range, repo: Repository(context: context), firstDay: firstDay)
+        guard !pages.isEmpty else { return }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(PageMenu.fileName("Bullet Life · \(range.name)", "pdf"))
+        try? PdfExport.render(pages, firstDay: firstDay).write(to: url)
+        printing = [url]
     }
 }

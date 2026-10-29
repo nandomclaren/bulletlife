@@ -5,97 +5,13 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// Where the notebook is open: a time page, the Index, or a collection.
-enum Place: Hashable {
-    case time(Period)
-    case index
-    case collection(String)
-}
-
-struct RootView: View {
-    @State private var place: Place = .time(.day(Dates.today()))
-    /// The last time page, so a Day/Week/Month/Year header always has one to start from.
-    @State private var lastPeriod: Period = .day(Dates.today())
-    @State private var showOpen = false
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    @Environment(\.modelContext) private var context
-
-    private var period: Binding<Period> {
-        Binding(
-            get: {
-                if case .time(let p) = place { return p }
-                return lastPeriod
-            },
-            set: {
-                lastPeriod = $0
-                place = .time($0)
-            })
-    }
-
-    var body: some View {
-        NavigationStack {
-            page
-                // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
-                // iPhone (CLAUDE.md 4.2).
-                .inspector(isPresented: $showOpen) {
-                    OpenItemsPanel { source in
-                        if let p = source.period { period.wrappedValue = p } else { place = .collection(source.logId) }
-                        if sizeClass == .compact { showOpen = false }
-                    }
-                    .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
-                }
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            place = .index
-                        } label: {
-                            Image(systemName: "book.closed")
-                        }
-                        .accessibilityLabel(S.index)
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        OpenItemsButton(isOpen: $showOpen)
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            SettingsView()
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                        .accessibilityLabel(S.settings)
-                    }
-                }
-        }
-        .tint(Theme.task)
-    }
-
-    /// Day, Week and collections are free pages (Type or Pen); Month and Year have their fixed layouts.
-    @ViewBuilder private var page: some View {
-        switch place {
-        case .index:
-            IndexPage(period: period) { place = .collection($0) }
-        case .collection(let id):
-            if let log = Repository(context: context).collection(id) {
-                PageView(period: period, collection: log) { place = .index }
-            } else {
-                IndexPage(period: period) { place = .collection($0) }
-            }
-        case .time(let p):
-            switch p {
-            case .day, .week: PageView(period: period)
-            case .month(let ym): MonthPage(ym: ym, period: period)
-            case .year(let y): YearPage(year: y, period: period)
-            }
-        }
-    }
-}
-
 struct PageView: View {
     @Binding var period: Period
     /// A collection instead of a time page (its own header: back to the Index, its editable name).
     var collection: Log? = nil
     var onIndex: () -> Void = {}
     @State private var collectionTitle = ""
+    @EnvironmentObject private var nav: Navigator
     @Environment(\.modelContext) private var context
     @AppStorage("firstDay") private var firstDay = 1
     @AppStorage("eventStates") private var eventStates = true
@@ -172,7 +88,11 @@ struct PageView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 8)
                 .padding(.bottom, 8)
-            PageEditorView(lines: $lines, eventStates: eventStates, doneMark: doneMark) { act($0, on: $1) }
+            PageEditorView(
+                lines: $lines, eventStates: eventStates, doneMark: doneMark,
+                highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil,
+                onSelection: { PageSelection.set(logId: logId, $0) }
+            ) { act($0, on: $1) }
         }
         .frame(maxWidth: 720)
         .frame(maxWidth: .infinity)
