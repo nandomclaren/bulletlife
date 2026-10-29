@@ -263,14 +263,13 @@ final class SheetBackground: UIView {
         super.init(frame: frame)
         isUserInteractionEnabled = false
         updateRules()
+        // The rules are an image, so they are redrawn in the new color when light/dark changes.
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: SheetBackground, _: UITraitCollection) in
+            view.updateRules()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
-
-    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
-        super.traitCollectionDidChange(previous)
-        updateRules()
-    }
 
     private func updateRules() {
         guard showsRules else {
