@@ -417,3 +417,32 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(InlineText.html("**a<b**", esc: Export.esc), "<b>a&lt;b</b>")
     }
 }
+
+final class TranscriptionJobTests: XCTestCase {
+    func testJobLeavesOutBulletAndLaysRowsOnOneLine() {
+        // A dot (the bullet) at the left, then a word on row 0 and another on row 1.
+        let dot = Stroke(k: .writing, r: 0, p: [70, 20, 0.5, 71, 21, 0.5])
+        let w1 = Stroke(k: .writing, r: 0, p: [100, 10, 0.5, 160, 30, 0.5])
+        let w2 = Stroke(k: .writing, r: 1, p: [100, 50, 0.5, 140, 70, 0.5])
+        let line = Line(ink: Ink(strokes: [dot, w1, w2]))
+        let jobs = Transcription.jobs([Line(text: "typed"), line])
+        XCTAssertEqual(jobs.count, 1)
+        let job = jobs[0]
+        XCTAssertEqual(job.id, line.id)
+        XCTAssertEqual(job.n, 3)
+        XCTAssertEqual(job.shape.type, .task)
+        XCTAssertEqual(job.shape.bullet, [0])
+        XCTAssertEqual(job.strokes.count, 2)
+        // From the origin; row 1 goes to the right of row 0, on the same baseline.
+        XCTAssertEqual(job.strokes[0], [0, 0, 0.5, 60, 20, 0.5])
+        XCTAssertEqual(job.strokes[1], [100, 0, 0.5, 140, 20, 0.5])
+    }
+
+    func testWritingTotalIgnoresTranscription() throws {
+        let line = Line(ink: Ink(strokes: [Stroke(k: .writing, p: [0, 0, 0.5]), Stroke(k: .drawing, p: [0, 0, 0.5])]))
+        XCTAssertEqual(Transcription.writingTotal([line]), 1)
+        let done = try XCTUnwrap(Transcription.apply(id: line.id, n: 1, text: "a", shape: LineShape(type: .text, bullet: [], indent: 0), to: [line]))
+        XCTAssertEqual(Transcription.writingTotal(done), 1)
+        XCTAssertTrue(Transcription.jobs(done).isEmpty)
+    }
+}

@@ -6,3 +6,6 @@ Core/.build/
 .swiftpm/
 DerivedData/
 xcuserdata/
+# CocoaPods (ML Kit): installed with `pod install`
+Pods/
+BulletLife.xcworkspace/

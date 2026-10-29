@@ -100,4 +100,15 @@ enum S {
     static let undo = "Undo"
     static let sizes = ["Fine", "Medium", "Bold"]
     static let colorNames = ["ink": "Ink", "task": "Red", "event": "Blue", "note": "Green"]
+    static let handwriting = "Handwriting"
+    static let language = "Language"
+    static let portugueseBR = "Portuguese (Brazil)"
+    static let englishUS = "English (US)"
+    static let handwritingHint =
+        "Handwriting becomes text on this device, after a short pause in writing. The first time, the language (about 20 MB) is downloaded."
+    static let hwUnavailable = "Not in this build yet"
+    static let hwNotDownloaded = "Not downloaded"
+    static let hwDownloading = "Downloading…"
+    static let hwReady = "Ready, works offline"
+    static let hwFailed = "Download failed. It tries again when you write."
 }

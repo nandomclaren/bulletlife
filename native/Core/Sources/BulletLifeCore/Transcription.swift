@@ -3,7 +3,38 @@
 // its transcription, and a correction typed in Type mode is never overwritten.
 import Foundation
 
+/// What to read on one handwritten line: its writing without the hand-drawn bullet, laid out on one line
+/// from the origin (a paragraph over several ruled lines reads left to right), and what to store it with.
+public struct TranscriptionJob: Equatable, Sendable {
+    public var id: String
+    /// Writing strokes the line had when the job was made (Transcription.apply skips it if that changed).
+    public var n: Int
+    public var shape: LineShape
+    /// Flat [x, y, pressure, ...] per stroke, in writing order.
+    public var strokes: [[Double]]
+}
+
 public enum Transcription {
+    /// One job per line with unread writing, in page order.
+    public static func jobs(_ lines: [Line]) -> [TranscriptionJob] {
+        pending(lines).map { l in
+            let all = l.ink?.strokes ?? []
+            let shape = PenRules.readLineShape(all)
+            let words = all.enumerated().filter { $0.element.k == .writing && !shape.bullet.contains($0.offset) }.map(\.element)
+            let laid = PenRules.onOneLine(words)
+            let x0 = laid.map(\.box.x0).min() ?? 0
+            let y0 = laid.map(\.box.y0).min() ?? 0
+            let strokes = laid.map { s in s.p.enumerated().map { i, v in i % 3 == 0 ? v - x0 : i % 3 == 1 ? v - y0 : v } }
+            return TranscriptionJob(id: l.id, n: l.ink?.writingCount ?? 0, shape: shape, strokes: strokes)
+        }
+    }
+
+    /// The total of writing strokes on the page: changes with every stroke written or erased, not with a
+    /// transcription (the screen waits for a pause in writing by watching it).
+    public static func writingTotal(_ lines: [Line]) -> Int {
+        lines.reduce(0) { $0 + ($1.ink?.writingCount ?? 0) }
+    }
+
     /// Lines with writing the last transcription did not read, in page order.
     public static func pending(_ lines: [Line]) -> [Line] {
         lines.filter { $0.ink?.needsTranscription ?? false }

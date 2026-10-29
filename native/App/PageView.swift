@@ -41,6 +41,8 @@ struct PageView: View {
     @State private var penTool: PenTool = .write
     @State private var undoRequests = 0
     @State private var canUndo = false
+    @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
+    @ObservedObject private var handwriting = Handwriting.shared
 
     private var repo: Repository { Repository(context: context) }
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
@@ -54,6 +56,26 @@ struct PageView: View {
         .onChange(of: period) { load() }
         .onChange(of: penOn) { focus = nil }
         .onChange(of: lines) { repo.save(lines, logId: period.logId) }
+        // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
+        .task(id: transcriptionKey) { await transcribe() }
+    }
+
+    // MARK: Transcription (N3)
+
+    private var transcriptionKey: String {
+        "\(period.logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(handwritingLang)|\(handwriting.status == .ready)"
+    }
+
+    /// Reads the handwriting the last pass didn't, after a pause in writing (at once in Type mode). The ink is
+    /// already saved; the text is its transcription, and a correction typed in Type mode is never overwritten.
+    private func transcribe() async {
+        guard !Transcription.jobs(lines).isEmpty else { return }
+        if penOn && isPad { try? await Task.sleep(for: .seconds(2.5)) }
+        let lang = HandwritingLang(rawValue: handwritingLang) ?? .ptBR
+        for job in Transcription.jobs(lines) {
+            guard !Task.isCancelled, let text = await handwriting.recognize(job.strokes, lang: lang), !Task.isCancelled else { return }
+            if let next = Transcription.apply(id: job.id, n: job.n, text: text, shape: job.shape, to: lines) { lines = next }
+        }
     }
 
     private var penPage: some View {

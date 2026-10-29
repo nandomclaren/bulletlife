@@ -63,11 +63,15 @@ struct PenSheetView: UIViewRepresentable {
         canvas.tool = c.pkTool()
         c.sheet?.showsRules = tool != .draw
         if c.lines != lines {
-            // Another page, or a change made outside the sheet.
+            // A transcription keeps every stroke where it was (it only adds text and colors the bullet): the
+            // page is drawn again but Undo keeps its steps. Another page, or other changes, start Undo afresh.
+            let sameInk = c.lines.map(\.id) == lines.map(\.id) && c.lines.map { $0.ink?.strokes.map(\.p) } == lines.map { $0.ink?.strokes.map(\.p) }
             c.lines = lines
-            c.history.removeAll()
+            if !sameInk {
+                c.history.removeAll()
+                DispatchQueue.main.async { onCanUndo(false) }
+            }
             c.render()
-            DispatchQueue.main.async { onCanUndo(false) }
         }
         if undoRequests != c.undoSeen {
             c.undoSeen = undoRequests

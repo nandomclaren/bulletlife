@@ -11,7 +11,8 @@ The plan and the decisions are in `CLAUDE.md`, section 17. This folder holds:
 ## Build and run on your iPad
 
 1. Install XcodeGen once: `brew install xcodegen` (Homebrew: <https://brew.sh>).
-2. In this folder: `xcodegen`, then `open BulletLife.xcodeproj`.
+2. In this folder: `xcodegen`, then `pod install` (see Handwriting recognition below), then
+   `open BulletLife.xcworkspace`.
 3. In Xcode, target **BulletLife** › **Signing & Capabilities**: choose your team (your Apple ID works).
    If Xcode says the bundle identifier is taken, change it there (or in `project.yml`, then run
    `xcodegen` again), e.g. `com.<yourname>.bulletlife`.
@@ -23,6 +24,14 @@ The plan and the decisions are in `CLAUDE.md`, section 17. This folder holds:
 
 With a free Apple account the app stops opening after 7 days; running it from Xcode again renews it.
 iCloud sync needs the paid Apple Developer Program (phase N5).
+
+## Handwriting recognition (ML Kit)
+
+Handwriting becomes text with Google ML Kit, which is only distributed through CocoaPods. Once:
+`brew install cocoapods`. Then, in this folder, after every `xcodegen`: `pod install`, and open
+**BulletLife.xcworkspace** (not the `.xcodeproj`). Without the pod the app still builds; handwriting just isn't
+read (Settings › Handwriting says "Not in this build yet"). The language model (~20 MB) downloads the first
+time; after that it works offline. ML Kit has no build for the Simulator on Apple silicon Macs: run on the iPad.
 
 ## Bring your data over
 

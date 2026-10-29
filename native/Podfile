@@ -1,0 +1,29 @@
+# Handwriting recognition (phase N3): Google ML Kit Digital Ink, only distributed through CocoaPods.
+# After `xcodegen`: `pod install`, then open BulletLife.xcworkspace (not the .xcodeproj). See README.md.
+platform :ios, '17.0'
+use_frameworks!
+
+project 'BulletLife.xcodeproj'
+
+target 'BulletLife' do
+  pod 'GoogleMLKit/DigitalInkRecognition', '9.0.0'
+end
+
+post_install do |installer|
+  # As in Google's ML Kit samples: newer Xcode renamed DT_TOOLCHAIN_DIR.
+  installer.aggregate_targets.each do |target|
+    target.xcconfigs.each do |variant, xcconfig|
+      xcconfig_path = target.client_root + target.xcconfig_relative_path(variant)
+      IO.write(xcconfig_path, IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR"))
+    end
+  end
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
+      if config.base_configuration_reference.is_a? Xcodeproj::Project::Object::PBXFileReference
+        xcconfig_path = config.base_configuration_reference.real_path
+        IO.write(xcconfig_path, IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR"))
+      end
+    end
+  end
+end
