@@ -17,6 +17,22 @@ enum Theme {
     static let event = dynamic(0x3B82C4, 0x5B9BD8)
     static let note = dynamic(0x2A9D8F, 0x3BB3A4)
 
+    static func dynamicUI(_ light: UInt32, _ dark: UInt32) -> UIColor {
+        UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) }
+    }
+
+    /// UIKit colors by token: the pen's colors ('ink' and the bullets'), and the page's ('text', 'muted', 'rule').
+    static func ui(_ token: String) -> UIColor {
+        switch token {
+        case "task": return dynamicUI(0xE0533D, 0xEF6B56)
+        case "event": return dynamicUI(0x3B82C4, 0x5B9BD8)
+        case "note": return dynamicUI(0x2A9D8F, 0x3BB3A4)
+        case "muted": return dynamicUI(0x726D65, 0x8D8A85)
+        case "rule": return dynamicUI(0xE6E1D8, 0x2A2A2A)
+        default: return dynamicUI(0x1F1D1A, 0xECE9E4)  // 'ink', 'text', a heading
+        }
+    }
+
     /// The color of a line's bullet (and caret): from the type of its root item (Outline.colorTypes).
     static func color(_ type: EntryType) -> Color {
         switch type {
@@ -76,4 +92,12 @@ enum S {
     static let onDevice = "On this device"
     static func entries(_ n: Int) -> String { "\(n) \(n == 1 ? "entry" : "entries")" }
     static func weekTitle(_ n: Int) -> String { "Week \(n)" }
+    static let typeMode = "Type"
+    static let penMode = "Pen"
+    static let write = "Write"
+    static let draw = "Draw"
+    static let eraser = "Eraser"
+    static let undo = "Undo"
+    static let sizes = ["Fine", "Medium", "Bold"]
+    static let colorNames = ["ink": "Ink", "task": "Red", "event": "Blue", "note": "Green"]
 }

@@ -3,6 +3,7 @@
 import BulletLifeCore
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @State private var period: Period = .day(Dates.today())
@@ -33,10 +34,46 @@ struct PageView: View {
     @AppStorage("doneMark") private var doneMark = "×"
     @State private var lines: [Line] = []
     @FocusState private var focus: String?
+    // Pen mode (iPad): kept on this device, like the PWA's.
+    @AppStorage("penMode") private var penOn = false
+    @AppStorage("penColor") private var penColor = "ink"
+    @AppStorage("penSize") private var penSize = defaultPenSize
+    @State private var penTool: PenTool = .write
+    @State private var undoRequests = 0
+    @State private var canUndo = false
 
     private var repo: Repository { Repository(context: context) }
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
     var body: some View {
+        Group {
+            if penOn && isPad { penPage } else { typePage }
+        }
+        .background(Theme.paper)
+        .onAppear(perform: load)
+        .onChange(of: period) { load() }
+        .onChange(of: penOn) { focus = nil }
+        .onChange(of: lines) { repo.save(lines, logId: period.logId) }
+    }
+
+    private var penPage: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
+            PenSheetView(
+                lines: $lines, tool: penTool, color: penColor, size: penSize, eventStates: eventStates, doneMark: doneMark,
+                undoRequests: undoRequests, onCanUndo: { canUndo = $0 })
+        }
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .bottom) {
+            PenToolbar(tool: $penTool, color: $penColor, size: $penSize, canUndo: canUndo) { undoRequests += 1 }
+                .padding(.bottom, 16)
+        }
+    }
+
+    private var typePage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 header
@@ -65,11 +102,7 @@ struct PageView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .background(Theme.paper)
         .scrollDismissesKeyboard(.interactively)
-        .onAppear(perform: load)
-        .onChange(of: period) { load() }
-        .onChange(of: lines) { repo.save(lines, logId: period.logId) }
     }
 
     // MARK: Header
@@ -83,6 +116,14 @@ struct PageView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 160)
+                if isPad {
+                    Picker("", selection: $penOn) {
+                        Image(systemName: "keyboard").accessibilityLabel(S.typeMode).tag(false)
+                        Image(systemName: "pencil.tip").accessibilityLabel(S.penMode).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 96)
+                }
                 Spacer()
                 Button {
                     period = period.moved(-1, firstDay: firstDay)

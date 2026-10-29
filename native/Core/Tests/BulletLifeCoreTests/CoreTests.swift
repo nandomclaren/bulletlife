@@ -236,3 +236,60 @@ final class PenRulesTests: XCTestCase {
         XCTAssertEqual(out[0].box.x0, 100)
     }
 }
+
+final class InkPageTests: XCTestCase {
+    func w(_ x: Double, _ y: Double, r: Int = 0) -> Stroke { Stroke(k: .writing, r: r, p: [x, y, 0.5, x + 30, y + 8, 0.5]) }
+
+    func testBlocksStackTypedAndHandwrittenLines() {
+        let lines = [
+            Line(id: "h", type: .heading, text: "Blurb"),
+            Line(id: "p", text: "two lines", ink: Ink(strokes: [w(80, 14), w(80, 54, r: 1)], tx: "two lines", n: 2)),
+            Line(id: "t", type: .task, text: "a long typed task"),
+        ]
+        let blocks = InkPage.blocks(lines) { $0.id == "t" ? 2 : 1 }
+        XCTAssertEqual(blocks.map(\.top), [0, 40, 120])
+        XCTAssertEqual(blocks.map(\.height), [40, 80, 80])
+        XCTAssertEqual(blocks.map(\.typed), [true, false, true])
+        XCTAssertEqual(InkPage.contentEnd(blocks), 200)
+        // Page coordinates: the paragraph's second line sits at its top + 40 + 54.
+        XCTAssertEqual(InkPage.strokes(blocks)[1].stroke.p[1], 94)
+    }
+
+    func testCorrectedHandwritingStaysHandwriting() {
+        XCTAssertFalse(InkPage.isTyped(Line(text: "Thati", ink: Ink(strokes: [w(80, 14)], tx: "That i", n: 1))))
+        XCTAssertTrue(InkPage.isTyped(Line(text: "typed")))
+        XCTAssertTrue(InkPage.isTyped(Line(type: .task)))
+        XCTAssertFalse(InkPage.isTyped(Line()))
+    }
+
+    func testWritingJoinsOrStartsEntries() {
+        let lines = [Line(id: "a", ink: Ink(strokes: [w(20, 14)], tx: "", n: 1)), Line(id: "b")]
+        // On the blank line right under the paragraph: joins it on its line 1, and the blank line goes.
+        let joined = InkPage.add(w(20, 54), placement: .join(id: "a", r: 1, top: 0, absorb: "b"), to: lines)
+        XCTAssertEqual(joined.entryId, "a")
+        XCTAssertEqual(joined.lines.map(\.id), ["a"])
+        XCTAssertEqual(joined.lines[0].ink?.strokes.last?.r, 1)
+        XCTAssertEqual(joined.lines[0].ink?.strokes.last?.p[1], 54)
+        XCTAssertEqual(joined.lines[0].ink?.tx, "")
+        // Two ruled lines below the content: a blank line, then the new entry, its stroke from its own top.
+        let fresh = InkPage.add(w(20, 134), placement: .new(after: nil, blanks: 1, top: 120), to: lines)
+        XCTAssertEqual(fresh.lines.count, 4)
+        XCTAssertEqual(fresh.lines.last?.id, fresh.entryId)
+        XCTAssertEqual(fresh.lines.last?.ink?.strokes[0].p[1], 14)
+        XCTAssertNil(fresh.lines[2].ink)
+    }
+
+    func testErasing() {
+        let lines = [
+            Line(id: "a", text: "hello", ink: Ink(strokes: [w(20, 14)], tx: "hello", n: 1)),
+            Line(id: "b", text: "fixed by hand", ink: Ink(strokes: [w(20, 14)], tx: "x", n: 1)),
+            Line(id: "c", ink: Ink(strokes: [w(20, 14)])),
+        ]
+        let out = InkPage.erase(["a": [0], "b": [0], "c": [0]], from: lines)
+        // The transcription goes with its handwriting; a typed correction stays; the emptied last line goes.
+        XCTAssertEqual(out.map(\.id), ["a", "b"])
+        XCTAssertEqual(out[0].text, "")
+        XCTAssertNil(out[0].ink)
+        XCTAssertEqual(out[1].text, "fixed by hand")
+    }
+}
