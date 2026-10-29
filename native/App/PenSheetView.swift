@@ -12,8 +12,8 @@ enum PenTool: String, CaseIterable {
 }
 
 /// Pen sizes (stroke diameter): fine, medium, bold (Fernando's choice: the PWA's fine and medium became medium
-/// and bold, and fine is smaller in the same proportion).
-let penSizes: [Double] = [1.35, 1.8, 2.4]
+/// and bold, and fine is 1.2).
+let penSizes: [Double] = [1.2, 1.8, 2.4]
 let defaultPenSize = 1.8
 /// The size a stored stroke without `s` has (the PWA's format: its default size, 2.4).
 let storedDefaultSize = 2.4
