@@ -174,11 +174,6 @@ struct MonthPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    TimeHeader(
-                        period: $period, label: PageView.format("\(ym)-01", "MMMM"),
-                        title: current ? S.thisMonth : PageView.format("\(ym)-01", "MMMM yyyy")
-                    ) { EmptyView() }
-                    .padding(.bottom, 16)
                     ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
                         if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
                         dayRow(iso, today: today, logId: logId)
@@ -201,6 +196,14 @@ struct MonthPage: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.paper)
+            // The header floats over the days, which scroll under it, seen blurred through.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                TimeHeader(
+                    period: $period, label: PageView.format("\(ym)-01", "MMMM"),
+                    title: current ? S.thisMonth : PageView.format("\(ym)-01", "MMMM yyyy")
+                ) { EmptyView() }
+                .floatingHeaderStyle()
+            }
             .onAppear { reveal(proxy, logId: logId) }
             .onChange(of: nav.focus) { reveal(proxy, logId: logId) }
             .onChange(of: nav.highlight) { reveal(proxy, logId: logId) }
@@ -292,8 +295,6 @@ struct YearPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    TimeHeader(period: $period, label: "", title: year) { EmptyView() }
-                        .padding(.bottom, 16)
                     ForEach(0..<12, id: \.self) { n in
                         let ym = Dates.addMonths("\(year)-01", n)
                         Section {
@@ -325,6 +326,10 @@ struct YearPage: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.paper)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                TimeHeader(period: $period, label: "", title: year) { EmptyView() }
+                    .floatingHeaderStyle()
+            }
             .onAppear { reveal(proxy, logId: logId) }
             .onChange(of: nav.focus) { reveal(proxy, logId: logId) }
         }

@@ -20,6 +20,8 @@ struct PageEditorView: UIViewRepresentable {
     var fitOneLine = false
     /// An entry to scroll to and mark briefly (opened from Open items).
     var highlight: String? = nil
+    /// Room for a header floating over the page (the text scrolls under it).
+    var topInset: CGFloat = 0
     /// The lines selected (with collapsed children), for the page menu's Export, Copy As and Share.
     var onSelection: ([Line]) -> Void = { _ in }
     var onAction: (LineAction, String) -> Void
@@ -74,6 +76,7 @@ struct PageEditorView: UIViewRepresentable {
         } else if restyle {
             c.rebuild(caret: c.currentCaret())
         }
+        if !embedded { setTopInset(view, topInset) }
         if let highlight, highlight != c.flashed {
             c.flashed = highlight
             DispatchQueue.main.async { c.flash(highlight) }

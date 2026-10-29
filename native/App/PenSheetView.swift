@@ -48,6 +48,8 @@ struct PenSheetView: UIViewRepresentable {
     var doneMark: String
     /// Bumped by the toolbar's Undo.
     var undoRequests: Int
+    /// Room for a header floating over the sheet (it scrolls under it).
+    var topInset: CGFloat = 0
     var onCanUndo: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -73,6 +75,7 @@ struct PenSheetView: UIViewRepresentable {
     func updateUIView(_ canvas: SheetCanvas, context: Context) {
         let c = context.coordinator
         c.parent = self
+        setTopInset(canvas, topInset)
         canvas.tool = c.pkTool()
         c.sheet?.showsRules = tool != .draw
         if c.lines != lines {

@@ -11,6 +11,8 @@ struct PageView: View {
     var collection: Log? = nil
     var onIndex: () -> Void = {}
     @State private var collectionTitle = ""
+    /// The floating header's height: the page starts below it and scrolls under it.
+    @State private var headerHeight: CGFloat = 0
     /// Deleting a collection asks twice.
     @State private var confirmDelete = false
     @State private var confirmDeleteAgain = false
@@ -74,16 +76,15 @@ struct PageView: View {
     }
 
     private var penPage: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, 24)
-                .padding(.vertical, 8)
+        ZStack(alignment: .top) {
             PenSheetView(
                 lines: $lines, tool: penTool, color: penColor, size: penSize, eventStates: eventStates, doneMark: doneMark,
-                undoRequests: undoRequests, onCanUndo: { canUndo = $0 })
+                undoRequests: undoRequests, topInset: headerHeight, onCanUndo: { canUndo = $0 }
+            )
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+            floatingHeader(width: 760)
         }
-        .frame(maxWidth: 760)
-        .frame(maxWidth: .infinity)
         .overlay(alignment: .bottom) {
             PenToolbar(tool: $penTool, color: $penColor, size: $penSize, canUndo: canUndo) { undoRequests += 1 }
                 .padding(.bottom, 16)
@@ -91,19 +92,23 @@ struct PageView: View {
     }
 
     private var typePage: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
+        ZStack(alignment: .top) {
             PageEditorView(
                 lines: $lines, eventStates: eventStates, doneMark: doneMark,
-                highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil,
+                highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil, topInset: headerHeight,
                 onSelection: { PageSelection.set(logId: logId, $0) }
             ) { act($0, on: $1) }
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
+            floatingHeader(width: 720)
         }
-        .frame(maxWidth: 720)
-        .frame(maxWidth: .infinity)
+    }
+
+    /// The header floats over the page, which scrolls under it, seen blurred through (as in a notes app).
+    private func floatingHeader(width: CGFloat) -> some View {
+        header
+            .floatingHeaderStyle(width: width)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
     }
 
     // MARK: Header

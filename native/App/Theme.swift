@@ -78,6 +78,42 @@ extension View {
     }
 }
 
+/// Behind a floating header: the page shows through, blurred, and the blur fades out at its lower edge.
+struct HeaderBlur: View {
+    var body: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask(
+                LinearGradient(
+                    stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
+                    startPoint: .top, endPoint: .bottom)
+            )
+            .ignoresSafeArea(edges: .top)
+    }
+}
+
+extension View {
+    /// A time page's header floating over its content: the page's width, blurred page behind.
+    func floatingHeaderStyle(width: CGFloat = 720) -> some View {
+        self
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .frame(maxWidth: width, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .background(HeaderBlur())
+    }
+}
+
+/// Puts a scroll view's content below a floating header, keeping it at the top if it was there.
+func setTopInset(_ view: UIScrollView, _ top: CGFloat) {
+    guard view.contentInset.top != top else { return }
+    let atTop = view.contentOffset.y <= -view.adjustedContentInset.top + 1
+    view.contentInset.top = top
+    view.verticalScrollIndicatorInsets.top = top
+    if atTop { view.contentOffset.y = -view.adjustedContentInset.top }
+}
+
 extension UIColor {
     convenience init(hex: UInt32) {
         self.init(
