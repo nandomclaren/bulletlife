@@ -590,3 +590,21 @@ final class ErasedInTypeTests: XCTestCase {
         XCTAssertEqual(InkPage.erasedInType([erased, kept, waiting, blank]), ["e"])
     }
 }
+
+final class TrailTests: XCTestCase {
+    func testAnchorIsTodayInsideElseFirstDay() {
+        XCTAssertEqual(Period.month("2026-10").anchor(today: "2026-10-29", firstDay: 1), "2026-10-29")
+        XCTAssertEqual(Period.month("2026-11").anchor(today: "2026-10-29", firstDay: 1), "2026-11-01")
+        XCTAssertEqual(Period.year("2027").anchor(today: "2026-10-29", firstDay: 1), "2027-01-01")
+        XCTAssertEqual(Period.day("2026-10-18").anchor(today: "2026-10-29", firstDay: 1), "2026-10-18")
+    }
+
+    func testTrail() {
+        XCTAssertEqual(
+            Period.trail(anchor: "2026-10-29", firstDay: 1),
+            [.year("2026"), .month("2026-10"), .week(Dates.weekKey("2026-10-29", firstDay: 1)), .day("2026-10-29")])
+        XCTAssertEqual(Period.trail(anchor: "2026-10-29", firstDay: 1, weekly: false).count, 3)
+        XCTAssertTrue(Period.day("a").sameLevel(.day("b")))
+        XCTAssertFalse(Period.day("a").sameLevel(.week("b")))
+    }
+}

@@ -92,6 +92,9 @@ enum S {
     static let onDevice = "On this device"
     static func entries(_ n: Int) -> String { "\(n) \(n == 1 ? "entry" : "entries")" }
     static func weekTitle(_ n: Int) -> String { "Week \(n)" }
+    static func weekShort(_ n: Int) -> String { "Wk \(n)" }
+    static let thisMonth = "This Month"
+    static let monthTasks = "Month tasks"
     static let typeMode = "Type"
     static let penMode = "Pen"
     static let write = "Write"

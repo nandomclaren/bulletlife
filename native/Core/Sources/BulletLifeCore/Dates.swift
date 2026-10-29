@@ -165,4 +165,28 @@ public enum Period: Hashable, Sendable {
         case .year: return .year(Dates.yearOf(iso))
         }
     }
+
+    /// The day the page is looked at from (CLAUDE.md 5.1): today when the period holds it, else its first day.
+    /// Changing level goes to the period that holds it.
+    public func anchor(today: String, firstDay: Weekday) -> String {
+        let a = start(firstDay: firstDay)
+        return today >= a && today <= end(firstDay: firstDay) ? today : a
+    }
+
+    /// The navigation trail from the anchor, coarsest first: Year › Month › Week › Day (a week can span two
+    /// months; the month shown is the anchor's). Levels turned off are left out (`weekly: false`).
+    public static func trail(anchor: String, firstDay: Weekday, weekly: Bool = true) -> [Period] {
+        var out: [Period] = [.year(Dates.yearOf(anchor)), .month(Dates.monthOf(anchor))]
+        if weekly { out.append(.week(Dates.weekKey(anchor, firstDay: firstDay))) }
+        out.append(.day(anchor))
+        return out
+    }
+
+    /// Same level as another period (Day and Day, Week and Week…).
+    public func sameLevel(_ other: Period) -> Bool {
+        switch (self, other) {
+        case (.day, .day), (.week, .week), (.month, .month), (.year, .year): return true
+        default: return false
+        }
+    }
 }

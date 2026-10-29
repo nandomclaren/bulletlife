@@ -11,6 +11,13 @@ struct PageEditorView: UIViewRepresentable {
     @Binding var lines: [Line]
     var eventStates: Bool
     var doneMark: String
+    /// Embedded in a page that scrolls (a Month day, Month tasks, a Year month): no scrolling of its own, as tall
+    /// as its text and at least `minHeight`; plain text starts at the margin (no bullet space).
+    var embedded = false
+    var minHeight: CGFloat = 0
+    /// Month day rows (CLAUDE.md 3.6): a phrase that doesn't fit on one line shrinks down to 85% (never below
+    /// 14 pt) before it wraps; it is never cut.
+    var fitOneLine = false
     var onAction: (LineAction, String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -21,9 +28,16 @@ struct PageEditorView: UIViewRepresentable {
         view.coordinator = c
         view.delegate = c
         view.backgroundColor = .clear
-        view.alwaysBounceVertical = true
-        view.keyboardDismissMode = .interactive
-        view.textContainerInset = UIEdgeInsets(top: 8, left: EditorLayout.inset, bottom: 240, right: 8)
+        if embedded {
+            view.isScrollEnabled = false
+            view.clipsToBounds = false  // a top-level chevron sits just left of the text
+            view.textContainerInset = UIEdgeInsets(top: 0, left: EditorLayout.inset(embedded: true), bottom: 0, right: 0)
+        } else {
+            view.alwaysBounceVertical = true
+            view.keyboardDismissMode = .interactive
+            view.textContainerInset = UIEdgeInsets(top: 8, left: EditorLayout.inset(embedded: false), bottom: 240, right: 8)
+        }
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.textContainer.lineFragmentPadding = 0
         view.autocapitalizationType = .sentences
         view.smartDashesType = .no  // "- " and "o. " are rapid-logging prefixes
@@ -33,6 +47,12 @@ struct PageEditorView: UIViewRepresentable {
         c.erased = InkPage.erasedInType(lines)
         c.rebuild(caret: nil)
         return view
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: EditorTextView, context: Context) -> CGSize? {
+        guard embedded, let width = proposal.width, width > 0, width.isFinite else { return nil }
+        let fit = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: max(minHeight, ceil(fit.height)))
     }
 
     func updateUIView(_ view: EditorTextView, context: Context) {
@@ -101,7 +121,8 @@ struct PageEditorView: UIViewRepresentable {
             let stateful = States.stateful(l.type, eventStates: parent.eventStates)
             let faded = stateful && l.state != .open
             let style = NSMutableParagraphStyle()
-            let indent = EditorLayout.textX(l.indent)
+            let bulletless = l.type == .text || l.type == .heading
+            let indent = parent.embedded && bulletless ? EditorLayout.bulletX(l.indent) : EditorLayout.textX(l.indent)
             style.firstLineHeadIndent = indent
             style.headIndent = indent
             style.minimumLineHeight = l.type == .heading ? 32 : 27
@@ -328,8 +349,32 @@ struct PageEditorView: UIViewRepresentable {
 
         // MARK: Bullets and chevrons in the margin
 
+        /// Month day rows: each plain line shrinks to fit one line, down to 85% (at least 14 pt), then wraps.
+        private func fitFonts() {
+            guard parent.fitOneLine, let view = textView, view.bounds.width > 0 else { return }
+            let storage = view.textStorage
+            let width = view.bounds.width - view.textContainerInset.left - view.textContainerInset.right
+            var at = 0
+            for i in visible {
+                let l = lines[i]
+                let len = (l.text as NSString).length
+                defer { at += len + 1 }
+                guard l.type == .text, len > 0, at + len <= storage.length else { continue }
+                let base = EditorLayout.font
+                let needed = (l.text as NSString).size(withAttributes: [.font: base]).width
+                let available = width - EditorLayout.bulletX(l.indent)
+                let size = needed <= available ? base.pointSize : max(14, base.pointSize * 0.85, (base.pointSize * available / needed * 10).rounded(.down) / 10)
+                let font = base.withSize(size)
+                if (storage.attribute(.font, at: at, effectiveRange: nil) as? UIFont)?.pointSize != size {
+                    storage.addAttribute(.font, value: font, range: NSRange(location: at, length: len))
+                }
+            }
+        }
+
         func layoutDecor() {
             guard let view = textView else { return }
+            fitFonts()
+            if parent.embedded { view.invalidateIntrinsicContentSize() }
             let lm = view.layoutManager
             lm.ensureLayout(for: view.textContainer)
             let s = starts()
@@ -430,7 +475,7 @@ struct PageEditorView: UIViewRepresentable {
 
 /// Where things sit on a line: the bullet in the margin, the text after it, 24 pt per indent level.
 enum EditorLayout {
-    static let inset: CGFloat = 24
+    static func inset(embedded: Bool) -> CGFloat { embedded ? 0 : 24 }
     static let step: CGFloat = 24
     static let bulletWidth: CGFloat = 26
     static func bulletX(_ indent: Int) -> CGFloat { CGFloat(indent) * step }

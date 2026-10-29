@@ -10,7 +10,7 @@ struct RootView: View {
 
     var body: some View {
         NavigationStack {
-            PageView(period: $period)
+            page
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
@@ -23,6 +23,15 @@ struct RootView: View {
                 }
         }
         .tint(Theme.task)
+    }
+
+    /// Day and Week are free pages (Type or Pen); Month and Year have their fixed layouts.
+    @ViewBuilder private var page: some View {
+        switch period {
+        case .day, .week: PageView(period: $period)
+        case .month(let ym): MonthPage(ym: ym, period: $period)
+        case .year(let y): YearPage(year: y, period: $period)
+        }
     }
 }
 
@@ -108,65 +117,16 @@ struct PageView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Picker("", selection: levelBinding) {
-                    Text(S.day).tag(0)
-                    Text(S.week).tag(1)
+        TimeHeader(period: $period, label: label, title: title) {
+            if isPad {
+                Picker("", selection: $penOn) {
+                    Image(systemName: "keyboard").accessibilityLabel(S.typeMode).tag(false)
+                    Image(systemName: "pencil.tip").accessibilityLabel(S.penMode).tag(true)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 160)
-                if isPad {
-                    Picker("", selection: $penOn) {
-                        Image(systemName: "keyboard").accessibilityLabel(S.typeMode).tag(false)
-                        Image(systemName: "pencil.tip").accessibilityLabel(S.penMode).tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 96)
-                }
-                Spacer()
-                Button {
-                    period = period.moved(-1, firstDay: firstDay)
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .accessibilityLabel(S.previous)
-                Button(S.today) {
-                    period = Period.containing(Dates.today(), like: period, firstDay: firstDay)
-                }
-                .buttonStyle(.bordered)
-                .clipShape(Capsule())
-                Button {
-                    period = period.moved(1, firstDay: firstDay)
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .accessibilityLabel(S.next)
+                .frame(width: 96)
             }
-            .font(Theme.body(15))
-            Text(label.uppercased())
-                .font(Theme.body(13, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(Theme.muted)
-            Text(title)
-                .font(Theme.body(30, weight: .bold))
-                .foregroundStyle(Theme.text)
         }
-    }
-
-    private var levelBinding: Binding<Int> {
-        Binding(
-            get: {
-                if case .week = period { return 1 }
-                return 0
-            },
-            set: { level in
-                let anchor = period.start(firstDay: firstDay)
-                let today = Dates.today()
-                let inside = today >= anchor && today <= period.end(firstDay: firstDay)
-                let day = inside ? today : anchor
-                period = level == 1 ? .week(Dates.weekKey(day, firstDay: firstDay)) : .day(day)
-            })
     }
 
     private var label: String {
@@ -202,8 +162,19 @@ struct PageView: View {
     }
 
     private func act(_ action: LineAction, on id: String) {
+        action.apply(to: &lines, id: id, eventStates: eventStates)
+    }
+}
+
+enum LineAction {
+    case type(EntryType)
+    case state(EntryState)
+    case togglePriority, indent, outdent, toggleCollapsed, delete
+
+    /// What a bullet menu action (or a chevron) does to the page: always to one line.
+    func apply(to lines: inout [Line], id: String, eventStates: Bool) {
         guard let i = lines.firstIndex(where: { $0.id == id }) else { return }
-        switch action {
+        switch self {
         case .type(let t):
             lines[i].type = t
             if !States.stateful(t, eventStates: eventStates) { lines[i].state = .open }
@@ -222,10 +193,4 @@ struct PageView: View {
             lines = PageEdit.deleteLine(lines, id: id)
         }
     }
-}
-
-enum LineAction {
-    case type(EntryType)
-    case state(EntryState)
-    case togglePriority, indent, outdent, toggleCollapsed, delete
 }
