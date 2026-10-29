@@ -12,6 +12,12 @@ public struct LineShape: Equatable, Sendable {
     /// Indexes (in ink.strokes) of the strokes that form the bullet.
     public var bullet: [Int]
     public var indent: Int
+
+    public init(type: EntryType, bullet: [Int], indent: Int) {
+        self.type = type
+        self.bullet = bullet
+        self.indent = indent
+    }
 }
 
 public struct PlacedBlock: Sendable {

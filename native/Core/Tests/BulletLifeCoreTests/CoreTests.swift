@@ -293,3 +293,127 @@ final class InkPageTests: XCTestCase {
         XCTAssertEqual(out[1].text, "fixed by hand")
     }
 }
+
+final class TranscriptionTests: XCTestCase {
+    func handwritten(_ text: String = "", tx: String? = nil, n: Int? = nil, strokes: Int = 2) -> Line {
+        let s = (0..<strokes).map { _ in Stroke(k: .writing, p: [10, 10, 0.5, 20, 20, 0.5]) }
+        return Line(text: text, ink: Ink(strokes: s, tx: tx, n: n))
+    }
+
+    func testPendingOnlyUnreadWriting() {
+        let read = handwritten("hi", tx: "hi", n: 2)
+        let fresh = handwritten()
+        let drawing = Line(ink: Ink(strokes: [Stroke(k: .drawing, p: [0, 0, 0.5])]))
+        XCTAssertEqual(Transcription.pending([read, fresh, drawing, Line(text: "typed")]).map(\.id), [fresh.id])
+    }
+
+    func testFirstPassWritesTextTypeIndentAndBullet() throws {
+        let parent = Line(type: .task, text: "Trip")
+        let line = handwritten()
+        let shape = LineShape(type: .task, bullet: [0], indent: 3)
+        let out = try XCTUnwrap(Transcription.apply(id: line.id, n: 2, text: "Pack", shape: shape, to: [parent, line]))
+        XCTAssertEqual(out[1].text, "Pack")
+        XCTAssertEqual(out[1].type, .task)
+        XCTAssertEqual(out[1].indent, 1)  // clamped: one deeper than the line above
+        XCTAssertEqual(out[1].ink?.tx, "Pack")
+        XCTAssertEqual(out[1].ink?.n, 2)
+        XCTAssertEqual(out[1].ink?.strokes.map(\.b), [true, nil])
+    }
+
+    func testStaleCountIsSkipped() {
+        let line = handwritten(strokes: 3)
+        XCTAssertNil(Transcription.apply(id: line.id, n: 2, text: "x", shape: LineShape(type: .text, bullet: [], indent: 0), to: [line]))
+    }
+
+    func testCorrectionIsNeverOverwritten() throws {
+        let line = handwritten("Corrected", tx: "Corected", n: 1, strokes: 2)
+        let out = try XCTUnwrap(
+            Transcription.apply(id: line.id, n: 2, text: "Corected more", shape: LineShape(type: .note, bullet: [], indent: 2), to: [line]))
+        XCTAssertEqual(out[0].text, "Corrected")
+        XCTAssertEqual(out[0].ink?.tx, "Corected")
+        XCTAssertEqual(out[0].type, .text)  // type and indent are read only the first time
+        XCTAssertEqual(out[0].ink?.n, 2)
+    }
+
+    func testOwnTranscriptionIsReplaced() throws {
+        let line = handwritten("Corected", tx: "Corected", n: 1)
+        let out = try XCTUnwrap(Transcription.apply(id: line.id, n: 2, text: "Corrected", shape: LineShape(type: .text, bullet: [], indent: 0), to: [line]))
+        XCTAssertEqual(out[0].text, "Corrected")
+        XCTAssertEqual(out[0].ink?.tx, "Corrected")
+    }
+
+    func testFirstPassAdoptsExistingText() throws {
+        let line = handwritten("Already here")
+        let out = try XCTUnwrap(Transcription.apply(id: line.id, n: 2, text: "Alredy", shape: LineShape(type: .text, bullet: [], indent: 0), to: [line]))
+        XCTAssertEqual(out[0].text, "Already here")
+        XCTAssertEqual(out[0].ink?.tx, "Already here")
+    }
+}
+
+final class ExportTests: XCTestCase {
+    let sample: [Line] = [
+        Line(type: .task, collapsed: true, priority: true, text: "Call the bank"),
+        Line(type: .note, indent: 1, text: "closes at 6"),
+        Line(type: .task, state: .done, text: "Buy bread"),
+        Line(type: .task, state: .migrated, text: "Renew passport"),
+        Line(type: .task, state: .scheduled, text: "Dentist"),
+        Line(type: .task, state: .cancelled, text: "Gym"),
+        Line(type: .event, text: "Dinner with Ana"),
+        Line(type: .event, state: .done, text: "Concert"),
+        Line(type: .event, state: .cancelled, text: "Trip"),
+        Line(type: .text, text: "Quiet day."),
+    ]
+
+    func page(_ lines: [Line]) -> ExportDoc { ExportDoc(title: "Sun, Oct 18", sections: [ExportSection(lines: lines)]) }
+
+    func testMarkdownCheckboxesWithCollapsedChildren() {
+        let expected = [
+            "# Sun, Oct 18", "", "- [ ] * Call the bank", "  - closes at 6", "- [x] Buy bread", "- [>] Renew passport", "- [<] Dentist",
+            "- ~~Gym~~", "- ○ Dinner with Ana", "- [x] ○ Concert", "- ~~○ Trip~~", "Quiet day.", "",
+        ]
+        XCTAssertEqual(Export.markdown(page(sample)), expected.joined(separator: "\n"))
+    }
+
+    func testMarkdownDots() {
+        let lines = Export.markdown(page(sample), style: .dots).components(separatedBy: "\n")
+        XCTAssertEqual(
+            Array(lines[2..<11]),
+            [
+                "- . * Call the bank", "  - - closes at 6", "- x Buy bread", "- > Renew passport", "- < Dentist", "- ~~. Gym~~",
+                "- o Dinner with Ana", "- x o Concert", "- ~~o Trip~~",
+            ])
+    }
+
+    func testSections() {
+        let doc = ExportDoc(
+            title: "October 2026",
+            sections: [
+                ExportSection(heading: "18 Sun", lines: [Line(text: "Long walk")]),
+                ExportSection(heading: "19 Mon", lines: []),
+                ExportSection(heading: "Month tasks", lines: [Line(type: .task, text: "Taxes"), Line(type: .heading, text: "Work")]),
+            ])
+        XCTAssertEqual(Export.markdown(doc), "# October 2026\n\n## 18 Sun\n\nLong walk\n\n## Month tasks\n\n- [ ] Taxes\n### Work\n")
+    }
+
+    func testPlain() {
+        let lines = Export.plain(page(sample)).components(separatedBy: "\n")
+        XCTAssertEqual(Array(lines[1..<5]), ["", "• * Call the bank", "  – closes at 6", "× Buy bread"])
+        XCTAssertTrue(lines[7].hasPrefix("• G\u{0336}"))
+    }
+
+    func testHtmlNestsCollapsedChildren() {
+        let html = Export.html(page(Array(sample[0..<3])))
+        XCTAssertTrue(html.contains("<h1>Sun, Oct 18</h1>"))
+        XCTAssertNotNil(html.range(of: #"Call the bank<ul[^>]*><li>.*closes at 6</li></ul></li><li>.*Buy bread"#, options: .regularExpression))
+    }
+
+    func testUntranscribedInkIsMarked() {
+        let l = Line(ink: Ink(strokes: [Stroke(k: .writing, p: [0, 0, 0.5])]))
+        XCTAssertEqual(Export.markdown(ExportDoc(title: "", sections: [ExportSection(lines: [l])])), "(handwriting)\n")
+    }
+
+    func testInline() {
+        XCTAssertEqual(InlineText.strip("a **bold** and *it* ==hi== 2*3"), "a bold and it hi 2*3")
+        XCTAssertEqual(InlineText.html("**a<b**", esc: Export.esc), "<b>a&lt;b</b>")
+    }
+}
