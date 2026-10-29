@@ -14,7 +14,9 @@ post_install do |installer|
   installer.aggregate_targets.each do |target|
     target.xcconfigs.each do |variant, xcconfig|
       xcconfig_path = target.client_root + target.xcconfig_relative_path(variant)
-      IO.write(xcconfig_path, IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR"))
+      text = IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR")
+      text += "\nCLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO\n" unless text.include?("CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER")
+      IO.write(xcconfig_path, text)
     end
   end
   installer.pods_project.targets.each do |target|

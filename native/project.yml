@@ -14,6 +14,9 @@ settings:
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     # CocoaPods' framework scripts (ML Kit) need to write outside the sandbox Xcode gives build scripts.
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # ML Kit's pods (Google) include their own headers with quotes; the app compiles those headers when it imports
+    # MLKit, and newer Xcode flags that. Not our code.
+    CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER: NO
 packages:
   BulletLifeCore:
     path: Core
