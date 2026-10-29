@@ -446,3 +446,136 @@ final class TranscriptionJobTests: XCTestCase {
         XCTAssertTrue(Transcription.jobs(done).isEmpty)
     }
 }
+
+final class EditingTests: XCTestCase {
+    func indents(_ xs: Int...) -> [Line] { xs.map { Line(indent: $0) } }
+
+    func testShiftIndent() {
+        XCTAssertEqual(Outline.shiftIndent(indents(0, 0, 1, 0), from: 1, to: 1, delta: 1), [0, 1, 2, 0])
+        XCTAssertNil(Outline.shiftIndent(indents(0, 1), from: 1, to: 1, delta: 1))
+        XCTAssertNil(Outline.shiftIndent(indents(0), from: 0, to: 0, delta: 1))
+        XCTAssertEqual(Outline.shiftIndent(indents(0, 1, 2, 1), from: 1, to: 1, delta: -1), [0, 0, 1, 1])
+        XCTAssertNil(Outline.shiftIndent(indents(0, 1), from: 0, to: 0, delta: -1))
+    }
+
+    func testNumbers() {
+        XCTAssertEqual(Outline.nextNumber("2."), "3.")
+        XCTAssertEqual(Outline.nextNumber("9)"), "10)")
+    }
+
+    func run(_ before: [String]?, _ after: [(Int, String)]) -> [String] {
+        var lines = after.enumerated().map { i, a in Line(id: "l\(i)", indent: a.0, text: a.1) }
+        let keep = before.map { b in Outline.listRestarts(b.enumerated().map { Line(id: "l\($0.offset)", text: $0.element) }) } ?? []
+        Outline.renumberLists(&lines, keep: keep)
+        return lines.map(\.text)
+    }
+
+    func testRenumberLists() {
+        XCTAssertEqual(run(nil, [(0, "1. a"), (0, "2. new"), (0, "2. b"), (0, "3. c")]), ["1. a", "2. new", "3. b", "4. c"])
+        XCTAssertEqual(run(nil, [(0, "1. a"), (0, "3. c")]), ["1. a", "2. c"])
+        XCTAssertEqual(
+            run(nil, [(0, "1. a"), (1, "note"), (1, "1. sub"), (1, "5. sub"), (0, "7. b")]), ["1. a", "note", "1. sub", "2. sub", "2. b"])
+        XCTAssertEqual(run(nil, [(0, "4) a"), (0, "1. b"), (0, "plain"), (0, "9. c")]), ["4) a", "5) b", "plain", "9. c"])
+        XCTAssertEqual(
+            run(["1. a", "2. b", "10. x"], [(0, "1. a"), (0, "2. b"), (0, "10. x"), (0, "11. ")]), ["1. a", "2. b", "10. x", "11. "])
+        let before = ["1. a", "2. b", "3. c", "10. x", "11. y"].enumerated().map { Line(id: "abcxy".map(String.init)[$0.offset], text: $0.element) }
+        var after = before.filter { $0.id != "b" }
+        Outline.renumberLists(&after, keep: Outline.listRestarts(before))
+        XCTAssertEqual(after.map(\.text), ["1. a", "2. c", "10. x", "11. y"])
+    }
+
+    func testRestartIfFirst() {
+        var a = [Line(text: "1. Alpha"), Line(indent: 1, text: "2. Inserted")]
+        Outline.restartIfFirst(&a, 1)
+        XCTAssertEqual(a[1].text, "1. Inserted")
+        var b = [Line(text: "1. a"), Line(text: "2. b"), Line(text: "3. c")]
+        Outline.restartIfFirst(&b, 2)
+        XCTAssertEqual(b[2].text, "3. c")
+    }
+
+    func testEnterSplitsAndContinuesType() {
+        let lines = [Line(type: .task, text: "Buy bread")]
+        let out = PageEdit.enter(lines, at: Caret(index: 0, offset: 3))
+        XCTAssertEqual(out.lines.map(\.text), ["Buy", " bread"])
+        XCTAssertEqual(out.lines[1].type, .task)
+        XCTAssertEqual(out.caret, Caret(index: 1, offset: 0))
+        // After a heading, plain text.
+        let h = PageEdit.enter([Line(type: .heading, text: "Work")], at: Caret(index: 0, offset: 4))
+        XCTAssertEqual(h.lines[1].type, .text)
+    }
+
+    func testEnterOnEmptyBulletOutdentsThenDropsBullet() {
+        let nested = [Line(type: .task, text: "a"), Line(type: .task, indent: 1)]
+        let once = PageEdit.enter(nested, at: Caret(index: 1, offset: 0))
+        XCTAssertEqual(once.lines[1].indent, 0)
+        XCTAssertEqual(once.lines[1].type, .task)
+        let twice = PageEdit.enter(once.lines, at: Caret(index: 1, offset: 0))
+        XCTAssertEqual(twice.lines[1].type, .text)
+    }
+
+    func testEnterInNumberedList() {
+        let next = PageEdit.enter([Line(text: "1. a"), Line(text: "2. b")], at: Caret(index: 1, offset: 4))
+        XCTAssertEqual(next.lines.map(\.text), ["1. a", "2. b", "3. "])
+        XCTAssertEqual(next.caret, Caret(index: 2, offset: 3))
+        let ends = PageEdit.enter(next.lines, at: Caret(index: 2, offset: 3))
+        XCTAssertEqual(ends.lines.map(\.text), ["1. a", "2. b", ""])
+        // Splitting the middle of a list renumbers what follows.
+        let mid = PageEdit.enter([Line(text: "1. a"), Line(text: "2. b")], at: Caret(index: 0, offset: 4))
+        XCTAssertEqual(mid.lines.map(\.text), ["1. a", "2. ", "3. b"])
+    }
+
+    func testEnterOnOpenParentAddsFirstChild() {
+        let lines = [Line(type: .task, text: "Trip"), Line(type: .note, indent: 1, text: "bags")]
+        let out = PageEdit.enter(lines, at: Caret(index: 0, offset: 4))
+        XCTAssertEqual(out.lines.map(\.indent), [0, 1, 1])
+        XCTAssertEqual(out.lines[1].type, .note)
+        var closed = lines
+        closed[0].collapsed = true
+        let after = PageEdit.enter(closed, at: Caret(index: 0, offset: 4))
+        XCTAssertEqual(after.lines.map(\.indent), [0, 1, 0])
+        XCTAssertEqual(after.caret.index, 2)
+    }
+
+    func testBackspaceAtStartSteps() throws {
+        let lines = [Line(text: "Hello"), Line(type: .task, indent: 1, priority: true, text: "world")]
+        let a = try XCTUnwrap(PageEdit.backspaceAtStart(lines, at: Caret(index: 1, offset: 0)))
+        XCTAssertEqual(a.lines[1].indent, 0)
+        let b = try XCTUnwrap(PageEdit.backspaceAtStart(a.lines, at: Caret(index: 1, offset: 0)))
+        XCTAssertEqual(b.lines[1].type, .text)
+        XCTAssertFalse(b.lines[1].priority)
+        let c = try XCTUnwrap(PageEdit.backspaceAtStart(b.lines, at: Caret(index: 1, offset: 0)))
+        XCTAssertEqual(c.lines.map(\.text), ["Helloworld"])
+        XCTAssertEqual(c.caret, Caret(index: 0, offset: 5))
+        XCTAssertNil(PageEdit.backspaceAtStart(c.lines, at: Caret(index: 0, offset: 0)))
+    }
+
+    func testHandwritingIsNeverDeletedFromTypeMode() {
+        let ink = Ink(strokes: [Stroke(k: .writing, p: [0, 0, 0.5])], tx: "hand", n: 1)
+        let lines = [Line(text: "abc"), Line(text: "hand", ink: ink), Line(text: "xyz")]
+        XCTAssertNil(PageEdit.backspaceAtStart(lines, at: Caret(index: 1, offset: 0)))
+        let out = PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 1), to: Caret(index: 2, offset: 1))
+        XCTAssertEqual(out.lines.map(\.text), ["ayz", ""])
+        XCTAssertEqual(out.lines[1].ink, ink)
+        // A selection ending inside a handwritten line keeps that line, with its remaining text.
+        let end = PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 1), to: Caret(index: 1, offset: 2))
+        XCTAssertEqual(end.lines.map(\.text), ["a", "nd", "xyz"])
+    }
+
+    func testInsertTextWithBreaks() {
+        let out = PageEdit.insertText([Line(type: .task, text: "ab")], at: Caret(index: 0, offset: 1), "1\n2\n3")
+        XCTAssertEqual(out.lines.map(\.text), ["a1", "2", "3b"])
+        XCTAssertEqual(out.lines.map(\.type), [.task, .task, .task])
+        XCTAssertEqual(out.caret, Caret(index: 2, offset: 1))
+    }
+
+    func testUtf16Offsets() {
+        let out = PageEdit.enter([Line(text: "👍ok")], at: Caret(index: 0, offset: 2))
+        XCTAssertEqual(out.lines.map(\.text), ["👍", "ok"])
+    }
+
+    func testDeleteLineLiftsChildren() {
+        let lines = [Line(id: "a", type: .task, text: "a"), Line(id: "b", type: .note, indent: 1, text: "b")]
+        XCTAssertEqual(PageEdit.deleteLine(lines, id: "a").map(\.indent), [0])
+        XCTAssertEqual(PageEdit.deleteLine([lines[0]], id: "a").count, 1)
+    }
+}
