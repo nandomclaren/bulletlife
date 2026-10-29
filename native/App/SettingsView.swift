@@ -1,5 +1,6 @@
-// Settings (CLAUDE.md 12), the part phase N0 needs: bringing the PWA's data over, and the settings the
-// pages already use. Kept on this device (UserDefaults), as the PWA keeps them per device.
+// Settings (CLAUDE.md 12): bringing the PWA's data over, the logs that are on, banners, export and print, and the
+// settings the pages use. Kept on this device (UserDefaults), as the PWA keeps them per device.
+import BulletLifeCore
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
