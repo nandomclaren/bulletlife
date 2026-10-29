@@ -1,5 +1,5 @@
-// A free page of the notebook (Day or Week): its lines, written straight away. Phase N0 edits one line per
-// field; the full editor (selection across lines, keyboard rules of the PWA) comes in phase N1.
+// A free page of the notebook (Day or Week): its lines, written straight away, in the page editor (Type mode)
+// or on the ruled sheet (Pen mode, iPad).
 import BulletLifeCore
 import SwiftData
 import SwiftUI
@@ -33,7 +33,6 @@ struct PageView: View {
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("doneMark") private var doneMark = "×"
     @State private var lines: [Line] = []
-    @FocusState private var focus: String?
     // Pen mode (iPad): kept on this device, like the PWA's.
     @AppStorage("penMode") private var penOn = false
     @AppStorage("penColor") private var penColor = "ink"
@@ -54,7 +53,6 @@ struct PageView: View {
         .background(Theme.paper)
         .onAppear(perform: load)
         .onChange(of: period) { load() }
-        .onChange(of: penOn) { focus = nil }
         .onChange(of: lines) { repo.save(lines, logId: period.logId) }
         // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
         .task(id: transcriptionKey) { await transcribe() }
@@ -96,35 +94,15 @@ struct PageView: View {
     }
 
     private var typePage: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                header
-                    .padding(.bottom, 16)
-                let colors = Outline.colorTypes(lines)
-                let hidden = Outline.hidden(lines)
-                ForEach(Array(lines.enumerated()), id: \.element.id) { i, line in
-                    if !hidden[i] {
-                        LineRow(
-                            line: binding(line.id), color: colors[i], hasChildren: Outline.hasChildren(lines, i),
-                            eventStates: eventStates, doneMark: doneMark, focus: $focus,
-                            onSplit: { split(line.id, rest: $0) }, onAction: { act($0, on: line.id) }
-                        )
-                    }
-                }
-                // The rest of the page: tapping it starts a new line (or goes to the empty last one).
-                Color.clear
-                    .frame(maxWidth: .infinity, minHeight: 240)
-                    .contentShape(Rectangle())
-                    .onTapGesture { writeAtEnd() }
-                    .accessibilityLabel(S.newLine)
-                    .accessibilityAddTraits(.isButton)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity)
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+            PageEditorView(lines: $lines, eventStates: eventStates, doneMark: doneMark) { act($0, on: $1) }
         }
-        .scrollDismissesKeyboard(.interactively)
+        .frame(maxWidth: 720)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Header
@@ -221,45 +199,6 @@ struct PageView: View {
     private func load() {
         if !penSizes.contains(penSize) { penSize = defaultPenSize }  // sizes from an earlier version
         lines = repo.lines(logId: period.logId)
-        focus = nil
-    }
-
-    private func binding(_ id: String) -> Binding<Line> {
-        Binding(
-            get: { lines.first { $0.id == id } ?? Line(id: id) },
-            set: { new in
-                if let i = lines.firstIndex(where: { $0.id == id }) { lines[i] = new }
-            })
-    }
-
-    private func writeAtEnd() {
-        if let last = lines.last, last.text.isEmpty, last.ink == nil {
-            focus = last.id
-            return
-        }
-        let fresh = Line(type: lines.last.map { continuation($0.type) } ?? .text, indent: lines.last?.indent ?? 0)
-        lines.append(fresh)
-        focus = fresh.id
-    }
-
-    /// Return in a line: what follows the caret goes to a new line below, of the same kind (a task after a task).
-    private func split(_ id: String, rest: String) {
-        guard let i = lines.firstIndex(where: { $0.id == id }) else { return }
-        let line = lines[i]
-        // Return on an empty bulleted line ends the list: the line becomes plain text.
-        if line.text.isEmpty && rest.isEmpty && line.type != .text {
-            lines[i].type = .text
-            lines[i].state = .open
-            return
-        }
-        let fresh = Line(type: continuation(line.type), indent: line.indent, text: rest)
-        let at = line.collapsed ? Outline.subtreeEnd(lines, i) : i + 1
-        lines.insert(fresh, at: at)
-        focus = fresh.id
-    }
-
-    private func continuation(_ type: EntryType) -> EntryType {
-        type == .heading ? .text : type
     }
 
     private func act(_ action: LineAction, on id: String) {
@@ -273,18 +212,14 @@ struct PageView: View {
         case .togglePriority:
             lines[i].priority.toggle()
         case .indent:
-            // At most one level below the line above.
-            if i > 0 && lines[i].indent <= lines[i - 1].indent {
-                for j in i..<Outline.subtreeEnd(lines, i) { lines[j].indent += 1 }
-            }
+            if let shifted = PageEdit.shift(lines, from: i, to: i, delta: 1) { lines = shifted }
         case .outdent:
-            if lines[i].indent > 0 {
-                for j in i..<Outline.subtreeEnd(lines, i) { lines[j].indent -= 1 }
-            }
+            if let shifted = PageEdit.shift(lines, from: i, to: i, delta: -1) { lines = shifted }
         case .toggleCollapsed:
             lines[i].collapsed.toggle()
         case .delete:
-            lines.removeSubrange(i..<Outline.subtreeEnd(lines, i))
+            // Its children move up one level (they are not deleted with it).
+            lines = PageEdit.deleteLine(lines, id: id)
         }
     }
 }
@@ -293,106 +228,4 @@ enum LineAction {
     case type(EntryType)
     case state(EntryState)
     case togglePriority, indent, outdent, toggleCollapsed, delete
-}
-
-struct LineRow: View {
-    @Binding var line: Line
-    let color: EntryType
-    let hasChildren: Bool
-    let eventStates: Bool
-    let doneMark: String
-    var focus: FocusState<String?>.Binding
-    let onSplit: (String) -> Void
-    let onAction: (LineAction) -> Void
-
-    private var stateful: Bool { States.stateful(line.type, eventStates: eventStates) }
-    private var faded: Bool { stateful && line.state != .open }
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            chevron
-            bullet
-            TextField("", text: $line.text, axis: .vertical)
-                .focused(focus, equals: line.id)
-                .font(line.type == .heading ? Theme.body(21, weight: .bold) : Theme.body())
-                .foregroundStyle(faded ? Theme.muted : Theme.text)
-                .strikethrough(stateful && line.state == .cancelled)
-                // The caret takes the bullet's color (CLAUDE.md 8).
-                .tint(Theme.color(color))
-                .textInputAutocapitalization(.sentences)
-                .onChange(of: line.text) { _, new in typed(new) }
-        }
-        .padding(.leading, CGFloat(line.indent) * 26)
-        .padding(.vertical, 3)
-    }
-
-    private var chevron: some View {
-        Button {
-            onAction(.toggleCollapsed)
-        } label: {
-            Image(systemName: line.collapsed ? "chevron.right" : "chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.muted)
-        }
-        .buttonStyle(.plain)
-        .frame(width: 12)
-        .opacity(hasChildren ? 1 : 0)
-        .disabled(!hasChildren)
-    }
-
-    private var bullet: some View {
-        let glyph = States.glyph(line.type, line.state, eventStates: eventStates, doneMark: doneMark)
-        return Text(glyph.isEmpty ? " " : glyph)
-            .font(Theme.body(17, weight: .bold))
-            .foregroundStyle(Theme.color(color))
-            .frame(width: line.type == .text || line.type == .heading ? 4 : 22, alignment: .center)
-            // A larger target than the glyph (CLAUDE.md 8: 44 pt).
-            .frame(minHeight: 28)
-            .contentShape(Rectangle().inset(by: -10))
-            .onTapGesture {
-                if stateful { line.state = States.next(line.state) }
-            }
-            .contextMenu { menu }
-            .accessibilityLabel("\(line.type.rawValue), \(line.state.rawValue)")
-    }
-
-    @ViewBuilder private var menu: some View {
-        Section {
-            Button(S.task) { onAction(.type(.task)) }
-            Button(S.event) { onAction(.type(.event)) }
-            Button(S.note) { onAction(.type(.note)) }
-            Button(S.text) { onAction(.type(.text)) }
-            Button(S.heading) { onAction(.type(.heading)) }
-        }
-        if stateful {
-            Section {
-                Button(S.migrate) { onAction(.state(.migrated)) }
-                Button(S.schedule) { onAction(.state(.scheduled)) }
-                if line.state != .open { Button(S.reopen) { onAction(.state(.open)) } }
-            }
-        }
-        Section {
-            Button(S.priority) { onAction(.togglePriority) }
-            Button(S.indent) { onAction(.indent) }
-            Button(S.outdent) { onAction(.outdent) }
-            Button(S.delete, role: .destructive) { onAction(.delete) }
-        }
-    }
-
-    private func typed(_ new: String) {
-        // Return: what follows the line break goes to a new line below.
-        if let br = new.firstIndex(of: "\n") {
-            let rest = String(new[new.index(after: br)...]).replacingOccurrences(of: "\n", with: " ")
-            line.text = String(new[..<br])
-            onSplit(rest)
-            return
-        }
-        // Rapid logging: ". " task, "o. " event, "- " note, "# " heading, "* " priority (CLAUDE.md 3.4).
-        if line.type == .text || line.type == .heading || new.hasPrefix("* "), let m = Rapid.leading(new) {
-            if m.type != .text { line.type = m.type }
-            if m.priority { line.priority = true }
-            line.state = .open
-            line.text = String(new.dropFirst(m.length))
-        }
-    }
 }
