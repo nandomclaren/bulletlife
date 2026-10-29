@@ -23,7 +23,7 @@ let storedDefaultSize = 2.4
 /// was drawn again; with even width the stroke as written and as stored look the same.
 let penInk = PKInk.InkType.monoline
 
-/// Drawn width of a pen size.
+/// The tool's width for a pen size (PencilKit draws the points larger; the stroke stores what it drew).
 func penWidth(_ size: Double) -> CGFloat { CGFloat(size) }
 
 struct PenSheetView: UIViewRepresentable {
@@ -172,7 +172,11 @@ struct PenSheetView: UIViewRepresentable {
             }
             guard !p.isEmpty else { return }
             let kind: StrokeKind = parent.tool == .draw ? .drawing : .writing
-            let stroke = Stroke(k: kind, c: parent.color, p: p, pen: true, s: parent.size == storedDefaultSize ? nil : parent.size)
+            // The size PencilKit actually drew (larger than the tool's nominal width), so the stroke looks the
+            // same when the page is drawn again from what is stored.
+            let sizes = pk.path.map { Double($0.size.width) }.sorted()
+            let drawn = sizes.isEmpty ? parent.size : (sizes[sizes.count / 2] * 10).rounded() / 10
+            let stroke = Stroke(k: kind, c: parent.color, p: p, pen: true, s: drawn == storedDefaultSize ? nil : drawn)
             let box = stroke.box
             let now = Date().timeIntervalSinceReferenceDate
             let row = max(0, PenRules.strokeRow(box, kind: kind, last: lastStroke, now: now))
@@ -236,7 +240,7 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         static func pkStroke(_ s: Stroke, color: UIColor, date: Date) -> PKStroke {
-            let width = penWidth(s.s ?? storedDefaultSize)
+            let width = CGFloat(s.s ?? storedDefaultSize)
             var points: [PKStrokePoint] = []
             var i = 0
             var t: TimeInterval = 0
