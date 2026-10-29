@@ -498,3 +498,23 @@ Quando houver código nativo (iOS/macOS):
 - Não invente funcionalidades que "ajudam" fazendo por ele. Na dúvida, mostre a informação e deixe a ação com o usuário.
 - Mantenha `docs/decisions.md` (decisões técnicas), `docs/spike-results.md` e `docs/export-format.md` atualizados.
 - Commits pequenos e em inglês; testes para: derivação de pendências, ciclo de estados, exportação (incluindo colapsados e seleção) e regra de logs ativos.
+
+---
+
+## 17. App nativo (iPad e iPhone; branch `claude/native-app`)
+
+**Por quê (Fernando, 29/10/2026):** o PWA ficou estável, mas a caneta tem um limite que uma página web não contorna: às vezes o iPadOS não entrega o toque da caneta ao Safari (o diagnóstico mostrou tentativas sem nenhum evento na página; não é o Scribble). No app nativo a escrita usa **PencilKit**, que recebe cada toque da caneta direto do sistema. O PWA continua no ar durante a transição.
+
+**Decisões (Fernando):**
+- **Plataformas:** iPad + iPhone primeiro, um app SwiftUI. Mac depois, sem retrabalho: pelo **Mac Catalyst** (ou o app de iPad rodando em Macs Apple Silicon), que reaproveita o mesmo código. Toda a lógica fica num pacote sem dependência de tela (`BulletLifeCore`).
+- **Sync: iCloud (CloudKit).** Grátis e nativo. Os modelos (SwiftData) já nascem no formato que o CloudKit exige (tudo com valor padrão, nada único, sem relações; entradas apontam para log e pai por id, como no PWA), então ligar o sync é configuração, não migração. **Exige a conta paga do Apple Developer Program** (US$ 99/ano); com a conta grátis o app instala por 7 dias e sem iCloud. O PWA (Dexie Cloud) e o app nativo **não** sincronizam entre si: os dados vêm uma vez, pelo backup JSON do PWA.
+- **Reconhecimento de escrita: Google ML Kit Digital Ink, no aparelho** (offline, grátis, pt-BR e inglês; modelo de ~20 MB baixado uma vez). Entra na fase N3, como dependência própria (CocoaPods/SPM, o que o ML Kit oferecer na época).
+- **Mesmos dados e mesmas regras do PWA:** o `BulletLifeCore` é um porte linha a linha do modelo (o JSON do PWA, incluindo a tinta), das datas, do rapid logging, do ciclo de estados, das chaves de ordem (`fractional-indexing`, com os mesmos vetores de teste) e das regras de linha da caneta. Os testes repetem os casos do PWA.
+
+**Fases (cada uma termina testada no iPad do Fernando):**
+- **N0 — Base (feito):** projeto (XcodeGen), `BulletLifeCore` com testes, armazenamento local (SwiftData), páginas Day e Week com linhas editáveis (rapid logging, bullets coloridos, toque no bullet cicla o estado, menu no bullet com tipo, migrar/agendar, prioridade, indentar, apagar), navegação ‹ Today ›, Ajustes (importar o backup do PWA, primeiro dia da semana, estados em eventos, sinal de concluída).
+- **N1 — Editor de verdade:** um editor de página inteira em TextKit (seleção entre linhas, Enter/Backspace/Tab como no PWA, colapso, listas numeradas, `due:`), no lugar de um campo por linha.
+- **N2 — Modo Pen com PencilKit:** pauta, tinta por entrada (o formato de traço do PWA, convertido de/para `PKStroke`), regras de linha do `BulletLifeCore`, borracha, laço, desenho, Undo. Rejeição de palma nativa.
+- **N3 — Transcrição no aparelho (ML Kit Digital Ink):** a mesma lógica do PWA (parágrafo numa linha só, bullet e recuo pela geometria, correção nunca sobrescrita).
+- **N4 — O resto do caderno:** Month e Year com layout fixo, trilha de navegação, Index, Collections, Open items, faixas, exportar/copiar/compartilhar, PDF.
+- **N5 — iCloud:** CloudKit ligado (conta paga), indicador de sync, e a importação do PWA como passo único de migração.
