@@ -20,6 +20,9 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
+      # Google's pods include their own headers with quotes; newer Xcode flags that. Not our code: keep it quiet.
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+      config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
       if config.base_configuration_reference.is_a? Xcodeproj::Project::Object::PBXFileReference
         xcconfig_path = config.base_configuration_reference.real_path
         IO.write(xcconfig_path, IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR"))
