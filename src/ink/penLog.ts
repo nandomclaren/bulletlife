@@ -111,7 +111,21 @@ export function watchSheet(host: HTMLElement): () => void {
   touches.forEach((t) => window.addEventListener(t, onWindowTouch, { passive: true }));
   const onScroll = () => penLog(`page scrolled to ${Math.round(scrollY)}`);
   window.addEventListener('scroll', onScroll, { passive: true });
+  // The whole page too: a stroke that never reached the sheet either landed on something else, or never
+  // reached the page at all (held back by the system).
+  const outside = (e: Event) => !(e.target instanceof Node && host.contains(e.target));
+  const onPagePointer = (e: PointerEvent) => outside(e) && e.type !== 'pointermove' && penLog(`OUTSIDE THE SHEET: ${pt(e)}`);
+  const onPageTouch = (e: TouchEvent) => outside(e) && penLog(`OUTSIDE THE SHEET: ${e.type} on ${describe(e.target)} touches=${e.touches.length}`);
+  const onPageOther = (e: Event) => penLog(`page: ${e.type}${e.target instanceof Element ? ` on ${describe(e.target)}` : ''}`);
+  const pageTypes = ['pointerdown', 'pointerup', 'pointercancel'] as const;
+  pageTypes.forEach((t) => window.addEventListener(t, onPagePointer, true));
+  touches.forEach((t) => window.addEventListener(t, onPageTouch, { capture: true, passive: true }));
+  const others = ['gesturestart', 'gestureend', 'focusin', 'contextmenu', 'blur', 'visibilitychange'] as const;
+  others.forEach((t) => window.addEventListener(t, onPageOther, true));
   return () => {
+    pageTypes.forEach((t) => window.removeEventListener(t, onPagePointer, true));
+    touches.forEach((t) => window.removeEventListener(t, onPageTouch, true));
+    others.forEach((t) => window.removeEventListener(t, onPageOther, true));
     types.forEach((t) => host.removeEventListener(t, onPointer, true));
     touches.forEach((t) => window.removeEventListener(t, onWindowTouch));
     window.removeEventListener('scroll', onScroll);
