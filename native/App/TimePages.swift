@@ -11,6 +11,8 @@ struct TimeHeader<Accessory: View>: View {
     @Binding var period: Period
     let label: String
     let title: String
+    /// Scrolled down: the small label goes and the title shrinks, leaving more of the page in view.
+    var compact = false
     @ViewBuilder var accessory: Accessory
     @AppStorage("firstDay") private var firstDay = 1
     @State private var picking = false
@@ -65,16 +67,18 @@ struct TimeHeader<Accessory: View>: View {
                 }
             }
             .font(Theme.body(15))
-            if !label.isEmpty {
+            if !label.isEmpty && !compact {
                 Text(label.uppercased())
                     .font(Theme.body(13, weight: .semibold))
                     .tracking(1.2)
                     .foregroundStyle(Theme.muted)
+                    .transition(.opacity)
             }
             Text(title)
-                .font(Theme.body(30, weight: .bold))
+                .font(Theme.body(compact ? 19 : 30, weight: .bold))
                 .foregroundStyle(Theme.text)
         }
+        .animation(.easeInOut(duration: 0.2), value: compact)
     }
 }
 
@@ -164,6 +168,8 @@ struct MonthPage: View {
     @AppStorage("logWeekly") private var weekly = true
     @AppStorage("logDaily") private var daily = true
     @State private var marked: String?
+    /// Scrolled past the first days: the header's title shrinks.
+    @State private var scrolled = false
 
     private var active: ActiveLogs { ActiveLogs(monthly: monthly, weekly: weekly, daily: daily) }
 
@@ -174,6 +180,10 @@ struct MonthPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // Where the top of the days is, to shrink the header once they scroll under it.
+                    Color.clear
+                        .frame(height: 0)
+                        .onGeometryChange(for: Bool.self) { $0.frame(in: .scrollView).minY < -24 } action: { scrolled = $0 }
                     ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
                         if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
                         dayRow(iso, today: today, logId: logId)
@@ -200,7 +210,7 @@ struct MonthPage: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 TimeHeader(
                     period: $period, label: PageView.format("\(ym)-01", "MMMM"),
-                    title: current ? S.thisMonth : PageView.format("\(ym)-01", "MMMM yyyy")
+                    title: current ? S.thisMonth : PageView.format("\(ym)-01", "MMMM yyyy"), compact: scrolled
                 ) { EmptyView() }
                 .floatingHeaderStyle()
             }
