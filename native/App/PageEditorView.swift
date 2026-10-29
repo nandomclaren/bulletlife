@@ -125,7 +125,9 @@ struct PageEditorView: UIViewRepresentable {
             let indent = parent.embedded && bulletless ? EditorLayout.bulletX(l.indent) : EditorLayout.textX(l.indent)
             style.firstLineHeadIndent = indent
             style.headIndent = indent
-            style.minimumLineHeight = l.type == .heading ? 32 : 27
+            // Embedded (Month, Year): the line is as tall as the normal text, so a shrunk phrase keeps its baseline
+            // level with the day's number beside it.
+            style.minimumLineHeight = l.type == .heading ? 32 : parent.embedded ? EditorLayout.font.lineHeight : 27
             style.paragraphSpacing = 5
             var a: [NSAttributedString.Key: Any] = [
                 .font: l.type == .heading ? EditorLayout.headingFont : EditorLayout.font,
@@ -344,7 +346,9 @@ struct PageEditorView: UIViewRepresentable {
             guard let view = textView, let at = currentCaret() else { return }
             let color = Outline.colorTypes(lines)[at.index]
             view.tintColor = color == .text || color == .heading ? Theme.ui("text") : Theme.ui(color.rawValue)
-            view.typingAttributes = attributes(lines[at.index])
+            var typing = attributes(lines[at.index])
+            if let font = fitted[lines[at.index].id] { typing[.font] = font }
+            view.typingAttributes = typing
         }
 
         // MARK: Bullets and chevrons in the margin
@@ -365,11 +369,24 @@ struct PageEditorView: UIViewRepresentable {
                 let available = width - EditorLayout.bulletX(l.indent)
                 let size = needed <= available ? base.pointSize : max(14, base.pointSize * 0.85, (base.pointSize * available / needed * 10).rounded(.down) / 10)
                 let font = base.withSize(size)
-                if (storage.attribute(.font, at: at, effectiveRange: nil) as? UIFont)?.pointSize != size {
-                    storage.addAttribute(.font, value: font, range: NSRange(location: at, length: len))
+                fitted[l.id] = font
+                // The whole line takes one size (text just typed comes in at the normal size).
+                let range = NSRange(location: at, length: len)
+                var uniform = true
+                storage.enumerateAttribute(.font, in: range) { value, _, stop in
+                    if (value as? UIFont)?.pointSize != size {
+                        uniform = false
+                        stop.pointee = true
+                    }
                 }
+                if !uniform { storage.addAttribute(.font, value: font, range: range) }
             }
+            // What is typed next comes in at the line's size.
+            if let at = currentCaret(), let font = fitted[lines[at.index].id] { view.typingAttributes[.font] = font }
         }
+
+        /// The size each Month day line was fitted to.
+        private var fitted: [String: UIFont] = [:]
 
         func layoutDecor() {
             guard let view = textView else { return }

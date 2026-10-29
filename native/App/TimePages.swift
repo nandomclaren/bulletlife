@@ -61,10 +61,10 @@ struct Trail: View {
         let anchor = period.anchor(today: Dates.today(), firstDay: firstDay)
         let items = Period.trail(anchor: anchor, firstDay: firstDay)
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
+            HStack(spacing: 10) {
                 ForEach(Array(items.enumerated()), id: \.offset) { n, item in
                     if n > 0 {
-                        Text("›").foregroundStyle(Theme.muted)
+                        Text("›").foregroundStyle(Theme.muted.opacity(0.7))
                     }
                     let current = item.sameLevel(period)
                     Button(Self.label(item)) { period = item }
@@ -169,23 +169,27 @@ struct MonthPage: View {
     private func dayRow(_ iso: String, today: String, logId: String) -> some View {
         let weekend = [0, 6].contains(Dates.weekday(iso))
         let isToday = iso == today
+        // Number and initial sit on the baseline of the line written beside them (both start at the top, with
+        // the same line height as the text).
         return HStack(alignment: .top, spacing: 0) {
-            Button {
-                period = .day(iso)
-            } label: {
-                HStack(spacing: 2) {
-                    Text(String(Int(iso.suffix(2)) ?? 0))
-                        .font(Theme.body(17, weight: isToday ? .bold : .regular).monospacedDigit())
-                    if isToday { Circle().fill(Theme.task).frame(width: 5, height: 5) }
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Button {
+                    period = .day(iso)
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(String(Int(iso.suffix(2)) ?? 0))
+                            .font(Theme.body(17, weight: isToday ? .bold : .regular).monospacedDigit())
+                        if isToday { Circle().fill(Theme.task).frame(width: 5, height: 5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 1 } }
+                    }
+                    .frame(width: 34, alignment: .leading)
                 }
-                .frame(width: 34, height: 27, alignment: .leading)
+                .buttonStyle(.plain)
+                .accessibilityLabel(PageView.format(iso, "EEEE MMMM d"))
+                Text(PageView.format(iso, "EEEEE"))
+                    .font(Theme.body(13, weight: .medium))
+                    .frame(width: 22, alignment: .leading)
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(PageView.format(iso, "EEEE MMMM d"))
-            Text(PageView.format(iso, "EEEEE"))
-                .font(Theme.body(13, weight: .medium))
-                .frame(width: 22, height: 27, alignment: .leading)
-                .accessibilityHidden(true)
             SlotEditor(logId: logId, slot: iso, minHeight: 27, fitOneLine: true)
                 .id("\(logId)/\(iso)")
         }
