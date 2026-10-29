@@ -160,7 +160,7 @@ describe('which ruled line a stroke is on', () => {
       ]),
     );
     expect(strokeRow(accent, 'w', null, 0)).toBe(0);
-    expect(strokeRow(accent, 'w', { row: 1, at: 1000, x0: 96, x1: 110 }, 1500)).toBe(1);
+    expect(strokeRow(accent, 'w', { row: 1, at: 1000, x0: 96, x1: 110, y0: 50, y1: 78 }, 1500)).toBe(1);
   });
   it('a short word opening the next line stays on that line', () => {
     const e = box(
@@ -169,7 +169,7 @@ describe('which ruled line a stroke is on', () => {
         [30, 110],
       ]),
     );
-    expect(strokeRow(e, 'w', { row: 1, at: 1000, x0: 600, x1: 640 }, 1300)).toBe(2);
+    expect(strokeRow(e, 'w', { row: 1, at: 1000, x0: 600, x1: 640, y0: 50, y1: 78 }, 1300)).toBe(2);
   });
 });
 
@@ -194,10 +194,10 @@ describe('which ruled line a stroke is on, after the stroke before it', () => {
   ); // a small "o" on line 0
   it('a tall letter written right after a stroke on its line stays on that line', () => {
     expect(strokeRow(p, 'w', null, 0)).toBe(1);
-    expect(strokeRow(p, 'w', { row: 0, at: 1000, x0: 100, x1: 122 }, 1200)).toBe(0);
+    expect(strokeRow(p, 'w', { row: 0, at: 1000, x0: 100, x1: 122, y0: 24, y1: 38 }, 1200)).toBe(0);
   });
   it('a small letter to the right of the stroke before is not an accent', () => {
-    expect(strokeRow(o, 'w', { row: 1, at: 1000, x0: 130, x1: 140 }, 1200)).toBe(0);
+    expect(strokeRow(o, 'w', { row: 1, at: 1000, x0: 130, x1: 140, y0: 30, y1: 66 }, 1200)).toBe(0);
   });
   it('a capital opening the next line, back at the margin, stays on the next line', () => {
     const capital = box(
@@ -206,10 +206,50 @@ describe('which ruled line a stroke is on, after the stroke before it', () => {
         [20, 72],
       ]),
     );
-    expect(strokeRow(capital, 'w', { row: 0, at: 1000, x0: 600, x1: 640 }, 1200)).toBe(1);
+    expect(strokeRow(capital, 'w', { row: 0, at: 1000, x0: 600, x1: 640, y0: 24, y1: 38 }, 1200)).toBe(1);
+  });
+  // Fernando's page of Oct 28: "criança", "menos," and "fiquei" split the paragraph.
+  const word = { row: 0, at: 1000, x0: 300, x1: 340, y0: 24, y1: 39 }; // a word sitting on the rule of line 0
+  it('a comma or a cedilla under the word just written stays on its line', () => {
+    const comma = box(
+      at([
+        [343, 40],
+        [340, 48],
+      ]),
+    );
+    const cedilla = box(
+      at([
+        [306, 41],
+        [309, 46],
+        [304, 49],
+      ]),
+    ); // added under the "c" once the word was done
+    expect(strokeRow(comma, 'w', null, 0)).toBe(1);
+    expect(strokeRow(comma, 'w', word, 1300)).toBe(0);
+    expect(strokeRow(cedilla, 'w', word, 1300)).toBe(0);
+  });
+  it('letters written a little below the rule, right after a word, stay on its line', () => {
+    const low = box(
+      at([
+        [350, 34],
+        [358, 46],
+        [352, 50],
+      ]),
+    );
+    expect(strokeRow(low, 'w', null, 0)).toBe(1);
+    expect(strokeRow(low, 'w', word, 1300)).toBe(0);
+  });
+  it('a word written on the next line, under the last word, still goes to the next line', () => {
+    const under = box(
+      at([
+        [310, 62],
+        [330, 78],
+      ]),
+    );
+    expect(strokeRow(under, 'w', word, 1300)).toBe(1);
   });
   it('after a pause, nothing carries over', () => {
-    expect(strokeRow(p, 'w', { row: 0, at: 1000, x0: 100, x1: 122 }, 4000)).toBe(1);
+    expect(strokeRow(p, 'w', { row: 0, at: 1000, x0: 100, x1: 122, y0: 24, y1: 38 }, 4000)).toBe(1);
   });
 });
 

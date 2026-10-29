@@ -436,3 +436,43 @@
   position: absolute;
   inset: -8px;
 }
+
+/* Pen diagnostics (Settings › Handwriting): a small log in a corner, outside the sheet. */
+.pen-log {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  right: 8px;
+  z-index: 20;
+  width: min(420px, 60vw);
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  font-size: 10px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.pen-log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.pen-log-head span {
+  flex: 1;
+}
+.pen-log-head button {
+  pointer-events: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+}
+.pen-log pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted, inherit);
+}

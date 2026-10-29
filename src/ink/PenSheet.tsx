@@ -11,6 +11,8 @@ import { buildGutter, fillText, lineClass } from '../editor/render';
 import { t } from '../i18n/en';
 import { compact, DEFAULT_SIZE, PEN_SIZES, type Box, hasInk, hasWriting, inkRows, inkSvg, ROW, strokeBox, strokeHit, strokePath, type Stroke } from './ink';
 import { lassoed, placeStroke, rowWithin, strokeRow, type LastStroke } from './structure';
+import { PenLogPanel } from './PenLogPanel';
+import { penLog, usePenLogOn, watchSheet } from './penLog';
 import { setPenColor, setPenSize, setPenTool, usePen, type PenTool } from './penStore';
 import { transcribePage } from './transcribe';
 import type { InkColor } from './ink';
@@ -181,6 +183,10 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       host.removeEventListener('touchmove', stylus);
     };
   }, []);
+
+  // Pen diagnostics (Settings › Handwriting): everything the pen and the hand send to the sheet.
+  const diagnostics = usePenLogOn();
+  useEffect(() => (diagnostics ? watchSheet(sheet.current!) : undefined), [diagnostics]);
 
   // Handwriting is transcribed after a pause in writing, and when leaving Pen mode (unmount).
   const pause = useRef(0);
@@ -458,7 +464,8 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button > 0 || bulletDown(e)) return;
+    if (e.button > 0) return penLog(`  ignored: button ${e.button}`);
+    if (bulletDown(e)) return penLog('  taken by a bullet (tap or hold)');
     if (e.pointerType === 'touch') return;
     if (e.pointerType === 'pen') penAt.current = Date.now();
     e.preventDefault();
@@ -504,6 +511,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
     }
     const p = compact(points.current);
     if (p.length < 6) p.push(p[0] + 0.5, p[1] + 0.5, p[2]);
+    penLog(`  stroke: ${points.current.length / 3} points`);
     await commit(p);
   };
 
@@ -550,14 +558,16 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
       target.line = { ...target.line, ink: { ...target.line.ink, strokes: [...(target.line.ink?.strokes ?? []), stroke] } };
       if (placed.absorb) blocks.current = blocks.current.filter((b) => b.id !== placed.absorb);
       reflow();
-      lastStroke.current = { id: target.id, row, at: now, x0: box.x0, x1: box.x1 };
+      lastStroke.current = { id: target.id, row, at: now, x0: box.x0, x1: box.x1, y0: box.y0, y1: box.y1 };
+      penLog(`  → ruled line ${row}, joined an entry (its line ${placed.r})${placed.absorb ? ', took the blank line' : ''}`);
       pushUndo(await write(addInk(log, target.id, [stroke], placed.absorb)));
     } else {
       const added = [...Array.from({ length: placed.blanks }, () => newLine()), newLine({ ink: { strokes: [stroke] } })];
       const at = placed.after ? blocks.current.findIndex((b) => b.id === placed.after) + 1 : blocks.current.length;
       blocks.current.splice(at, 0, ...added.map((l) => ({ id: l.id, top: 0, height: ROW, line: l })));
       reflow();
-      lastStroke.current = { id: added[added.length - 1].id, row, at: now, x0: box.x0, x1: box.x1 };
+      lastStroke.current = { id: added[added.length - 1].id, row, at: now, x0: box.x0, x1: box.x1, y0: box.y0, y1: box.y1 };
+      penLog(`  → ruled line ${row}, new entry${placed.blanks ? ` after ${placed.blanks} blank lines` : ''}`);
       pushUndo(await write(addInkLines(log, slot, added, placed.after)));
     }
     soon();
@@ -598,9 +608,11 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
           // rather than losing it.
           const t = tool.current;
           if (drawing.current && e.pointerType !== 'touch' && (t === 'write' || t === 'draw') && points.current.length >= 6) {
+            penLog('  cancelled by the system: stroke kept');
             void onPointerUp(e);
             return;
           }
+          if (drawing.current) penLog(`  cancelled by the system: stroke dropped (${points.current.length / 3} points)`);
           clearLive();
           flush();
         }}
@@ -638,6 +650,7 @@ export function PenSheet({ log, slot = '', label }: { log: LogRef; slot?: string
         />
       )}
       <PenToolbar canUndo={canUndo} onUndo={onUndo} />
+      {diagnostics && <PenLogPanel />}
     </>
   );
 }

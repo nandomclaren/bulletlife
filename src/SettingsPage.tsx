@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { setPenLog, usePenLogOn } from './ink/penLog';
 import { usePane } from './pages/pane';
 import { BackupSection } from './BackupSection';
 import { PdfSection } from './export/PdfSection';
@@ -340,6 +341,7 @@ function Switch(props: { label: string; hint?: ReactNode; checked: boolean; disa
 function HandwritingSettings() {
   const settings = useSettings();
   const status = useTranscriptionStatus();
+  const diagnostics = usePenLogOn();
   const note =
     status.state === 'error'
       ? status.message === 'auth'
@@ -392,6 +394,15 @@ function HandwritingSettings() {
       </label>
       <p className="setting-hint">{t.settings.handwritingHint}</p>
       {note && <p className="setting-hint">{note}</p>}
+      <div className="options">
+        <button role="switch" aria-checked={diagnostics} className="option switch-row" onClick={() => setPenLog(!diagnostics)}>
+          <span className="option-text">
+            <span className="option-title">{t.pen.diagnostics.title}</span>
+            <span className="option-hint">{t.pen.diagnostics.hint}</span>
+          </span>
+          <span className="switch" aria-hidden />
+        </button>
+      </div>
     </section>
   );
 }

@@ -170,6 +170,13 @@ export const en = {
     handwriting: 'Handwriting',
     drawing: 'Drawing',
     deleteDrawing: 'Delete drawing',
+    diagnostics: {
+      title: 'Pen diagnostics',
+      hint: 'Shows what the pen and your hand send to Pen mode, to find out why a stroke sometimes does not come out. When it happens, tap Copy log and send it.',
+      copy: 'Copy log',
+      copied: 'Copied',
+      clear: 'Clear',
+    },
   },
   open: {
     title: 'Open items',
