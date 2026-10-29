@@ -226,6 +226,14 @@ public enum Outline {
             e.signifiers = signifiers
             e.collapsed = l.collapsed
             e.ink = l.ink
+            // Marked > or <: pending until the user confirms they wrote it at the destination (CLAUDE.md 4.3).
+            if l.state == .migrated || l.state == .scheduled {
+                e.placement = before.placement ?? Placement(status: .pending)
+            } else {
+                e.placement = nil
+            }
+            // The date written as "due:YYYY-MM-DD" in the text, kept as a field for queries.
+            e.dueDate = Due.of(l.text)
             if byId[l.id] == nil || e != before {
                 e.updatedAt = now
                 put.append(e)

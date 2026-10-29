@@ -608,3 +608,96 @@ final class TrailTests: XCTestCase {
         XCTAssertFalse(Period.day("a").sameLevel(.week("b")))
     }
 }
+
+final class OpenItemsTests: XCTestCase {
+    let today = "2026-10-19"  // Monday, Wk 43
+    var n = 0
+    func e(_ logId: String, _ text: String, type: EntryType = .task, state: EntryState = .open, slot: String = "", placement: Placement? = nil) -> Entry {
+        n += 1
+        return Entry(id: "e\(n)", logId: logId, slot: slot, order: "a\(n)", type: type, state: state, text: text, placement: placement, createdAt: "", updatedAt: "")
+    }
+    func texts(_ entries: [Entry], eventStates: Bool = true) -> [String] {
+        OpenItems.items(entries, eventStates: eventStates, firstDay: 1, today: today).map(\.entry.text)
+    }
+
+    func testEndedPeriods() {
+        let entries = [
+            e("weekly:2026-W41", "last-week task"), e("daily:2026-10-18", "yesterday task"), e("daily:2026-10-19", "today task"),
+            e("weekly:2026-W43", "this week task"), e("monthly:2026-09", "september task"), e("monthly:2026-10", "this month task"),
+            e("daily:2026-10-18", "done", state: .done), e("daily:2026-10-18", "cancelled", state: .cancelled),
+            e("daily:2026-10-18", "a note", type: .note), e("daily:2026-10-18", "free text", type: .text),
+            e("monthly:2026-09", "day phrase", type: .text, slot: "2026-09-03"), e("collection:01X", "collection task"),
+        ]
+        XCTAssertEqual(texts(entries), ["september task", "last-week task", "yesterday task"])
+    }
+
+    func testEventsOnlyWithEventStates() {
+        let entries = [e("daily:2026-10-18", "dinner", type: .event)]
+        XCTAssertEqual(texts(entries), ["dinner"])
+        XCTAssertEqual(texts(entries, eventStates: false), [])
+    }
+
+    func testUnplaced() {
+        let entries = [
+            e("daily:2026-10-19", "migrated today", state: .migrated, placement: Placement(status: .pending)),
+            e("collection:01X", "scheduled", state: .scheduled, placement: Placement(status: .pending)),
+            e("daily:2026-10-12", "placed", state: .migrated, placement: Placement(status: .placed, confirmedAt: today)),
+        ]
+        let items = OpenItems.items(entries, eventStates: true, firstDay: 1, today: today)
+        XCTAssertEqual(items.map(\.entry.text), ["migrated today", "scheduled"])
+        XCTAssertEqual(items.map(\.category), [.unplaced, .unplaced])
+    }
+
+    func testYearItemsArrived() {
+        let entries = [
+            e("future:2026", "november", slot: "2026-11"), e("future:2026", "october", slot: "2026-10"),
+            e("future:2026", "march", slot: "2026-03"), e("future:2026", "march done", state: .done, slot: "2026-03"),
+        ]
+        let items = OpenItems.items(entries, eventStates: true, firstDay: 1, today: today)
+        XCTAssertEqual(items.map(\.entry.text), ["march", "october"])
+        XCTAssertEqual(OpenItems.groups(items).map { OpenItems.groupLabel($0) }, ["2026 · March", "2026 · October"])
+    }
+
+    func testDueFirst() {
+        let entries = [
+            e("collection:01X", "pay rent due:2026-10-19"), e("daily:2026-10-25", "future page, overdue due:2026-10-10"),
+            e("daily:2026-10-12", "old, no date"), e("weekly:2026-W44", "later due:2026-10-30"),
+            e("daily:2026-10-12", "done due:2026-10-01", state: .done), e("daily:2026-10-12", "note due:2026-10-01", type: .note),
+        ]
+        let groups = OpenItems.groups(OpenItems.items(entries, eventStates: true, firstDay: 1, today: today))
+        XCTAssertEqual(groups.map { OpenItems.groupLabel($0) }, ["Due", "Mon, Oct 12"])
+        XCTAssertEqual(groups[0].items.map(\.entry.text), ["future page, overdue due:2026-10-10", "pay rent due:2026-10-19"])
+    }
+
+    func testGroupLabelsAndAge() {
+        let items = OpenItems.items([e("daily:2026-10-05", "b"), e("weekly:2026-W41", "a"), e("daily:2026-10-05", "c")], eventStates: true, firstDay: 1, today: today)
+        let groups = OpenItems.groups(items)
+        XCTAssertEqual(groups.map { OpenItems.groupLabel($0) }, ["Wk 41 · Oct 5 – 11", "Mon, Oct 5"])
+        XCTAssertEqual(groups.map { OpenItems.ageLabel($0.source.end, today: today) }, ["last week", "2 weeks ago"])
+        XCTAssertEqual(groups.map(\.items.count), [1, 2])
+        XCTAssertEqual(OpenItems.ageLabel("2026-10-18", today: today), "yesterday")
+        XCTAssertEqual(OpenItems.ageLabel("2026-10-25", today: today), "")
+    }
+
+    func testOpenTodayAndKept() {
+        let entries = [e("daily:2026-10-19", "open"), e("daily:2026-10-19", "done", state: .done), e("daily:2026-10-18", "old")]
+        XCTAssertEqual(OpenItems.openToday(entries, eventStates: true, firstDay: 1, today: today).map(\.entry.text), ["open"])
+        let task = e("daily:2026-10-18", "tap me")
+        let item = OpenItems.items([task], eventStates: true, firstDay: 1, today: today)[0]
+        var done = task
+        done.state = .done
+        let shown = OpenItems.withKept(OpenItems.items([done], eventStates: true, firstDay: 1, today: today), kept: [task.id: item], byId: [task.id: done])
+        XCTAssertEqual(shown.map(\.entry.state), [.done])
+    }
+
+    func testDiffMarksPlacementPendingAndDueDate() {
+        let lines = [Line(type: .task, state: .migrated, text: "call due:2026-10-20")]
+        let (put, _) = Outline.diff(lines: lines, existing: [], logId: "daily:2026-10-19", slot: "", now: "t")
+        XCTAssertEqual(put[0].placement?.status, .pending)
+        XCTAssertEqual(put[0].dueDate, "2026-10-20")
+        var reopened = lines
+        reopened[0].state = .open
+        let (again, _) = Outline.diff(lines: reopened, existing: put, logId: "daily:2026-10-19", slot: "", now: "t2")
+        XCTAssertNil(again[0].placement)
+    }
+}
