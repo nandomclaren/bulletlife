@@ -324,14 +324,19 @@ struct PageEditorView: UIViewRepresentable {
             l.priority = m.priority || l.priority
         }
 
-        private func schedulePrefix(_ id: String) {
+        private func schedulePrefix(_ id: String, after delay: TimeInterval = 1.5) {
             pendingPrefix?.timer.invalidate()
-            let timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in self?.applyPendingPrefix() }
+            let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in self?.applyPendingPrefix() }
             pendingPrefix = (id, timer)
         }
 
         private func applyPendingPrefix() {
             guard let pending = pendingPrefix else { return }
+            // Scribble may still hold the text as provisional (marked): wait for it, as an edit now would break it.
+            if textView?.markedTextRange != nil {
+                schedulePrefix(pending.id, after: 0.5)
+                return
+            }
             pendingPrefix = nil
             pending.timer.invalidate()
             guard let i = lines.firstIndex(where: { $0.id == pending.id }), let m = Rapid.leading(lines[i].text) else { return }
@@ -354,6 +359,15 @@ struct PageEditorView: UIViewRepresentable {
             let end = Outline.subtreeEnd(lines, b.index)
             let last = lines[b.index].collapsed ? end : b.index + 1
             return Array(lines[a.index..<max(last, a.index + 1)])
+        }
+
+        /// Pastes entries (copied from the app, or its Markdown) as entries, at the selection.
+        func paste(_ pasted: [Line]) {
+            guard let view = textView else { return }
+            let a = caret(at: view.selectedRange.location)
+            let b = caret(at: view.selectedRange.location + view.selectedRange.length)
+            let cleared = view.selectedRange.length > 0 ? PageEdit.deleteRange(lines, from: a, to: b) : Edited(lines: lines, caret: a)
+            apply(PageEdit.paste(cleared.lines, at: cleared.caret, pasted))
         }
 
         var flashed: String?
@@ -427,8 +441,53 @@ struct PageEditorView: UIViewRepresentable {
         /// The size each Month day line was fitted to.
         private var fitted: [String: UIFont] = [:]
 
+        /// Keeps every line looking like its type (UIKit types new text with the attributes around the caret, and
+        /// Scribble and the keyboard's suggestions bring their own), and a list number like a bullet: bold, in the
+        /// color of its root. Skipped while text is being composed (marked), which an edit would break.
+        private func restyle() {
+            guard let view = textView, view.markedTextRange == nil else { return }
+            let storage = view.textStorage
+            let colors = Outline.colorTypes(lines)
+            var at = 0
+            storage.beginEditing()
+            for (k, i) in visible.enumerated() {
+                let l = lines[i]
+                let len = (l.text as NSString).length
+                let full = NSRange(location: at, length: min(len + (k < visible.count - 1 ? 1 : 0), storage.length - at))
+                defer { at += len + 1 }
+                guard full.length > 0, full.location + full.length <= storage.length else { continue }
+                let want = attributes(l)
+                let wantFont = want[.font] as? UIFont
+                let wantStyle = want[.paragraphStyle] as? NSParagraphStyle
+                // A list number has its own look (below): only the rest of the line is checked.
+                let number = Outline.numberPrefix(l.text).map { ($0 as NSString).length } ?? 0
+                let checked = NSRange(location: full.location + number, length: full.length - number)
+                var wrong = false
+                storage.enumerateAttributes(in: checked) { a, _, stop in
+                    let font = a[.font] as? UIFont
+                    let fontOK = font?.fontName == wantFont?.fontName || (parent.fitOneLine && font?.familyName == wantFont?.familyName)
+                    if !fontOK || (a[.paragraphStyle] as? NSParagraphStyle)?.headIndent != wantStyle?.headIndent
+                        || (a[.foregroundColor] as? UIColor) != (want[.foregroundColor] as? UIColor)
+                        || (a[.strikethroughStyle] != nil) != (want[.strikethroughStyle] != nil)
+                    {
+                        wrong = true
+                        stop.pointee = true
+                    }
+                }
+                if wrong { storage.setAttributes(want, range: full) }
+                // "1. " / "2) ": the number is styled like a bullet (it stays part of the text).
+                if number > 0 {
+                    let r = NSRange(location: at, length: number)
+                    let color = colors[i] == .text || colors[i] == .heading ? Theme.ui("task") : Theme.ui(colors[i].rawValue)
+                    storage.addAttributes([.font: EditorLayout.bulletFont, .foregroundColor: color], range: r)
+                }
+            }
+            storage.endEditing()
+        }
+
         func layoutDecor() {
             guard let view = textView else { return }
+            restyle()
             fitFonts()
             if parent.embedded { view.invalidateIntrinsicContentSize() }
             let lm = view.layoutManager
@@ -451,7 +510,7 @@ struct PageEditorView: UIViewRepresentable {
                 }
                 rect = rect.offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
                 let glyph = States.glyph(l.type, l.state, eventStates: parent.eventStates, doneMark: parent.doneMark)
-                if !glyph.isEmpty {
+                if !glyph.isEmpty || l.priority || l.inspiration || l.explore {
                     let b = bullet(used)
                     used += 1
                     b.configure(line: l, glyph: glyph, color: Theme.ui(colors[i].rawValue), coordinator: self)
@@ -554,8 +613,21 @@ final class EditorTextView: UITextView {
         guard let lines = coordinator?.selectedLines(), !lines.isEmpty else { return super.copy(sender) }
         let doc = ExportDoc.selection(lines)
         UIPasteboard.general.setItems([[
-            "public.html": Export.html(doc), "public.utf8-plain-text": Export.plain(doc),
+            Paste.linesType: Paste.json(lines), "public.html": Export.html(doc), "public.utf8-plain-text": Export.plain(doc),
         ]])
+    }
+
+    /// Pasting what the app copied (the exact lines), or Markdown and plain text with bullets, makes entries with
+    /// their type, state and indentation; anything else is pasted as text.
+    override func paste(_ sender: Any?) {
+        let board = UIPasteboard.general
+        if let data = board.data(forPasteboardType: Paste.linesType), let lines = Paste.fromJSON(data) {
+            coordinator?.paste(lines)
+        } else if let text = board.string, let lines = Paste.fromText(text) {
+            coordinator?.paste(lines)
+        } else {
+            super.paste(sender)
+        }
     }
 
     override func deleteBackward() {
@@ -591,6 +663,8 @@ final class EditorTextView: UITextView {
 /// larger than the glyph (CLAUDE.md 8).
 final class BulletView: UIView, UIContextMenuInteractionDelegate {
     private let label = UILabel()
+    /// Signifiers, just left of the bullet: * priority, ! inspiration, an eye for explore.
+    private let signifiers = UILabel()
     private var id = ""
     private weak var coordinator: PageEditorView.Coordinator?
 
@@ -599,6 +673,8 @@ final class BulletView: UIView, UIContextMenuInteractionDelegate {
         label.textAlignment = .center
         label.font = EditorLayout.bulletFont
         addSubview(label)
+        signifiers.textAlignment = .right
+        addSubview(signifiers)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
         addInteraction(UIContextMenuInteraction(delegate: self))
         isAccessibilityElement = true
@@ -612,12 +688,26 @@ final class BulletView: UIView, UIContextMenuInteractionDelegate {
         self.coordinator = coordinator
         label.text = glyph
         label.textColor = color
-        accessibilityLabel = "\(line.type.rawValue), \(line.state.rawValue)"
+        let marks = NSMutableAttributedString()
+        let attrs: [NSAttributedString.Key: Any] = [.font: EditorLayout.bulletFont, .foregroundColor: color]
+        if line.priority { marks.append(NSAttributedString(string: "*", attributes: attrs)) }
+        if line.inspiration { marks.append(NSAttributedString(string: "!", attributes: attrs)) }
+        if line.explore, let eye = UIImage(systemName: "eye", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)) {
+            let attachment = NSTextAttachment(image: eye.withTintColor(color, renderingMode: .alwaysOriginal))
+            marks.append(NSAttributedString(attachment: attachment))
+        }
+        signifiers.attributedText = marks
+        var parts = ["\(line.type.rawValue)", line.state.rawValue]
+        if line.priority { parts.append(S.priority) }
+        if line.inspiration { parts.append(S.inspiration) }
+        if line.explore { parts.append(S.explore) }
+        accessibilityLabel = parts.joined(separator: ", ")
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         label.frame = bounds
+        signifiers.frame = CGRect(x: -30, y: 0, width: 30, height: bounds.height)
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {

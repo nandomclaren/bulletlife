@@ -723,3 +723,71 @@ final class ActiveLogsTests: XCTestCase {
         XCTAssertNil(ActiveLogs(monthly: true, weekly: false, daily: false).below(month: "2026-10-29", firstDay: 1))
     }
 }
+
+final class PasteTests: XCTestCase {
+    let sample: [Line] = [
+        Line(type: .task, priority: true, text: "Call the bank"),
+        Line(type: .note, indent: 1, text: "closes at 6"),
+        Line(type: .task, state: .done, text: "Buy bread"),
+        Line(type: .task, state: .migrated, text: "Renew passport"),
+        Line(type: .task, state: .cancelled, inspiration: true, text: "Gym"),
+        Line(type: .event, text: "Dinner with Ana"),
+        Line(type: .event, state: .done, text: "Concert"),
+        Line(type: .event, state: .cancelled, text: "Trip"),
+    ]
+    struct Shape: Equatable {
+        var type: EntryType, state: EntryState, indent: Int, text: String, priority: Bool, inspiration: Bool
+    }
+    func shape(_ ls: [Line]) -> [Shape] {
+        ls.map { Shape(type: $0.type, state: $0.state, indent: $0.indent, text: $0.text, priority: $0.priority, inspiration: $0.inspiration) }
+    }
+    var doc: ExportDoc { ExportDoc(title: "", sections: [ExportSection(lines: sample)]) }
+
+    func testMarkdownRoundTrips() throws {
+        XCTAssertEqual(shape(try XCTUnwrap(Paste.fromText(Export.markdown(doc)))), shape(sample))
+        XCTAssertEqual(shape(try XCTUnwrap(Paste.fromText(Export.markdown(doc, style: .dots)))), shape(sample))
+    }
+
+    func testPlainTextKeepsTypeStateIndent() throws {
+        let got = shape(try XCTUnwrap(Paste.fromText(Export.plain(doc))))
+        XCTAssertEqual(got[0], Shape(type: .task, state: .open, indent: 0, text: "Call the bank", priority: true, inspiration: false))
+        XCTAssertEqual(got[1], Shape(type: .note, state: .open, indent: 1, text: "closes at 6", priority: false, inspiration: false))
+        XCTAssertEqual(got[4], Shape(type: .task, state: .cancelled, indent: 0, text: "Gym", priority: false, inspiration: true))
+        XCTAssertEqual(got[5], Shape(type: .event, state: .open, indent: 0, text: "Dinner with Ana", priority: false, inspiration: false))
+    }
+
+    func testExactLinesWithFreshIds() throws {
+        let got = try XCTUnwrap(Paste.fromJSON(Paste.json(sample)))
+        XCTAssertEqual(shape(got), shape(sample))
+        XCTAssertNotEqual(got[0].id, sample[0].id)
+    }
+
+    func testNotesAppMarkdown() throws {
+        let bear = [
+            "# Sunday, October 18, 2026", "", "## Âncoras", "  - [x] Devocional", "  - [x] Exercício ", "    - 15m Flow",
+            "## Priorities", "  - [x] Hillsong<!-- {\"fold\":true} -->", "    - A note under it", "## Buffer", "  -> Weekly Review",
+            "## Blurb", "  A paragraph of free text.",
+        ].joined(separator: "\n")
+        let got = try XCTUnwrap(Paste.fromText(bear))
+        XCTAssertEqual(got.map(\.type), [.heading, .task, .task, .note, .heading, .task, .note, .heading, .task, .heading, .text])
+        XCTAssertEqual(got.map(\.indent), [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0])
+        XCTAssertTrue(got[5].collapsed)
+        XCTAssertEqual(got[8].state, .migrated)
+        XCTAssertEqual(got[5].text, "Hillsong")
+    }
+
+    func testOrdinaryTextIsNotParsed() {
+        XCTAssertNil(Paste.fromText("Just a sentence.\nAnd another."))
+    }
+
+    func testPasteIntoPage() {
+        let page = [Line(type: .task, indent: 1, text: "abcd")]
+        let pasted = [Line(type: .note, text: "x"), Line(type: .note, indent: 1, text: "y")]
+        let mid = PageEdit.paste(page, at: Caret(index: 0, offset: 2), pasted)
+        XCTAssertEqual(mid.lines.map(\.text), ["ab", "x", "y", "cd"])
+        XCTAssertEqual(mid.lines.map(\.indent), [1, 1, 2, 1])
+        XCTAssertEqual(mid.caret, Caret(index: 2, offset: 1))
+        let empty = PageEdit.paste([Line()], at: Caret(index: 0, offset: 0), pasted)
+        XCTAssertEqual(empty.lines.map(\.text), ["x", "y"])
+    }
+}

@@ -22,7 +22,17 @@ enum Theme {
     }
 
     /// UIKit colors by token: the pen's colors ('ink' and the bullets'), and the page's ('text', 'muted', 'rule').
+    /// The same instance each time, so the editor can tell whether a line already has its color.
     static func ui(_ token: String) -> UIColor {
+        if let c = uiCache[token] { return c }
+        let c = makeUI(token)
+        uiCache[token] = c
+        return c
+    }
+
+    private static var uiCache: [String: UIColor] = [:]
+
+    private static func makeUI(_ token: String) -> UIColor {
         switch token {
         case "task": return dynamicUI(0xE0533D, 0xEF6B56)
         case "event": return dynamicUI(0x3B82C4, 0x5B9BD8)
@@ -91,6 +101,8 @@ enum S {
     static let schedule = "Schedule"
     static let reopen = "Open again"
     static let priority = "Priority"
+    static let inspiration = "Inspiration"
+    static let explore = "Explore"
     static let indent = "Indent"
     static let outdent = "Outdent"
     static let delete = "Delete"
@@ -125,6 +137,15 @@ enum S {
     static func pin(_ name: String) -> String { "Pin \(name) to the top" }
     static func unpin(_ name: String) -> String { "Unpin \(name)" }
     static let goToDate = "Go to date"
+    static let collectionMenu = "Collection"
+    static let deleteCollection = "Delete collection…"
+    static func deleteTitle(_ name: String) -> String { "Delete \u{201C}\(name)\u{201D}?" }
+    static func deleteMessage(_ n: Int) -> String {
+        n == 0 ? "It has nothing written yet." : "Everything written in it (\(n) \(n == 1 ? "entry" : "entries")) will be deleted too."
+    }
+    static let deleteAgainTitle = "Delete it for good?"
+    static let deleteAgainMessage = "This can't be undone."
+    static let deleteForever = "Delete for good"
     static let openItems = "Open items"
     static let openToday = "Still open today"
     static let back = "Back"

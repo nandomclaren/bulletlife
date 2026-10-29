@@ -207,6 +207,17 @@ struct Repository {
         try? context.save()
     }
 
+    func entryCount(logId: String) -> Int {
+        (try? context.fetchCount(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.logId == logId }))) ?? 0
+    }
+
+    /// Deletes a collection and everything written in it (only after the user confirmed twice).
+    func deleteCollection(id: String) {
+        for r in (try? context.fetch(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.logId == id }))) ?? [] { context.delete(r) }
+        if let r = logRecord(id) { context.delete(r) }
+        try? context.save()
+    }
+
     /// Pins a collection to the top of the Index, or unpins it.
     func setPinned(id: String, _ pinned: Bool) {
         guard let r = logRecord(id) else { return }

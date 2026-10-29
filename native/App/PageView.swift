@@ -11,6 +11,9 @@ struct PageView: View {
     var collection: Log? = nil
     var onIndex: () -> Void = {}
     @State private var collectionTitle = ""
+    /// Deleting a collection asks twice.
+    @State private var confirmDelete = false
+    @State private var confirmDeleteAgain = false
     @EnvironmentObject private var nav: Navigator
     @Environment(\.scenePhase) private var scenePhase
     @State private var saver = PageSaver()
@@ -137,6 +140,13 @@ struct PageView: View {
                 .font(Theme.body(15))
                 Spacer()
                 penPicker
+                Menu {
+                    Button(S.deleteCollection, role: .destructive) { confirmDelete = true }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .frame(width: 32, height: 32)
+                }
+                .accessibilityLabel(S.collectionMenu)
             }
             Text(S.collections.uppercased())
                 .font(Theme.body(13, weight: .semibold))
@@ -149,6 +159,24 @@ struct PageView: View {
                 .onSubmit(renameCollection)
         }
         .onDisappear(perform: renameCollection)
+        .confirmationDialog(S.deleteTitle(collection?.title ?? ""), isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button(S.delete, role: .destructive) { confirmDeleteAgain = true }
+        } message: {
+            Text(S.deleteMessage(collection.map { repo.entryCount(logId: $0.id) } ?? 0))
+        }
+        .alert(S.deleteAgainTitle, isPresented: $confirmDeleteAgain) {
+            Button(S.deleteForever, role: .destructive) { deleteCollection() }
+            Button(S.cancel, role: .cancel) {}
+        } message: {
+            Text(S.deleteAgainMessage)
+        }
+    }
+
+    private func deleteCollection() {
+        guard let collection else { return }
+        saver.flush()
+        repo.deleteCollection(id: collection.id)
+        onIndex()
     }
 
     private func renameCollection() {
