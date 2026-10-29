@@ -15,6 +15,14 @@ enum PenTool: String, CaseIterable {
 let penSizes: [Double] = [1.8, 2.4, 3.4]
 let defaultPenSize = 2.4
 
+/// Ink of even width (a fine-liner, close to the PWA's "little width change with pressure"). The pen's own
+/// ink varies with force and tilt, which a stored stroke can't reproduce, so a stroke thickened when the page
+/// was drawn again; with even width the stroke as written and as stored look the same.
+let penInk = PKInk.InkType.monoline
+
+/// Drawn width of a pen size.
+func penWidth(_ size: Double) -> CGFloat { CGFloat(size) }
+
 struct PenSheetView: UIViewRepresentable {
     @Binding var lines: [Line]
     var tool: PenTool
@@ -128,7 +136,7 @@ struct PenSheetView: UIViewRepresentable {
         func pkTool() -> PKTool {
             switch parent.tool {
             case .erase: return PKEraserTool(.vector)
-            case .write, .draw: return PKInkingTool(.pen, color: Theme.ui(parent.color), width: CGFloat(parent.size) * 1.6)
+            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
             }
         }
 
@@ -221,7 +229,7 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         static func pkStroke(_ s: Stroke, color: UIColor, date: Date) -> PKStroke {
-            let width = CGFloat(s.s ?? defaultPenSize) * 1.6
+            let width = penWidth(s.s ?? defaultPenSize)
             var points: [PKStrokePoint] = []
             var i = 0
             var t: TimeInterval = 0
@@ -233,7 +241,7 @@ struct PenSheetView: UIViewRepresentable {
                 i += 3
                 t += 0.008
             }
-            return PKStroke(ink: PKInk(.pen, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
+            return PKStroke(ink: PKInk(penInk, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
         }
     }
 }
@@ -362,6 +370,7 @@ struct PenToolbar: View {
                         .frame(width: 18, height: CGFloat(s))
                         .frame(width: 36, height: 36)
                         .background(size == s ? Theme.rule : Color.clear, in: Circle())
+                        .contentShape(Circle())  // the whole circle takes the tap, not just the thin line
                 }
                 .accessibilityLabel(S.sizes[i])
             }
@@ -377,6 +386,7 @@ struct PenToolbar: View {
                         .padding(3)
                         .overlay(Circle().stroke(Theme.text, lineWidth: color == c ? 1.5 : 0))
                         .frame(width: 36, height: 36)
+                        .contentShape(Circle())
                 }
                 .accessibilityLabel(S.colorNames[c] ?? c)
             }
@@ -384,6 +394,7 @@ struct PenToolbar: View {
             Button(action: onUndo) {
                 Image(systemName: "arrow.uturn.backward")
                     .frame(width: 36, height: 36)
+                    .contentShape(Circle())
             }
             .disabled(!canUndo)
             .accessibilityLabel(S.undo)
@@ -403,6 +414,7 @@ struct PenToolbar: View {
             Image(systemName: icon)
                 .frame(width: 40, height: 40)
                 .background(tool == t ? Theme.rule : Color.clear, in: Circle())
+                .contentShape(Circle())
         }
         .accessibilityLabel(label)
     }
