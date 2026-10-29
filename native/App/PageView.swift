@@ -12,6 +12,8 @@ struct PageView: View {
     var onIndex: () -> Void = {}
     @State private var collectionTitle = ""
     @EnvironmentObject private var nav: Navigator
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var saver = PageSaver()
     @Environment(\.modelContext) private var context
     @AppStorage("firstDay") private var firstDay = 1
     @AppStorage("eventStates") private var eventStates = true
@@ -39,10 +41,13 @@ struct PageView: View {
         .onAppear(perform: load)
         .onChange(of: period) { load() }
         .onChange(of: collection?.id) { load() }
+        // A state changed from Open items: taken into the page, so what it writes next agrees.
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
-            if note.userInfo?["logId"] as? String == logId { load() }
+            if let change = note.outsideChange(in: lines, logId: logId) { lines[change.index].state = change.state }
         }
-        .onChange(of: lines) { repo.save(lines, logId: logId) }
+        .onChange(of: lines) { saver.schedule(lines, logId: logId, repo: repo) }
+        .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }
+        .onDisappear { saver.flush() }
         // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
         .task(id: transcriptionKey) { await transcribe() }
     }
@@ -180,6 +185,7 @@ struct PageView: View {
     // MARK: Editing
 
     private func load() {
+        saver.flush()  // what was written on the page before goes to that page
         if !penSizes.contains(penSize) { penSize = defaultPenSize }  // sizes from an earlier version
         lines = repo.lines(logId: logId)
         collectionTitle = collection?.title ?? ""

@@ -47,6 +47,18 @@ final class EntryRecord {
         updatedAt = e.updatedAt
     }
 
+    /// The entry without its ink, for queries over the whole notebook (Open items): the ink (often most of an
+    /// entry's size) is not read at all.
+    var light: Entry {
+        Entry(
+            id: uid, logId: logId, slot: slot, parentId: parentId, order: orderKey,
+            type: EntryType(rawValue: kind) ?? .text, state: EntryState(rawValue: state) ?? .open, text: text,
+            signifiers: signifiers.split(separator: ",").compactMap { Signifier(rawValue: String($0)) }, collapsed: collapsed,
+            dueDate: dueDate, placement: placementData.flatMap { try? JSONDecoder().decode(Placement.self, from: $0) },
+            createdAt: createdAt, updatedAt: updatedAt
+        )
+    }
+
     var entry: Entry {
         Entry(
             id: uid, logId: logId, slot: slot, parentId: parentId, order: orderKey,
@@ -129,8 +141,8 @@ struct Repository {
         try? context.save()
     }
 
-    /// Posted when an entry changes from outside its page (Open items): the page showing it loads again, so it
-    /// never writes back what it showed before. userInfo: "logId", "slot".
+    /// Posted when an entry changes from outside its page (Open items): the page showing it takes the new state,
+    /// so it never writes back what it showed before. userInfo: "logId", "slot", "id", "state".
     static let changedOutside = Notification.Name("BulletLife.entriesChangedOutside")
 
     /// Every entry (Open items is a query over all of them, CLAUDE.md 4.1).
@@ -147,7 +159,8 @@ struct Repository {
         e.updatedAt = Self.now()
         record.update(from: e)
         try? context.save()
-        NotificationCenter.default.post(name: Self.changedOutside, object: nil, userInfo: ["logId": e.logId, "slot": e.slot])
+        NotificationCenter.default.post(
+            name: Self.changedOutside, object: nil, userInfo: ["logId": e.logId, "slot": e.slot, "id": e.id, "state": e.state.rawValue])
     }
 
     func hasEntries(logId: String) -> Bool {
@@ -220,5 +233,42 @@ struct Repository {
 
     func entryCount() -> Int {
         (try? context.fetchCount(FetchDescriptor<EntryRecord>())) ?? 0
+    }
+}
+
+/// Writes a page a moment after typing stops, not on every key (a write reads and compares the whole page), and
+/// at once when asked (the page changes, it leaves the screen, the app goes to the background).
+@MainActor
+final class PageSaver {
+    private var pending: (lines: [Line], logId: String, slot: String, repo: Repository)?
+    private var task: Task<Void, Never>?
+
+    func schedule(_ lines: [Line], logId: String, slot: String = "", repo: Repository) {
+        pending = (lines, logId, slot, repo)
+        task?.cancel()
+        task = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            self?.flush()
+        }
+    }
+
+    func flush() {
+        task?.cancel()
+        task = nil
+        guard let p = pending else { return }
+        pending = nil
+        p.repo.save(p.lines, logId: p.logId, slot: p.slot)
+    }
+}
+
+extension Notification {
+    /// The new state of an entry changed from outside its page, if this notice is about one of these lines.
+    func outsideChange(in lines: [Line], logId: String, slot: String = "") -> (index: Int, state: EntryState)? {
+        guard userInfo?["logId"] as? String == logId, userInfo?["slot"] as? String == slot,
+            let id = userInfo?["id"] as? String, let i = lines.firstIndex(where: { $0.id == id }),
+            let state = (userInfo?["state"] as? String).flatMap(EntryState.init(rawValue:))
+        else { return nil }
+        return (i, state)
     }
 }

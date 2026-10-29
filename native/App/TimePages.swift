@@ -129,6 +129,8 @@ struct SlotEditor: View {
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("doneMark") private var doneMark = "×"
     @State private var lines: [Line] = []
+    @State private var saver = PageSaver()
+    @Environment(\.scenePhase) private var scenePhase
 
     private var repo: Repository { Repository(context: context) }
 
@@ -142,11 +144,11 @@ struct SlotEditor: View {
         }
         .onAppear { lines = repo.lines(logId: logId, slot: slot) }
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
-            if note.userInfo?["logId"] as? String == logId, note.userInfo?["slot"] as? String == slot {
-                lines = repo.lines(logId: logId, slot: slot)
-            }
+            if let change = note.outsideChange(in: lines, logId: logId, slot: slot) { lines[change.index].state = change.state }
         }
-        .onChange(of: lines) { repo.save(lines, logId: logId, slot: slot) }
+        .onChange(of: lines) { saver.schedule(lines, logId: logId, slot: slot, repo: repo) }
+        .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }
+        .onDisappear { saver.flush() }
     }
 }
 

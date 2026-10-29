@@ -13,7 +13,7 @@ struct OpenItemsButton: View {
     @AppStorage("firstDay") private var firstDay = 1
 
     var body: some View {
-        let count = OpenItems.items(records.map(\.entry), eventStates: eventStates, firstDay: firstDay, today: Dates.today()).count
+        let count = OpenItems.items(records.map(\.light), eventStates: eventStates, firstDay: firstDay, today: Dates.today()).count
         Button {
             isOpen.toggle()
         } label: {
@@ -44,7 +44,7 @@ struct OpenItemsPanel: View {
 
     var body: some View {
         let today = Dates.today()
-        let entries = records.map(\.entry)
+        let entries = records.map(\.light)
         let byId = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let found =
             onlyToday
