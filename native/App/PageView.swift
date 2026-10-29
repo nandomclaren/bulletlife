@@ -227,7 +227,7 @@ struct PageView: View {
 enum LineAction {
     case type(EntryType)
     case state(EntryState)
-    case togglePriority, indent, outdent, toggleCollapsed, delete
+    case togglePriority, toggleInspiration, toggleExplore, indent, outdent, toggleCollapsed, delete
 
     /// What a bullet menu action (or a chevron) does to the page: always to one line.
     func apply(to lines: inout [Line], id: String, eventStates: Bool) {
@@ -240,6 +240,10 @@ enum LineAction {
             lines[i].state = s
         case .togglePriority:
             lines[i].priority.toggle()
+        case .toggleInspiration:
+            lines[i].inspiration.toggle()
+        case .toggleExplore:
+            lines[i].explore.toggle()
         case .indent:
             if let shifted = PageEdit.shift(lines, from: i, to: i, delta: 1) { lines = shifted }
         case .outdent:

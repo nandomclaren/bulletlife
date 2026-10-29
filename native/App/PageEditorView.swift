@@ -579,6 +579,8 @@ struct PageEditorView: UIViewRepresentable {
             }
             let rest = UIMenu(options: .displayInline, children: [
                 UIAction(title: S.priority, state: l.priority ? .on : .off) { _ in act(.togglePriority) },
+                UIAction(title: S.inspiration, state: l.inspiration ? .on : .off) { _ in act(.toggleInspiration) },
+                UIAction(title: S.explore, state: l.explore ? .on : .off) { _ in act(.toggleExplore) },
                 UIAction(title: S.indent) { _ in act(.indent) },
                 UIAction(title: S.outdent) { _ in act(.outdent) },
                 UIAction(title: S.delete, attributes: .destructive) { _ in act(.delete) },
