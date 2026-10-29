@@ -28,9 +28,8 @@ struct OpenItemsButton: View {
 }
 
 struct OpenItemsPanel: View {
-    @Binding var period: Period
-    /// Called after going to an item's page (on iPhone the sheet closes).
-    var onNavigate: () -> Void
+    /// Opens the page an item is on (a time page or a collection).
+    var open: (Source) -> Void
     @Environment(\.modelContext) private var context
     @Query private var records: [EntryRecord]
     @AppStorage("eventStates") private var eventStates = true
@@ -105,10 +104,7 @@ struct OpenItemsPanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Tap the text: its page.
                 Button {
-                    if let p = item.source.period {
-                        period = p
-                        onNavigate()
-                    }
+                    open(item.source)
                 } label: {
                     Text(e.text.isEmpty ? "—" : e.text)
                         .font(Theme.body(16))

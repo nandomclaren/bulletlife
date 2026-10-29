@@ -5,10 +5,32 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+/// Where the notebook is open: a time page, the Index, or a collection.
+enum Place: Hashable {
+    case time(Period)
+    case index
+    case collection(String)
+}
+
 struct RootView: View {
-    @State private var period: Period = .day(Dates.today())
+    @State private var place: Place = .time(.day(Dates.today()))
+    /// The last time page, so a Day/Week/Month/Year header always has one to start from.
+    @State private var lastPeriod: Period = .day(Dates.today())
     @State private var showOpen = false
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.modelContext) private var context
+
+    private var period: Binding<Period> {
+        Binding(
+            get: {
+                if case .time(let p) = place { return p }
+                return lastPeriod
+            },
+            set: {
+                lastPeriod = $0
+                place = .time($0)
+            })
+    }
 
     var body: some View {
         NavigationStack {
@@ -16,10 +38,21 @@ struct RootView: View {
                 // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
                 // iPhone (CLAUDE.md 4.2).
                 .inspector(isPresented: $showOpen) {
-                    OpenItemsPanel(period: $period) { if sizeClass == .compact { showOpen = false } }
-                        .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
+                    OpenItemsPanel { source in
+                        if let p = source.period { period.wrappedValue = p } else { place = .collection(source.logId) }
+                        if sizeClass == .compact { showOpen = false }
+                    }
+                    .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            place = .index
+                        } label: {
+                            Image(systemName: "book.closed")
+                        }
+                        .accessibilityLabel(S.index)
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         OpenItemsButton(isOpen: $showOpen)
                     }
@@ -36,18 +69,33 @@ struct RootView: View {
         .tint(Theme.task)
     }
 
-    /// Day and Week are free pages (Type or Pen); Month and Year have their fixed layouts.
+    /// Day, Week and collections are free pages (Type or Pen); Month and Year have their fixed layouts.
     @ViewBuilder private var page: some View {
-        switch period {
-        case .day, .week: PageView(period: $period)
-        case .month(let ym): MonthPage(ym: ym, period: $period)
-        case .year(let y): YearPage(year: y, period: $period)
+        switch place {
+        case .index:
+            IndexPage(period: period) { place = .collection($0) }
+        case .collection(let id):
+            if let log = Repository(context: context).collection(id) {
+                PageView(period: period, collection: log) { place = .index }
+            } else {
+                IndexPage(period: period) { place = .collection($0) }
+            }
+        case .time(let p):
+            switch p {
+            case .day, .week: PageView(period: period)
+            case .month(let ym): MonthPage(ym: ym, period: period)
+            case .year(let y): YearPage(year: y, period: period)
+            }
         }
     }
 }
 
 struct PageView: View {
     @Binding var period: Period
+    /// A collection instead of a time page (its own header: back to the Index, its editable name).
+    var collection: Log? = nil
+    var onIndex: () -> Void = {}
+    @State private var collectionTitle = ""
     @Environment(\.modelContext) private var context
     @AppStorage("firstDay") private var firstDay = 1
     @AppStorage("eventStates") private var eventStates = true
@@ -64,6 +112,7 @@ struct PageView: View {
     @ObservedObject private var handwriting = Handwriting.shared
 
     private var repo: Repository { Repository(context: context) }
+    private var logId: String { collection?.id ?? period.logId }
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
     var body: some View {
@@ -73,10 +122,11 @@ struct PageView: View {
         .background(Theme.paper)
         .onAppear(perform: load)
         .onChange(of: period) { load() }
+        .onChange(of: collection?.id) { load() }
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
-            if note.userInfo?["logId"] as? String == period.logId { load() }
+            if note.userInfo?["logId"] as? String == logId { load() }
         }
-        .onChange(of: lines) { repo.save(lines, logId: period.logId) }
+        .onChange(of: lines) { repo.save(lines, logId: logId) }
         // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
         .task(id: transcriptionKey) { await transcribe() }
     }
@@ -84,7 +134,7 @@ struct PageView: View {
     // MARK: Transcription (N3)
 
     private var transcriptionKey: String {
-        "\(period.logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(handwritingLang)|\(handwriting.status == .ready)"
+        "\(logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(handwritingLang)|\(handwriting.status == .ready)"
     }
 
     /// Reads the handwriting the last pass didn't, after a pause in writing (at once in Type mode). The ink is
@@ -130,17 +180,56 @@ struct PageView: View {
 
     // MARK: Header
 
-    private var header: some View {
-        TimeHeader(period: $period, label: label, title: title) {
-            if isPad {
-                Picker("", selection: $penOn) {
-                    Image(systemName: "keyboard").accessibilityLabel(S.typeMode).tag(false)
-                    Image(systemName: "pencil.tip").accessibilityLabel(S.penMode).tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 96)
-            }
+    @ViewBuilder private var header: some View {
+        if collection != nil {
+            collectionHeader
+        } else {
+            TimeHeader(period: $period, label: label, title: title) { penPicker }
         }
+    }
+
+    @ViewBuilder private var penPicker: some View {
+        if isPad {
+            Picker("", selection: $penOn) {
+                Image(systemName: "keyboard").accessibilityLabel(S.typeMode).tag(false)
+                Image(systemName: "pencil.tip").accessibilityLabel(S.penMode).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 96)
+        }
+    }
+
+    /// A collection: back to the Index, then its name, which can be edited in place.
+    private var collectionHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Button {
+                    renameCollection()
+                    onIndex()
+                } label: {
+                    Text("‹ \(S.index)")
+                }
+                .font(Theme.body(15))
+                Spacer()
+                penPicker
+            }
+            Text(S.collections.uppercased())
+                .font(Theme.body(13, weight: .semibold))
+                .tracking(1.2)
+                .foregroundStyle(Theme.muted)
+            TextField(S.name, text: $collectionTitle)
+                .font(Theme.body(30, weight: .bold))
+                .foregroundStyle(Theme.text)
+                .submitLabel(.done)
+                .onSubmit(renameCollection)
+        }
+        .onDisappear(perform: renameCollection)
+    }
+
+    private func renameCollection() {
+        guard let collection else { return }
+        let next = collectionTitle.trimmingCharacters(in: .whitespaces)
+        if next.isEmpty { collectionTitle = collection.title } else if next != collection.title { repo.renameCollection(id: collection.id, title: next) }
     }
 
     private var label: String {
@@ -172,7 +261,8 @@ struct PageView: View {
 
     private func load() {
         if !penSizes.contains(penSize) { penSize = defaultPenSize }  // sizes from an earlier version
-        lines = repo.lines(logId: period.logId)
+        lines = repo.lines(logId: logId)
+        collectionTitle = collection?.title ?? ""
     }
 
     private func act(_ action: LineAction, on id: String) {

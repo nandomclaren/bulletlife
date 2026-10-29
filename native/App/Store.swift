@@ -150,6 +150,38 @@ struct Repository {
         NotificationCenter.default.post(name: Self.changedOutside, object: nil, userInfo: ["logId": e.logId, "slot": e.slot])
     }
 
+    /// A collection is created only by an explicit user action (CLAUDE.md principle 7).
+    func createCollection(title: String) -> Log {
+        let now = Self.now()
+        let log = Log(id: "collection:\(ULID.make())", kind: .collection, title: title, createdAt: now, updatedAt: now)
+        context.insert(LogRecord(log))
+        try? context.save()
+        return log
+    }
+
+    private func logRecord(_ id: String) -> LogRecord? {
+        try? context.fetch(FetchDescriptor<LogRecord>(predicate: #Predicate { $0.uid == id })).first
+    }
+
+    func collection(_ id: String) -> Log? {
+        logRecord(id).map(\.log).flatMap { $0.kind == .collection ? $0 : nil }
+    }
+
+    func renameCollection(id: String, title: String) {
+        guard let r = logRecord(id) else { return }
+        r.title = title
+        r.updatedAt = Self.now()
+        try? context.save()
+    }
+
+    /// Pins a collection to the top of the Index, or unpins it.
+    func setPinned(id: String, _ pinned: Bool) {
+        guard let r = logRecord(id) else { return }
+        r.pinned = pinned
+        r.updatedAt = Self.now()
+        try? context.save()
+    }
+
     func collections() -> [Log] {
         let descriptor = FetchDescriptor<LogRecord>(predicate: #Predicate { $0.kind == "collection" })
         return ((try? context.fetch(descriptor)) ?? []).map(\.log).sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }

@@ -95,6 +95,19 @@ enum S {
     static func weekShort(_ n: Int) -> String { "Wk \(n)" }
     static let thisMonth = "This Month"
     static let monthTasks = "Month tasks"
+    static let index = "Index"
+    static let collections = "Collections"
+    static let newCollection = "New collection"
+    static let name = "Name"
+    static let create = "Create"
+    static let cancel = "Cancel"
+    static let noCollections = "No collections yet."
+    static let untitled = "Untitled"
+    static let yearKind = "Year"
+    static let pinned = "Pinned"
+    static func pin(_ name: String) -> String { "Pin \(name) to the top" }
+    static func unpin(_ name: String) -> String { "Unpin \(name)" }
+    static let goToDate = "Go to date"
     static let openItems = "Open items"
     static let nothingOpen = "Nothing is open. Everything has a place."
     static let wroteItThere = "I wrote it there"
