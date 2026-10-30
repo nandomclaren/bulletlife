@@ -43,6 +43,16 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                Button(S.exportEverything) {
+                    printing = PageDocs.everything(
+                        repo: Repository(context: context), firstDay: firstDay, style: GlyphStyle(rawValue: glyphStyle) ?? .checkboxes)
+                }
+            } header: {
+                Text(S.backup)
+            } footer: {
+                Text(S.exportEverythingHint)
+            }
+            Section {
                 Button(S.importButton) { importing = true }
                 if let message { Text(message).foregroundStyle(.secondary) }
             } header: {

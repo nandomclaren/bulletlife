@@ -49,6 +49,38 @@ enum ExportFormat: CaseIterable {
 
 /// The exportable document of a page, from the stored entries (src/export/pageDoc.ts).
 enum PageDocs {
+    /// Settings › Export everything (the PWA's backup and everything.ts): the restorable backup (the PWA's JSON
+    /// format, which Import reads back) and every written page in one readable Markdown file, Years, Months,
+    /// Weeks and Days oldest first, then the collections by name. Files in the temporary folder, to share.
+    static func everything(repo: Repository, firstDay: Weekday, style: GlyphStyle, now: Date = Date()) -> [URL] {
+        let stamp = Self.stamp(now)
+        let dir = FileManager.default.temporaryDirectory
+        let json = dir.appendingPathComponent("BulletLife_\(stamp).json")
+        let backup = Backup(createdAt: Repository.now(), logs: repo.collections(), entries: repo.allEntries())
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try? encoder.encode(backup).write(to: json)
+        let written = repo.writtenLogIds()
+        let kinds = ["future", "monthly", "weekly", "daily"]
+        let time: [Place] = kinds.flatMap { kind in
+            written.filter { $0.hasPrefix(kind + ":") }.sorted()
+                .compactMap { Source(logId: $0, firstDay: firstDay).period.map { Place.time($0) } }
+        }
+        let collections: [Place] = repo.collections().filter { written.contains($0.id) }.map { .collection($0.id) }
+        let pages = (time + collections).compactMap { build($0, repo: repo, firstDay: firstDay)?.doc }
+            .filter { doc in doc.sections.contains { !$0.lines.isEmpty } }
+        let md = dir.appendingPathComponent("BulletLife_\(stamp).md")
+        try? pages.map { Export.markdown($0, style: style) }.joined(separator: "\n").write(to: md, atomically: true, encoding: .utf8)
+        return [json, md]
+    }
+
+    private static func stamp(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd"
+        return f.string(from: d)
+    }
+
     static func build(_ place: Place, repo: Repository, firstDay: Weekday) -> (doc: ExportDoc, name: String)? {
         switch place {
         case .index:

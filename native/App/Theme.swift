@@ -247,6 +247,10 @@ enum S {
     static let twoPages = "Two pages"
     static let openBook = "Open book"
     static let closePage = "Close page"
+    static let backup = "Backup"
+    static let exportEverything = "Export everything…"
+    static let exportEverythingHint =
+        "A backup file to keep (Import brings it back, here or in the web app) and every page in one Markdown file."
     static let migrated = "Migrated"
     static let scheduled = "Scheduled"
     static let pageDivider = "Divider between pages"
