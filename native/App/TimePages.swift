@@ -180,14 +180,7 @@ struct MonthPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Where the top of the days is, to shrink the header once they scroll under it. Shrinking moves the
-                    // days up by about the header's lost height (~40 pt), so it shrinks past 100 pt and grows back only
-                    // near the top: a single threshold flipped back and forth forever and froze the page.
-                    Color.clear
-                        .frame(height: 0)
-                        .onGeometryChange(for: CGFloat.self) { ($0.frame(in: .scrollView).minY / 10).rounded() * 10 } action: { y in
-                            if !scrolled && y < -100 { scrolled = true } else if scrolled && y > -20 { scrolled = false }
-                        }
+                    ScrolledMarker(scrolled: $scrolled)
                     ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
                         if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
                         dayRow(iso, today: today, logId: logId)
@@ -302,6 +295,8 @@ struct YearPage: View {
     @AppStorage("logWeekly") private var weekly = true
     @AppStorage("logDaily") private var daily = true
     @State private var marked: String?
+    /// Scrolled past the first months: the header's title shrinks.
+    @State private var scrolled = false
 
     var body: some View {
         let currentMonth = Dates.monthOf(Dates.today())
@@ -309,6 +304,7 @@ struct YearPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ScrolledMarker(scrolled: $scrolled)
                     ForEach(0..<12, id: \.self) { n in
                         let ym = Dates.addMonths("\(year)-01", n)
                         Section {
@@ -341,7 +337,7 @@ struct YearPage: View {
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.paper)
             .safeAreaInset(edge: .top, spacing: 0) {
-                TimeHeader(period: $period, label: "", title: year) { EmptyView() }
+                TimeHeader(period: $period, label: "", title: year, compact: scrolled) { EmptyView() }
                     .floatingHeaderStyle()
             }
             .onAppear { reveal(proxy, logId: logId) }
@@ -357,5 +353,20 @@ struct YearPage: View {
             marked = focus
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { withAnimation { marked = nil } }
         }
+    }
+}
+
+/// Placed at the top of a page's content: tells when it has scrolled under the header, so the header's title can
+/// shrink. Shrinking moves the content up by about the header's lost height (up to ~40 pt), so it shrinks past
+/// 100 pt and grows back only near the top: a single threshold flipped back and forth forever and froze the page.
+struct ScrolledMarker: View {
+    @Binding var scrolled: Bool
+
+    var body: some View {
+        Color.clear
+            .frame(height: 0)
+            .onGeometryChange(for: CGFloat.self) { ($0.frame(in: .scrollView).minY / 10).rounded() * 10 } action: { y in
+                if !scrolled && y < -100 { scrolled = true } else if scrolled && y > -20 { scrolled = false }
+            }
     }
 }
