@@ -54,6 +54,15 @@ enum Prefs {
             daily: d.object(forKey: "logDaily") as? Bool ?? true)
     }
     static var firstDay: Weekday { UserDefaults.standard.object(forKey: "firstDay") as? Int ?? 1 }
+    /// Rapid-logging prefixes (Settings), each falling back to its default if left empty or clashing.
+    static var prefixes: Prefixes {
+        let d = UserDefaults.standard
+        let def = Prefixes()
+        return Prefixes(
+            task: d.string(forKey: "prefixTask") ?? def.task, event: d.string(forKey: "prefixEvent") ?? def.event,
+            note: d.string(forKey: "prefixNote") ?? def.note, heading: d.string(forKey: "prefixHeading") ?? def.heading,
+            priority: d.string(forKey: "prefixPriority") ?? def.priority)
+    }
 }
 
 @MainActor

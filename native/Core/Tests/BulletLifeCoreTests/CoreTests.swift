@@ -1024,3 +1024,16 @@ final class LevelStepTests: XCTestCase {
         XCTAssertEqual(day.level(-1, today: "2026-10-30", firstDay: 1, active: noWeeks), .month("2026-10"))
     }
 }
+
+final class PrefixSettingsTests: XCTestCase {
+    func testChosenPrefixesAndFallbacks() {
+        let p = Prefixes(task: "t", event: "", note: "t", heading: "##", priority: "too long")
+        XCTAssertEqual(p.task, "t")
+        XCTAssertEqual(p.event, "o.")  // empty: default
+        XCTAssertEqual(p.note, "-")  // same as task: default
+        XCTAssertEqual(p.heading, "##")
+        XCTAssertEqual(p.priority, "*")
+        XCTAssertEqual(Rapid.match("t ", prefixes: p)?.type, .task)
+        XCTAssertEqual(Rapid.leading("## Title", prefixes: p)?.type, .heading)
+    }
+}

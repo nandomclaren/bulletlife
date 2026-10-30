@@ -30,6 +30,11 @@ struct SettingsView: View {
     @AppStorage("logDaily") private var daily = true
     @AppStorage("setupBanner") private var setupBanner = true
     @AppStorage("openCount") private var openCount = true
+    @AppStorage("prefixTask") private var prefixTask = "."
+    @AppStorage("prefixEvent") private var prefixEvent = "o."
+    @AppStorage("prefixNote") private var prefixNote = "-"
+    @AppStorage("prefixHeading") private var prefixHeading = "#"
+    @AppStorage("prefixPriority") private var prefixPriority = "*"
     @AppStorage("closeDay") private var closeDay = true
     @AppStorage("closeDayAt") private var closeDayAt = "20:00"
     @AppStorage("glyphStyle") private var glyphStyle = GlyphStyle.checkboxes.rawValue
@@ -123,6 +128,17 @@ struct SettingsView: View {
                 }
             }
             Section {
+                prefixField(S.task, $prefixTask)
+                prefixField(S.event, $prefixEvent)
+                prefixField(S.note, $prefixNote)
+                prefixField(S.heading, $prefixHeading)
+                prefixField(S.priority, $prefixPriority)
+            } header: {
+                Text(S.prefixes)
+            } footer: {
+                Text(S.prefixesHint)
+            }
+            Section {
                 Picker(S.glyphStyle, selection: $glyphStyle) {
                     Text(S.checkboxes).tag(GlyphStyle.checkboxes.rawValue)
                     Text(S.dotNotation).tag(GlyphStyle.dots.rawValue)
@@ -193,6 +209,18 @@ struct SettingsView: View {
             } catch {
                 message = S.importFailed
             }
+        }
+    }
+
+    /// A rapid-logging prefix: typed at a line's start, then a space.
+    private func prefixField(_ name: String, _ value: Binding<String>) -> some View {
+        LabeledContent(name) {
+            TextField("", text: value)
+                .multilineTextAlignment(.trailing)
+                .font(.body.monospaced())
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .frame(maxWidth: 80)
         }
     }
 

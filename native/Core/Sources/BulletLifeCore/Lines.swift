@@ -40,6 +40,21 @@ public struct Prefixes: Equatable, Sendable {
     public var heading = "#"
     public var priority = "*"
     public init() {}
+
+    /// Prefixes chosen in Settings: each one 1–3 characters without spaces, all different; any that isn't keeps
+    /// its default, so typing always works.
+    public init(task: String, event: String, note: String, heading: String, priority: String) {
+        self.init()
+        let defaults = [self.task, self.event, self.note, self.heading, self.priority]
+        var chosen = [task, event, note, heading, priority].map { $0.trimmingCharacters(in: .whitespaces) }
+        for i in chosen.indices {
+            let p = chosen[i]
+            let ok = (1...3).contains(p.count) && !p.contains(where: \.isWhitespace)
+                && !chosen[..<i].contains(where: { $0.lowercased() == p.lowercased() })
+            if !ok { chosen[i] = defaults[i] }
+        }
+        (self.task, self.event, self.note, self.heading, self.priority) = (chosen[0], chosen[1], chosen[2], chosen[3], chosen[4])
+    }
 }
 
 public struct PrefixMatch: Equatable, Sendable {
@@ -83,7 +98,7 @@ public enum Rapid {
     public static func leading(_ text: String, prefixes: Prefixes = Prefixes()) -> PrefixMatch? {
         let chars = Array(text)
         guard chars.count >= 2 else { return nil }
-        for k in 2...min(chars.count, 6) where chars[k - 1] == " " {
+        for k in 2...min(chars.count, 8) where chars[k - 1] == " " {
             if let m = match(String(chars[0..<k]), prefixes: prefixes), m.length == k { return m }
         }
         return nil

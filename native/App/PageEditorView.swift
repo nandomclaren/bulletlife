@@ -531,7 +531,8 @@ struct PageEditorView: UIViewRepresentable {
         /// ". ", "o. ", "- ", "# ", "* " just typed at the start of a line (CLAUDE.md 3.4).
         private func readTypedPrefix(_ at: Caret) -> Bool {
             let line = lines[at.index]
-            guard at.offset <= 5, let m = Rapid.match((line.text as NSString).substring(to: at.offset)), m.length == at.offset else { return false }
+            guard at.offset <= 8, let m = Rapid.match((line.text as NSString).substring(to: at.offset), prefixes: Prefs.prefixes), m.length == at.offset
+            else { return false }
             // A lone "* " marks priority only on a line that already has a bullet.
             if m.type == .text && (line.type == .text || line.type == .heading) { return false }
             var next = lines
@@ -564,7 +565,7 @@ struct PageEditorView: UIViewRepresentable {
             }
             pendingPrefix = nil
             pending.timer.invalidate()
-            guard let i = lines.firstIndex(where: { $0.id == pending.id }), let m = Rapid.leading(lines[i].text) else { return }
+            guard let i = lines.firstIndex(where: { $0.id == pending.id }), let m = Rapid.leading(lines[i].text, prefixes: Prefs.prefixes) else { return }
             if m.type == .text && (lines[i].type == .text || lines[i].type == .heading) { return }
             let at = currentCaret()
             var next = lines
