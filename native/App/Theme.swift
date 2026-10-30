@@ -160,27 +160,33 @@ struct HeaderBlur: View {
     @Environment(\.colorScheme) private var scheme
     @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
 
-    /// How much of the system's blur is applied: a lighter blur, so the words passing under the header still
-    /// read as a soft smudge.
-    private let blur: CGFloat = 0.45
+    /// How much of the system's blur is applied: words under the header turn into a smudge, not legible text.
+    private let blur: CGFloat = 0.75
     /// Paper over the blur, to hide what is left of its light tint (Graphite's grey shows it most).
     private var cover: Double {
-        guard scheme == .dark else { return 0.3 }
-        return theme == Theme.Look.night.rawValue ? 0.45 : 0.55
+        guard scheme == .dark else { return 0.55 }
+        return theme == Theme.Look.night.rawValue ? 0.65 : 0.72
     }
 
+    /// Height of the soft edge below the header, where the page fades in.
+    static let fade: CGFloat = 32
+
     var body: some View {
+        // Even all over the header (so its titles read clearly), then a soft edge below it.
+        VStack(spacing: 0) {
+            layer
+            layer
+                .frame(height: Self.fade)
+                .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+
+    private var layer: some View {
         ZStack {
             PartialBlur(fraction: blur)
             Theme.paper.opacity(cover)
         }
-        // Dissolves from a third of the way down, so the page fades in gradually under the title.
-        .mask(
-            LinearGradient(
-                stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.35), .init(color: .clear, location: 1)],
-                startPoint: .top, endPoint: .bottom)
-        )
-        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -245,7 +251,8 @@ extension View {
             .padding(.bottom, 12)
             .frame(maxWidth: width, alignment: .leading)
             .frame(maxWidth: .infinity)
-            .background(HeaderBlur())
+            // The soft edge hangs below the header, over the page.
+            .background(alignment: .top) { HeaderBlur().padding(.bottom, -HeaderBlur.fade) }
     }
 }
 

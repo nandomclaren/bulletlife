@@ -47,6 +47,8 @@ struct PageEditorView: UIViewRepresentable {
         } else {
             view.alwaysBounceVertical = true
             view.keyboardDismissMode = .interactive
+            // The page gives the whole top inset (toolbar and header); the system adds nothing.
+            view.contentInsetAdjustmentBehavior = .never
             view.textContainerInset = UIEdgeInsets(top: 8, left: EditorLayout.inset(embedded: false), bottom: 240, right: 8)
         }
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
