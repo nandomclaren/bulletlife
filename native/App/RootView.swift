@@ -203,9 +203,6 @@ struct RootView: View {
                 .id(builtLook)
                 .onAppear { if builtLook != currentLook { builtLook = currentLook } }
                 .background(Theme.paper.ignoresSafeArea())
-                // Behind the pages (the line under the toolbar, the room a pushed page leaves) is paper too,
-                // not the navigation's own white.
-                .paperBehind()
                 // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
                 // iPhone (CLAUDE.md 4.2).
                 .inspector(isPresented: $nav.showOpen) {
@@ -512,13 +509,3 @@ struct SidesOnly: Shape {
     }
 }
 
-extension View {
-    /// The navigation's background in the theme's paper (iOS 18 and later; the window's paper before that).
-    @ViewBuilder func paperBehind() -> some View {
-        if #available(iOS 18.0, *) {
-            self.containerBackground(Theme.paper, for: .navigation)
-        } else {
-            self
-        }
-    }
-}
