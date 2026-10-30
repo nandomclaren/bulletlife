@@ -196,6 +196,8 @@ struct SettingsView: View {
             count = Repository(context: context).entryCount()
             handwriting.prepare(HandwritingLang(rawValue: handwritingLang) ?? .ptBR)
         }
+        // A prefix left empty (or clashing) is written back as the one in use, so it can be read later.
+        .onDisappear(perform: settlePrefixes)
         .onChange(of: handwritingLang) { handwriting.prepare(HandwritingLang(rawValue: handwritingLang) ?? .ptBR) }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             guard case .success(let url) = result else { return }
@@ -212,10 +214,20 @@ struct SettingsView: View {
         }
     }
 
+    private func settlePrefixes() {
+        let p = Prefs.prefixes
+        if prefixTask != p.task { prefixTask = p.task }
+        if prefixEvent != p.event { prefixEvent = p.event }
+        if prefixNote != p.note { prefixNote = p.note }
+        if prefixHeading != p.heading { prefixHeading = p.heading }
+        if prefixPriority != p.priority { prefixPriority = p.priority }
+    }
+
     /// A rapid-logging prefix: typed at a line's start, then a space.
     private func prefixField(_ name: String, _ value: Binding<String>) -> some View {
         LabeledContent(name) {
             TextField("", text: value)
+                .onSubmit(settlePrefixes)
                 .multilineTextAlignment(.trailing)
                 .font(.body.monospaced())
                 .textInputAutocapitalization(.never)

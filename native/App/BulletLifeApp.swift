@@ -21,5 +21,6 @@ struct BulletLifeApp: App {
             RootView()
         }
         .modelContainer(container)
+        .commands { NotebookCommands() }
     }
 }

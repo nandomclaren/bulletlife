@@ -255,6 +255,10 @@ enum S {
     static let prefixesHint =
         "Typed at the start of a line, then a space. Up to three characters each, all different; an empty or repeated one keeps its default."
     static let levelUp = "Level up"
+    static let goMenu = "Go"
+    static let find = "Find"
+    static let previousPage = "Previous page"
+    static let nextPage = "Next page"
     static let levelDown = "Level down"
     static let backup = "Backup"
     static let exportEverything = "Export everything…"

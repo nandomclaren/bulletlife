@@ -75,6 +75,8 @@ final class Navigator: ObservableObject {
     /// An entry to scroll to and mark (opened from Open items).
     @Published var highlight: String?
     @Published var showOpen = false
+    /// The search sheet is open.
+    @Published var searching = false
     /// Close the day opens the panel on what is still open today.
     @Published var openToday = false
 
@@ -212,7 +214,6 @@ struct RootView: View {
     @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var searching = false
     /// The theme and palette the pages were built with.
     @State private var builtLook = ""
     private var currentLook: String { "\(theme)/\(palette)" }
@@ -250,7 +251,7 @@ struct RootView: View {
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
                 .onChange(of: nav.showOpen) { if !nav.showOpen { nav.openToday = false } }
-                .sheet(isPresented: $searching, onDismiss: openFound) {
+                .sheet(isPresented: $nav.searching, onDismiss: openFound) {
                     SearchView { place, highlight, focus in found = (place, highlight, focus) }
                 }
                 .toolbar {
@@ -271,21 +272,13 @@ struct RootView: View {
                         .accessibilityLabel(S.index)
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        // ⌘K / ⌘F come from the app's Go menu (NotebookCommands).
                         Button {
-                            searching = true
+                            nav.searching = true
                         } label: {
                             Image(systemName: "magnifyingglass")
                         }
-                        .keyboardShortcut("k", modifiers: .command)
                         .accessibilityLabel(S.search)
-                        // ⌘F too, as in other apps; and the keyboard's way around the notebook.
-                        .background {
-                            Button("") { searching = true }
-                                .keyboardShortcut("f", modifiers: .command)
-                                .opacity(0)
-                                .accessibilityHidden(true)
-                            KeyboardNavigation(nav: nav)
-                        }
                         OpenItemsButton(isOpen: $nav.showOpen)
                         if sizeClass == .regular { layoutMenu }
                         PageMenu(place: nav.place)
@@ -301,6 +294,8 @@ struct RootView: View {
         // "Migrated" / "Scheduled" with Undo, above the pen toolbar.
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, 84) }
         .environmentObject(nav)
+        // The app's menu commands (Go: search, Today, levels, pages) act on this window's notebook.
+        .focusedSceneObject(nav)
         .tint(Theme.task)
         // Light or dark only this way: holding the window too made the two fight, and painting the scene's
         // windows covered the app with the system's overlay windows.
@@ -531,43 +526,45 @@ struct SidesOnly: Shape {
     }
 }
 
-/// Keyboard shortcuts around the notebook (CLAUDE.md 5.1): ⌘T Today; ⌃⌘↑ / ⌃⌘↓ a level up or down (Day ›
-/// Week › Month › Year, around the day looked at); ⌃⌘← / ⌃⌘→ the previous or next page at the same level.
-/// Hidden buttons, so they show in the iPad's shortcut list (holding ⌘) and work from the editor too.
-struct KeyboardNavigation: View {
-    @ObservedObject var nav: Navigator
-    @AppStorage("firstDay") private var firstDay = 1
+/// The app's Go menu (the iPad's menu bar, and the list shown while ⌘ is held): search, and the keyboard's
+/// way around the notebook (CLAUDE.md 5.1): ⌘T Today; ⌃⌘↑ / ⌃⌘↓ a level up or down (Day › Week › Month ›
+/// Year, around the day looked at); ⌃⌘← / ⌃⌘→ the previous or next page at the same level.
+struct NotebookCommands: Commands {
+    @FocusedObject private var nav: Navigator?
 
-    var body: some View {
-        Group {
-            Button(S.today) { today() }.keyboardShortcut("t", modifiers: .command)
-            Button(S.levelUp) { level(-1) }.keyboardShortcut(.upArrow, modifiers: [.control, .command])
-            Button(S.levelDown) { level(1) }.keyboardShortcut(.downArrow, modifiers: [.control, .command])
-            Button(S.previous) { move(-1) }.keyboardShortcut(.leftArrow, modifiers: [.control, .command])
-            Button(S.next) { move(1) }.keyboardShortcut(.rightArrow, modifiers: [.control, .command])
+    var body: some Commands {
+        CommandMenu(S.goMenu) {
+            Button(S.search) { nav?.searching = true }.keyboardShortcut("k", modifiers: .command)
+            Button(S.find) { nav?.searching = true }.keyboardShortcut("f", modifiers: .command)
+            Divider()
+            Button(S.today) { nav?.goToday() }.keyboardShortcut("t", modifiers: .command)
+            Button(S.levelUp) { nav?.level(-1) }.keyboardShortcut(.upArrow, modifiers: [.control, .command])
+            Button(S.levelDown) { nav?.level(1) }.keyboardShortcut(.downArrow, modifiers: [.control, .command])
+            Button(S.previousPage) { nav?.page(-1) }.keyboardShortcut(.leftArrow, modifiers: [.control, .command])
+            Button(S.nextPage) { nav?.page(1) }.keyboardShortcut(.rightArrow, modifiers: [.control, .command])
         }
-        .opacity(0)
-        .frame(width: 0, height: 0)
-        .accessibilityHidden(true)
     }
+}
 
+extension Navigator {
     private var current: Period? {
-        if case .time(let p) = nav.place { return p }
+        if case .time(let p) = place { return p }
         return nil
     }
 
-    private func today() {
-        let p = current.map { Period.containing(Dates.today(), like: $0, firstDay: firstDay) }
-        nav.go(.time(p ?? Prefs.active.finest(Dates.today(), firstDay: firstDay)))
+    /// Today at the page's level (the finest log on, from the Index or a collection).
+    func goToday() {
+        let p = current.map { Period.containing(Dates.today(), like: $0, firstDay: Prefs.firstDay) }
+        go(.time(p ?? Prefs.active.finest(Dates.today(), firstDay: Prefs.firstDay)))
     }
 
-    private func level(_ step: Int) {
-        guard let p = current, let next = p.level(step, today: Dates.today(), firstDay: firstDay, active: Prefs.active) else { return }
-        nav.go(.time(next))
+    func level(_ step: Int) {
+        guard let p = current, let next = p.level(step, today: Dates.today(), firstDay: Prefs.firstDay, active: Prefs.active) else { return }
+        go(.time(next))
     }
 
-    private func move(_ step: Int) {
+    func page(_ step: Int) {
         guard let p = current else { return }
-        nav.go(.time(p.moved(step, firstDay: firstDay)))
+        go(.time(p.moved(step, firstDay: Prefs.firstDay)))
     }
 }

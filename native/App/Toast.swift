@@ -71,11 +71,13 @@ struct ToastView: View {
                     .foregroundStyle(Theme.task)
                 }
             }
-            .frame(maxWidth: 640)
             .font(Theme.body(15))
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            // As wide as what it says: a pill, not a bar.
+            .fixedSize(horizontal: false, vertical: true)
             .glassBackground(in: Capsule(), interactive: true)
+            .padding(.horizontal, 24)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .id(t.id)
         }

@@ -1113,8 +1113,8 @@ final class EditorTextView: UITextView {
             UIKeyCommand(input: "i", modifierFlags: .command, action: #selector(toggleItalics(_:))),
             UIKeyCommand(input: "h", modifierFlags: [.command, .shift], action: #selector(toggleHighlight)),
             // ⌃⌥→ / ⌃⌥←: migrate / schedule the line (⌥→ / ⌥← stay the system's, word by word).
-            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [.control, .alternate], action: #selector(migrateLine)),
-            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [.control, .alternate], action: #selector(scheduleLine)),
+            UIKeyCommand(title: S.migrate, action: #selector(migrateLine), input: UIKeyCommand.inputRightArrow, modifierFlags: [.control, .alternate]),
+            UIKeyCommand(title: S.schedule, action: #selector(scheduleLine), input: UIKeyCommand.inputLeftArrow, modifierFlags: [.control, .alternate]),
         ]
         commands.forEach { $0.wantsPriorityOverSystemBehavior = true }
         return commands
