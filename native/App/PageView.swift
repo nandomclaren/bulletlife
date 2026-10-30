@@ -25,6 +25,8 @@ struct PageView: View {
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("doneMark") private var doneMark = "×"
     @State private var lines: [Line] = []
+    /// The page whose lines are loaded: a scroll restore waits for them.
+    @State private var loadedFor = ""
     // Pen mode (iPad): kept on this device, like the PWA's.
     @AppStorage("penMode") private var penOn = false
     @AppStorage("penColor") private var penColor = "ink"
@@ -38,6 +40,8 @@ struct PageView: View {
     private var repo: Repository { Repository(context: context) }
     private var logId: String { collection?.id ?? period.logId }
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    /// Where this page is in the notebook (to remember and restore its scroll).
+    private var place: Place { collection.map { .collection($0.id) } ?? .time(period) }
     /// The second of two pages: read, not written (only a bullet's tap or menu, one entry at a time).
     private var consulting: Bool { role == .second }
 
@@ -103,7 +107,10 @@ struct PageView: View {
             PageEditorView(
                 lines: $lines, eventStates: eventStates, doneMark: doneMark,
                 highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil, topInset: headerHeight,
-                readOnly: consulting, onSelection: { PageSelection.set(logId: logId, $0) }
+                readOnly: consulting,
+                restore: loadedFor == logId && nav.restore?.place == place ? nav.restore : nil,
+                onScroll: { [place] in nav.remember($0, for: place) },
+                onSelection: { PageSelection.set(logId: logId, $0) }
             ) { act($0, on: $1) }
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
@@ -241,6 +248,7 @@ struct PageView: View {
         saver.flush()  // what was written on the page before goes to that page
         if !penSizes.contains(penSize) { penSize = defaultPenSize }  // sizes from an earlier version
         lines = repo.lines(logId: logId)
+        loadedFor = logId
         collectionTitle = collection?.title ?? ""
     }
 

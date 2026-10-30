@@ -230,6 +230,7 @@ struct MonthPage: View {
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .scrollDismissesKeyboard(.interactively)
+            .remembersScroll(nav, place: .time(.month(ym)))
             .background(Theme.paper)
             // The header floats over the days, which scroll under it, seen blurred through.
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -392,6 +393,7 @@ struct YearPage: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
+            .remembersScroll(nav, place: .time(.year(year)))
             .background(Theme.paper)
             .safeAreaInset(edge: .top, spacing: 0) {
                 TimeHeader(period: $period, label: "", title: year, compact: scrolled) { EmptyView() }
@@ -425,5 +427,42 @@ struct ScrolledMarker: View {
             .onGeometryChange(for: CGFloat.self) { ($0.frame(in: .scrollView).minY / 10).rounded() * 10 } action: { y in
                 if !scrolled && y < -100 { scrolled = true } else if scrolled && y > -20 { scrolled = false }
             }
+    }
+}
+
+extension View {
+    /// Back returns a Month or Year to where it was scrolled, exactly (iOS 18's scroll position; before that,
+    /// to the day or month you came from).
+    @ViewBuilder func remembersScroll(_ nav: Navigator, place: Place) -> some View {
+        if #available(iOS 18.0, *) {
+            modifier(ScrollMemory(nav: nav, place: place))
+        } else {
+            self
+        }
+    }
+}
+
+@available(iOS 18.0, *)
+private struct ScrollMemory: ViewModifier {
+    @ObservedObject var nav: Navigator
+    let place: Place
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var applied = 0
+
+    func body(content: Content) -> some View {
+        content
+            .scrollPosition($position)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+                nav.remember(y, for: place)
+            }
+            .onAppear(perform: apply)
+            .onChange(of: nav.restore) { apply() }
+    }
+
+    private func apply() {
+        guard let r = nav.restore, r.place == place, r.id != applied else { return }
+        applied = r.id
+        // After the page is laid out.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { position.scrollTo(y: r.y) }
     }
 }

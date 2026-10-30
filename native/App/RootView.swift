@@ -38,6 +38,13 @@ enum Place: Hashable {
     }
 }
 
+/// Where a page was scrolled (from the top of its content), to put it back there.
+struct ScrollRestore: Equatable {
+    let place: Place
+    let y: CGFloat
+    let id: Int
+}
+
 /// The settings that decide which time logs exist (CLAUDE.md 3.2), read where navigation needs them.
 enum Prefs {
     static var active: ActiveLogs {
@@ -101,6 +108,22 @@ final class Navigator: ObservableObject {
         guard let previous = history.popLast() else { return }
         move(to: previous)
         highlight = nil
+        // Back where it was scrolled, exactly (not just to the day or month you came from).
+        if let y = offsets[previous] {
+            focus = nil
+            restores += 1
+            restore = ScrollRestore(place: previous, y: y, id: restores)
+        }
+    }
+
+    /// How far each page was scrolled, to return there with Back (reported by the pages as they scroll).
+    private var offsets: [Place: CGFloat] = [:]
+    private var restores = 0
+    /// A page to put back where it was scrolled: the page of `place` applies it once (by `id`).
+    @Published private(set) var restore: ScrollRestore?
+
+    func remember(_ y: CGFloat, for place: Place) {
+        offsets[place] = max(0, y)
     }
 
     var period: Period {

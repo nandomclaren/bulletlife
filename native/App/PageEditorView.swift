@@ -25,6 +25,10 @@ struct PageEditorView: UIViewRepresentable {
     /// A page to consult (the second of two pages): the text can be selected, not edited; a bullet still
     /// answers a tap and a hold, one entry at a time.
     var readOnly = false
+    /// Where to put the page back (Back): applied once per restore, after the text is laid out.
+    var restore: ScrollRestore? = nil
+    /// How far the page is scrolled, from the top of its content (for Back to return there).
+    var onScroll: (CGFloat) -> Void = { _ in }
     /// The lines selected (with collapsed children), for the page menu's Export, Copy As and Share.
     var onSelection: ([Line]) -> Void = { _ in }
     var onAction: (LineAction, String) -> Void
@@ -84,6 +88,10 @@ struct PageEditorView: UIViewRepresentable {
             c.rebuild(caret: c.currentCaret())
         }
         if !embedded { setTopInset(view, topInset) }
+        if !embedded, let r = restore, r.id != c.restored {
+            c.restored = r.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { c.scroll(to: r.y) }
+        }
         // Cleared: the same entry can be marked again next time.
         if highlight == nil { c.flashed = nil }
         if let highlight, highlight != c.flashed {
@@ -96,6 +104,24 @@ struct PageEditorView: UIViewRepresentable {
     // MARK: -
 
     final class Coordinator: NSObject, UITextViewDelegate {
+        /// The last restore applied (see `restore`).
+        var restored = 0
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            guard !parent.embedded else { return }
+            parent.onScroll(scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+        }
+
+        /// Puts the page back `y` points down its content.
+        func scroll(to y: CGFloat) {
+            guard let view = textView else { return }
+            view.layoutIfNeeded()
+            view.layoutManager.ensureLayout(for: view.textContainer)
+            let top = -view.adjustedContentInset.top
+            let bottom = max(top, view.contentSize.height + view.adjustedContentInset.bottom - view.bounds.height)
+            view.setContentOffset(CGPoint(x: view.contentOffset.x, y: min(max(top, y + top), bottom)), animated: false)
+        }
+
         var parent: PageEditorView
         weak var textView: EditorTextView?
         /// The page's lines (all of them); `visible` maps each paragraph to its line (collapsed children are
