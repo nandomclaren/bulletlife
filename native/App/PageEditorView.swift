@@ -1303,8 +1303,13 @@ final class InkPreviewView: UIView, UIEditMenuInteractionDelegate {
         ])
     }
 
+    /// The menu keeps clear of the whole drawing (and its outline): above it, or below when there is no room.
+    func editMenuInteraction(_ interaction: UIEditMenuInteraction, targetRectFor configuration: UIEditMenuConfiguration) -> CGRect {
+        bounds.insetBy(dx: -8, dy: -8)
+    }
+
     private func showMenu() {
-        editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: bounds.midX, y: -6)))
+        editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: bounds.midX, y: bounds.minY)))
     }
 
     override func draw(_ rect: CGRect) {
