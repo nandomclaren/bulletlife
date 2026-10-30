@@ -269,9 +269,6 @@ struct RootView: View {
         .tint(Theme.task)
         // The theme, the standard way: every view (SwiftUI and UIKit inside it) is told light or dark.
         .preferredColorScheme(Theme.Look(rawValue: theme)?.scheme)
-        .onAppear(perform: applyLook)
-        .onChange(of: theme) { applyLook() }
-        .onChange(of: palette) { applyLook() }
     }
 
     /// The page the divider is being dragged over fades, as it is about to close.
@@ -342,14 +339,6 @@ struct RootView: View {
         }
     }
 
-    /// The window's paper; Paper, Graphite and Night set light or dark through preferredColorScheme (Automatic
-    /// follows the system), and the colors read the theme and palette when they are drawn.
-    private func applyLook() {
-        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-            // Light or dark comes from preferredColorScheme alone: holding the window too made the two fight
-            // (the screen stayed blank). The window only keeps the paper behind everything.
-            for window in scene.windows { window.backgroundColor = Theme.ui("paper") }
-        }
     }
 }
 
