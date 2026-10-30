@@ -157,9 +157,23 @@ extension View {
 
 /// Behind a floating header: the page shows through, blurred, and the blur fades out at its lower edge.
 struct HeaderBlur: View {
+    @Environment(\.colorScheme) private var scheme
+    @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
+
+    /// Graphite's grey shows the glass's tint more than Night's black.
+    private var cover: Double {
+        guard scheme == .dark else { return 0.6 }
+        return theme == Theme.Look.night.rawValue ? 0.88 : 0.95
+    }
+
     var body: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
+        // The system's blur, covered with the theme's paper so its own light tint (a veil on dark pages) does
+        // not show: more paper on the dark themes, less on Paper, where the veil hardly shows. The page still
+        // scrolls under it, blurred, in its own tone; it dissolves at the lower edge.
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial)
+            Theme.paper.opacity(cover)
+        }
             .mask(
                 LinearGradient(
                     stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
