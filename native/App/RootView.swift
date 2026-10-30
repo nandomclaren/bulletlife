@@ -181,6 +181,9 @@ struct RootView: View {
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var searching = false
+    /// How far the divider between two pages is being dragged (hold it, then drag to close a page).
+    @State private var dividerDrag: CGFloat = 0
+    @AppStorage("firstDay") private var firstDay = 1
     /// A search result to open once the search sheet is gone (so the page scrolls and marks it in view).
     @State private var found: (place: Place, highlight: String?, focus: String?)?
 
@@ -264,6 +267,25 @@ struct RootView: View {
         .onChange(of: palette) { applyLook() }
     }
 
+    /// The page the divider is being dragged over fades, as it is about to close.
+    private func fading(_ side: PageDivider.Side) -> Double {
+        let over = side == .left ? -dividerDrag : dividerDrag
+        return over > 0 ? max(0.35, 1 - Double(over) / 300) : 1
+    }
+
+    /// The divider dragged away: one page stays, as a single page. Keeping the right one takes the left page
+    /// there (the page consulted, or the open book's next period).
+    private func closePage(_ side: PageDivider.Side) {
+        if side == .left {
+            switch layout {
+            case .two: nav.go(second.place)
+            case .book: if case .time(let p) = nav.place { nav.go(.time(p.moved(1, firstDay: firstDay))) }
+            case .single: break
+            }
+        }
+        withAnimation(.easeInOut(duration: 0.2)) { layoutChoice = PageLayout.single.rawValue }
+    }
+
     private func openFound() {
         guard let f = found else { return }
         found = nil
@@ -296,16 +318,16 @@ struct RootView: View {
             main
         case .two:
             HStack(spacing: 0) {
-                main
-                Divider()
-                SecondPage(nav: second)
+                main.opacity(fading(.left))
+                PageDivider(drag: $dividerDrag, close: closePage)
+                SecondPage(nav: second).opacity(fading(.right))
             }
             .environment(\.pageBeside, true)
         case .book:
             HStack(spacing: 0) {
-                main
-                Divider()
-                FacingPage(nav: nav)
+                main.opacity(fading(.left))
+                PageDivider(drag: $dividerDrag, close: closePage)
+                FacingPage(nav: nav).opacity(fading(.right))
             }
             .environment(\.pageBeside, true)
         }
@@ -408,5 +430,59 @@ struct FacingPage: View {
             // The Index and collections are single pages.
             Theme.paper
         }
+    }
+}
+
+/// The line between two pages. Held for a moment, it shows a handle (as the system's split view does); dragged
+/// far enough to one side, it closes the page on that side and the other stays as a single page.
+struct PageDivider: View {
+    enum Side { case left, right }
+    @Binding var drag: CGFloat
+    var close: (Side) -> Void
+    @State private var holding = false
+    private let threshold: CGFloat = 120
+
+    var body: some View {
+        Rectangle()
+            .fill(Theme.rule)
+            .frame(width: 1)
+            .overlay {
+                Capsule()
+                    .fill(Theme.muted)
+                    .frame(width: 6, height: 44)
+                    .opacity(holding ? 1 : 0)
+                    .scaleEffect(holding ? 1 : 0.6)
+                    .offset(x: drag)
+            }
+            .overlay {
+                // A wider place to hold than the line itself.
+                Color.clear
+                    .frame(width: 28)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        LongPressGesture(minimumDuration: 0.35)
+                            .onEnded { _ in
+                                withAnimation(.spring(duration: 0.2)) { holding = true }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            }
+                            .sequenced(before: DragGesture(minimumDistance: 0))
+                            .onChanged { value in
+                                if case .second(true, let d) = value, let d { drag = d.translation.width }
+                            }
+                            .onEnded { _ in
+                                let d = drag
+                                withAnimation(.spring(duration: 0.25)) {
+                                    holding = false
+                                    drag = 0
+                                }
+                                if d > threshold { close(.right) } else if d < -threshold { close(.left) }
+                            }
+                    )
+            }
+            .zIndex(1)
+            .accessibilityElement()
+            .accessibilityLabel(S.pageDivider)
+            .accessibilityAction(named: S.closeRightPage) { close(.right) }
+            .accessibilityAction(named: S.closeLeftPage) { close(.left) }
     }
 }
