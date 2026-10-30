@@ -198,6 +198,9 @@ struct RootView: View {
                 // A new theme or palette: the page is drawn again in its colors (UIKit text keeps what it drew).
                 .id("\(theme)/\(palette)")
                 .background(Theme.paper.ignoresSafeArea())
+                // Behind the pages (the line under the toolbar, the room a pushed page leaves) is paper too,
+                // not the navigation's own white.
+                .paperBehind()
                 // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
                 // iPhone (CLAUDE.md 4.2).
                 .inspector(isPresented: $nav.showOpen) {
@@ -339,7 +342,10 @@ struct RootView: View {
     /// read the theme and palette when they are drawn.
     private func applyLook() {
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-            for window in scene.windows { window.overrideUserInterfaceStyle = Theme.look.style }
+            for window in scene.windows {
+                window.overrideUserInterfaceStyle = Theme.look.style
+                window.backgroundColor = Theme.ui("paper")
+            }
         }
     }
 }
@@ -497,5 +503,16 @@ struct PageDivider: View {
 struct SidesOnly: Shape {
     func path(in rect: CGRect) -> Path {
         Path(rect.insetBy(dx: 0, dy: -10_000))
+    }
+}
+
+extension View {
+    /// The navigation's background in the theme's paper (iOS 18 and later; the window's paper before that).
+    @ViewBuilder func paperBehind() -> some View {
+        if #available(iOS 18.0, *) {
+            self.containerBackground(Theme.paper, for: .navigation)
+        } else {
+            self
+        }
     }
 }
