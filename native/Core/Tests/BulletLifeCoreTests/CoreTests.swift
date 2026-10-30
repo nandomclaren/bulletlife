@@ -937,3 +937,34 @@ final class LassoTests: XCTestCase {
         XCTAssertNil(InkPage.handBullet(Line(text: "typed")))
     }
 }
+
+final class InlineRunTests: XCTestCase {
+    func testRunsMarkWordsAndMarkers() {
+        let r = InlineText.runs("a **b *c* d** e")
+        // "**" open, "b " bold, "*" open (bold), "c" bold italic, "*" close, " d" bold, "**" close.
+        XCTAssertEqual(r.map(\.location), [2, 4, 6, 7, 8, 9, 11])
+        XCTAssertEqual(r.map(\.length), [2, 2, 1, 1, 1, 2, 2])
+        XCTAssertEqual(r.map(\.isMarker), [true, false, true, false, true, false, true])
+        XCTAssertTrue(r[3].bold && r[3].italic)
+        XCTAssertEqual(r[0].span?.location, 2)
+        XCTAssertEqual(r[0].span?.length, 11)
+        XCTAssertEqual(r[2].span?.location, 6)
+        XCTAssertTrue(InlineText.runs("2*3 plain").isEmpty)
+    }
+
+    func testToggleWrapsAndUnwraps() {
+        let on = InlineText.toggle("say hello now", from: 4, to: 9, mark: "**")
+        XCTAssertEqual(on.text, "say **hello** now")
+        XCTAssertEqual(on.from, 6)
+        XCTAssertEqual(on.to, 11)
+        let off = InlineText.toggle(on.text, from: on.from, to: on.to, mark: "**")
+        XCTAssertEqual(off.text, "say hello now")
+        XCTAssertEqual(off.from, 4)
+        // Italic inside bold is added, not mistaken for the bold's stars.
+        XCTAssertEqual(InlineText.toggle("**hi**", from: 2, to: 4, mark: "*").text, "***hi***")
+        // An empty selection leaves the caret between the marks.
+        let empty = InlineText.toggle("ab", from: 1, to: 1, mark: "*")
+        XCTAssertEqual(empty.text, "a**b")
+        XCTAssertEqual(empty.from, 2)
+    }
+}

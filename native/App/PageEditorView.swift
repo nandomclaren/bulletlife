@@ -34,6 +34,8 @@ struct PageEditorView: UIViewRepresentable {
         view.coordinator = c
         view.delegate = c
         view.backgroundColor = .clear
+        // Offers the system's Format menu (Bold, Italic), which writes Markdown marks (EditorTextView).
+        view.allowsEditingTextAttributes = true
         if embedded {
             view.isScrollEnabled = false
             view.clipsToBounds = false  // a top-level chevron sits just left of the text
@@ -540,6 +542,7 @@ struct PageEditorView: UIViewRepresentable {
             }
             // Leaving a line written by Scribble reads its prefix now.
             if let pendingId = pendingPrefix?.id, let at = currentCaret(), lines[at.index].id != pendingId { applyPendingPrefix() }
+            refreshActiveSpans()
             updateTyping()
         }
 
@@ -576,12 +579,18 @@ struct PageEditorView: UIViewRepresentable {
                 let range = NSRange(location: at, length: len)
                 var uniform = true
                 storage.enumerateAttribute(.font, in: range) { value, _, stop in
-                    if (value as? UIFont)?.pointSize != size {
+                    if let f = value as? UIFont, f.pointSize >= 1, f.pointSize != size {
                         uniform = false
                         stop.pointee = true
                     }
                 }
-                if !uniform { storage.addAttribute(.font, value: font, range: range) }
+                if !uniform {
+                    // Each run keeps its bold or italic; hidden markers stay hidden.
+                    storage.enumerateAttribute(.font, in: range) { value, r, _ in
+                        guard let f = value as? UIFont, f.pointSize >= 1 else { return }
+                        storage.addAttribute(.font, value: UIFont(descriptor: f.fontDescriptor, size: size), range: r)
+                    }
+                }
             }
             // What is typed next comes in at the line's size.
             if let at = currentCaret(), let font = fitted[lines[at.index].id] { view.typingAttributes[.font] = font }
@@ -593,6 +602,86 @@ struct PageEditorView: UIViewRepresentable {
         /// Keeps every line looking like its type (UIKit types new text with the attributes around the caret, and
         /// Scribble and the keyboard's suggestions bring their own), and a list number like a bullet: bold, in the
         /// color of its root. Skipped while text is being composed (marked), which an edit would break.
+        /// How **bold**, *italic* and ==highlight== look on a line (render.ts inline): the words formatted, the
+        /// markers hidden, or shown faintly while the caret (or selection) is in their span.
+        struct InlineLook {
+            var range: NSRange
+            var attributes: [NSAttributedString.Key: Any]
+
+            func matches(_ a: [NSAttributedString.Key: Any], _ r: NSRange) -> Bool {
+                guard NSIntersectionRange(range, r).length == r.length else { return false }
+                let want = attributes[.font] as? UIFont, font = a[.font] as? UIFont
+                let traits: UIFontDescriptor.SymbolicTraits = [.traitBold, .traitItalic]
+                return font?.fontDescriptor.symbolicTraits.intersection(traits) == want?.fontDescriptor.symbolicTraits.intersection(traits)
+                    && ((font?.pointSize ?? 0) < 1) == ((want?.pointSize ?? 0) < 1)
+                    && (a[.foregroundColor] as? UIColor) == (attributes[.foregroundColor] as? UIColor)
+                    && (a[.backgroundColor] as? UIColor) == (attributes[.backgroundColor] as? UIColor)
+            }
+        }
+
+        static let highlight = UIColor(red: 0xF2 / 255, green: 0xC9 / 255, blue: 0x4C / 255, alpha: 0.38)
+        static let hiddenMarker = UIFont.systemFont(ofSize: 0.01)
+
+        func inlineLooks(_ l: Line, at: Int, base: UIFont, color: UIColor) -> [InlineLook] {
+            guard l.text.contains("*") || l.text.contains("==") else { return [] }
+            let sel = textView?.selectedRange ?? NSRange(location: -1, length: 0)
+            return InlineText.runs(l.text).map { run in
+                let range = NSRange(location: at + run.location, length: run.length)
+                if let span = run.span {
+                    let start = at + span.location, end = start + span.length
+                    let active = sel.location <= end && sel.location + sel.length >= start
+                    return InlineLook(
+                        range: range,
+                        attributes: active ? [.font: base, .foregroundColor: Theme.ui("muted")] : [.font: Self.hiddenMarker, .foregroundColor: UIColor.clear])
+                }
+                var traits = base.fontDescriptor.symbolicTraits
+                if run.bold { traits.insert(.traitBold) }
+                if run.italic { traits.insert(.traitItalic) }
+                let font = base.fontDescriptor.withSymbolicTraits(traits).map { UIFont(descriptor: $0, size: base.pointSize) } ?? base
+                var a: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+                if run.highlight { a[.backgroundColor] = Self.highlight }
+                return InlineLook(range: range, attributes: a)
+            }
+        }
+
+        /// ⌘B, ⌘I, ⌘⇧H and the system's Bold/Italic: Markdown marks around the selection (within one line), or
+        /// taken off when they are already there. The selection stays on the same words.
+        func toggleInline(_ mark: String) {
+            guard let view = textView, !lines.isEmpty else { return }
+            let r = view.selectedRange
+            let start = caret(at: r.location), end = caret(at: r.location + r.length)
+            guard start.index == end.index else { return }
+            let i = start.index
+            let t = InlineText.toggle(lines[i].text, from: start.offset, to: end.offset, mark: mark)
+            var next = lines
+            next[i].text = t.text
+            apply(Edited(lines: next, caret: Caret(index: i, offset: t.to)))
+            let from = location(of: Caret(index: i, offset: t.from))
+            view.selectedRange = NSRange(location: from, length: t.to - t.from)
+            layoutDecor()
+        }
+
+        /// The markers show while the caret is in their span: the line is styled again when that changes.
+        private var activeSpans: [Int] = []
+
+        private func refreshActiveSpans() {
+            guard let view = textView, let at = currentCaret() else { return }
+            let l = lines[at.index]
+            guard l.text.contains("*") || l.text.contains("==") || !activeSpans.isEmpty else { return }
+            let lineStart = location(of: Caret(index: at.index, offset: 0))
+            let sel = view.selectedRange
+            let now = InlineText.runs(l.text).compactMap { run -> Int? in
+                guard let span = run.span else { return nil }
+                let start = lineStart + span.location, end = start + span.length
+                return sel.location <= end && sel.location + sel.length >= start ? start : nil
+            }
+            if now != activeSpans {
+                activeSpans = now
+                restyle()
+                fitFonts()
+            }
+        }
+
         private func restyle() {
             guard let view = textView, view.markedTextRange == nil else { return }
             let storage = view.textStorage
@@ -613,8 +702,23 @@ struct PageEditorView: UIViewRepresentable {
                 let checked = NSRange(location: full.location + number, length: full.length - number)
                 var wrong = false
                 let tokens = Due.tokens(l.text).map { NSRange(location: at + $0.range.location, length: $0.range.length) }
+                let inline = inlineLooks(l, at: at, base: wantFont ?? EditorLayout.font, color: want[.foregroundColor] as? UIColor ?? Theme.ui("text"))
                 storage.enumerateAttributes(in: checked) { a, r, stop in
                     if tokens.contains(where: { NSIntersectionRange($0, r).length > 0 }) { return }
+                    if let look = inline.first(where: { NSIntersectionRange($0.range, r).length > 0 }) {
+                        // Formatted words and markers: one look per run, as inlineLooks says.
+                        if !look.matches(a, r) {
+                            wrong = true
+                            stop.pointee = true
+                        }
+                        return
+                    }
+                    // A highlight left from text that is no longer marked (not the brief flash of an opened entry).
+                    if (a[.backgroundColor] as? UIColor) == Self.highlight {
+                        wrong = true
+                        stop.pointee = true
+                        return
+                    }
                     let font = a[.font] as? UIFont
                     let fontOK = font?.fontName == wantFont?.fontName || (parent.fitOneLine && font?.familyName == wantFont?.familyName)
                     if !fontOK || (a[.paragraphStyle] as? NSParagraphStyle)?.headIndent != wantStyle?.headIndent
@@ -625,7 +729,10 @@ struct PageEditorView: UIViewRepresentable {
                         stop.pointee = true
                     }
                 }
-                if wrong { storage.setAttributes(want, range: full) }
+                if wrong {
+                    storage.setAttributes(want, range: full)
+                    for look in inline { storage.addAttributes(look.attributes, range: look.range) }
+                }
                 // "1. " / "2) ": the number is styled like a bullet (it stays part of the text).
                 if number > 0 {
                     let r = NSRange(location: at, length: number)
@@ -854,6 +961,9 @@ final class EditorTextView: UITextView {
             UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(indentLines)),
             UIKeyCommand(input: "\t", modifierFlags: .shift, action: #selector(outdentLines)),
             UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(cycleState)),
+            UIKeyCommand(input: "b", modifierFlags: .command, action: #selector(toggleBoldface(_:))),
+            UIKeyCommand(input: "i", modifierFlags: .command, action: #selector(toggleItalics(_:))),
+            UIKeyCommand(input: "h", modifierFlags: [.command, .shift], action: #selector(toggleHighlight)),
         ]
         commands.forEach { $0.wantsPriorityOverSystemBehavior = true }
         return commands
@@ -862,6 +972,17 @@ final class EditorTextView: UITextView {
     @objc private func indentLines() { coordinator?.shiftSelection(1) }
     @objc private func outdentLines() { coordinator?.shiftSelection(-1) }
     @objc private func cycleState() { coordinator?.cycleState() }
+    @objc private func toggleHighlight() { coordinator?.toggleInline("==") }
+
+    // The system's Format menu (B / I) writes Markdown marks too, never hidden attributes.
+    override func toggleBoldface(_ sender: Any?) { coordinator?.toggleInline("**") }
+    override func toggleItalics(_ sender: Any?) { coordinator?.toggleInline("*") }
+    override func toggleUnderline(_ sender: Any?) {}
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(toggleUnderline(_:)) { return false }
+        return super.canPerformAction(action, withSender: sender)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
