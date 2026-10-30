@@ -61,6 +61,7 @@ struct PageEditorView: UIViewRepresentable {
         view.smartDashesType = .no  // "- " and "o. " are rapid-logging prefixes
         view.smartQuotesType = .default
         c.textView = view
+        if !readOnly { c.installKeyboardBar(on: view) }
         c.lines = lines
         c.erased = InkPage.erasedInType(lines)
         c.rebuild(caret: nil)
@@ -482,6 +483,42 @@ struct PageEditorView: UIViewRepresentable {
         }
 
         /// ⌘↩: the line's state goes on to the next (open → done → cancelled → open).
+        /// What the page needs at hand while typing (CLAUDE.md 14): outdent, indent, priority and the line's state.
+        /// On iPhone, a bar above the keyboard (the system's toolbar, glass on iOS 26), with a key to hide it; on
+        /// iPad, the same buttons in the keyboard's own shortcut bar.
+        func installKeyboardBar(on view: EditorTextView) {
+            func item(_ symbol: String, _ label: String, _ run: @escaping (Coordinator) -> Void) -> UIBarButtonItem {
+                let b = UIBarButtonItem(image: UIImage(systemName: symbol), primaryAction: UIAction { [weak self] _ in
+                    if let self { run(self) }
+                })
+                b.accessibilityLabel = label
+                return b
+            }
+            let items = [
+                item("decrease.indent", S.outdent) { $0.shiftSelection(-1) },
+                item("increase.indent", S.indent) { $0.shiftSelection(1) },
+                item("asterisk", S.priority) { $0.togglePriorityLine() },
+                item("checkmark.circle", S.complete) { $0.cycleState() },
+            ]
+            if UIDevice.current.userInterfaceIdiom == .phone {
+                let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+                let hide = item("keyboard.chevron.compact.down", S.hideKeyboard) { $0.textView?.resignFirstResponder() }
+                bar.items = items.flatMap { [$0, .fixedSpace(12)] } + [.flexibleSpace(), hide]
+                bar.sizeToFit()
+                view.inputAccessoryView = bar
+            } else {
+                view.inputAssistantItem.leadingBarButtonGroups += [UIBarButtonItemGroup(barButtonItems: items, representativeItem: nil)]
+            }
+        }
+
+        /// The caret's line: priority on or off.
+        func togglePriorityLine() {
+            guard !parent.readOnly, let at = currentCaret() else { return }
+            var next = lines
+            next[at.index].priority.toggle()
+            apply(Edited(lines: next, caret: at), keepScroll: true)
+        }
+
         /// ⌃⌥→ / ⌃⌥←: the line with the caret marked > or < (again: back to open), with the notice and Undo.
         func markLine(_ state: EntryState) {
             guard !parent.readOnly, let at = currentCaret(), States.stateful(lines[at.index].type, eventStates: parent.eventStates) else { return }

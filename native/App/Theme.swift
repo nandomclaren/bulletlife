@@ -255,6 +255,8 @@ enum S {
     static let prefixesHint =
         "Typed at the start of a line, then a space. Up to three characters each, all different; an empty or repeated one keeps its default."
     static let levelUp = "Level up"
+    static let complete = "Complete"
+    static let hideKeyboard = "Hide keyboard"
     static let resizeDrawing = "Resize drawing"
     static let goMenu = "Go"
     static let find = "Find"
