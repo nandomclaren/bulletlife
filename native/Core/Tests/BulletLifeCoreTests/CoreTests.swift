@@ -901,7 +901,8 @@ final class LassoTests: XCTestCase {
         bText.text = "x"
         var dropped = aText.ink!.strokes[1]
         dropped.p = dropped.p.enumerated().map { $0 % 3 == 1 ? $1 + 40 : $1 }
-        let out = InkPage.move([PageStroke(entryId: a.id, index: 1, stroke: dropped)], in: [aText, bText]) { _ in 1 }
+        let (out, to) = InkPage.move([PageStroke(entryId: a.id, index: 1, stroke: dropped)], in: [aText, bText]) { _ in 1 }
+        XCTAssertEqual(to, b.id)
         XCTAssertEqual(out.map(\.id), [a.id, b.id])
         XCTAssertEqual(out[0].ink?.strokes.count, 1)
         XCTAssertNil(out[0].ink?.n)  // transcribed again
@@ -916,7 +917,8 @@ final class LassoTests: XCTestCase {
         a.text = "call"
         var dropped = a.ink!.strokes[0]
         dropped.p = dropped.p.enumerated().map { $0 % 3 == 1 ? $1 + 120 : $1 }
-        let out = InkPage.move([PageStroke(entryId: a.id, index: 0, stroke: dropped)], in: [a]) { _ in 1 }
+        let (out, to) = InkPage.move([PageStroke(entryId: a.id, index: 0, stroke: dropped)], in: [a]) { _ in 1 }
+        XCTAssertEqual(to, out[3].id)
         XCTAssertEqual(out.count, 4)  // a (now blank), two skipped lines, the moved word
         XCTAssertEqual(out[0].id, a.id)
         XCTAssertNil(out[0].ink)

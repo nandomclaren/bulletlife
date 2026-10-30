@@ -80,7 +80,13 @@ struct PenSheetView: UIViewRepresentable {
         let c = context.coordinator
         c.parent = self
         setTopInset(canvas, topInset)
-        canvas.tool = c.pkTool()
+        // Only when it changes: a new tool would drop the lasso's selection.
+        let toolKey = "\(tool.rawValue)/\(color)/\(size)"
+        if toolKey != c.toolKey {
+            c.toolKey = toolKey
+            canvas.tool = c.pkTool()
+            if tool != .lasso && c.stale { c.render() }
+        }
         c.sheet?.showsRules = tool != .draw
         if c.lines != lines {
             // A transcription keeps every stroke where it was (it only adds text and colors the bullet): the
@@ -91,7 +97,13 @@ struct PenSheetView: UIViewRepresentable {
                 c.history.removeAll()
                 DispatchQueue.main.async { onCanUndo(false) }
             }
-            c.render()
+            if sameInk && tool == .lasso {
+                // While the lasso may hold a selection, a transcription only updates the sheet (the ink's
+                // colors follow when the tool changes).
+                c.relayout()
+            } else {
+                c.render()
+            }
         }
         if undoRequests != c.undoSeen {
             c.undoSeen = undoRequests
@@ -115,6 +127,9 @@ struct PenSheetView: UIViewRepresentable {
         var undoSeen = 0
         var lastStroke: LastStroke?
         var lastId: String?
+        var toolKey = ""
+        /// The ink's colors wait for a redraw (see relayout).
+        var stale = false
         private var rendering = false
 
         struct Owner {
@@ -155,9 +170,27 @@ struct PenSheetView: UIViewRepresentable {
                 owners.append(Owner(entryId: ps.entryId, index: ps.index, key: Self.key(pk)))
             }
             rendering = true
+            stale = false
+            if parent.tool == .lasso {
+                // A selection would stay where the old strokes were (moving it duplicated them): switching the
+                // tool lets it go.
+                canvas.tool = PKInkingTool(penInk)
+                canvas.tool = PKLassoTool()
+            }
             canvas.drawing = PKDrawing(strokes: strokes)
             canvas.undoManager?.removeAllActions()
             rendering = false
+            layoutSheet()
+        }
+
+        /// The sheet again, the strokes untouched (the page is drawn again if lines moved up or down).
+        func relayout() {
+            guard let canvas, let sheet else { return }
+            let width = canvas.bounds.width
+            let after = InkPage.blocks(lines) { sheet.typedRows($0, width: width) }
+            guard after.map(\.id) == blocks.map(\.id), after.map(\.top) == blocks.map(\.top) else { return render() }
+            blocks = after
+            stale = true
             layoutSheet()
         }
 
@@ -266,6 +299,7 @@ struct PenSheetView: UIViewRepresentable {
             let tops = Dictionary(blocks.map { ($0.id, $0.top) }, uniquingKeysWith: { a, _ in a })
             let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var picked: [PageStroke] = []
+            var pickedKeys: [String] = []
             for pk in strokes {
                 guard let o = byKey[Self.key(pk)], let top = tops[o.entryId], let ink = byId[o.entryId]?.ink, o.index < ink.strokes.count,
                     let first = pk.path.first
@@ -278,14 +312,34 @@ struct PenSheetView: UIViewRepresentable {
                 guard abs(dx) > 1 || abs(dy) > 1 else { continue }
                 s.p = s.p.enumerated().map { j, v in j % 3 == 0 ? v + dx : j % 3 == 1 ? v + top + dy : v }
                 picked.append(PageStroke(entryId: o.entryId, index: o.index, stroke: s))
+                pickedKeys.append(o.key)
             }
             guard !picked.isEmpty else { return }
             let width = canvas?.bounds.width ?? 0
             remember()
-            lines = InkPage.move(picked, in: lines) { sheet?.typedRows($0, width: width) ?? 1 }
+            let result = InkPage.move(picked, in: lines) { sheet?.typedRows($0, width: width) ?? 1 }
+            lines = result.lines
             lastStroke = nil
             parent.lines = lines
-            render()
+            let before = Dictionary(blocks.map { ($0.id, $0.top) }, uniquingKeysWith: { a, _ in a })
+            let after = InkPage.blocks(lines) { sheet?.typedRows($0, width: width) ?? 1 }
+            let shifted = after.contains { b in before[b.id].map { $0 != b.top } ?? false }
+            guard !shifted, let target = result.entryId, let count = lines.first(where: { $0.id == target })?.ink?.strokes.count else {
+                render()
+                return
+            }
+            // Nothing above moved: the canvas keeps the strokes where they were dropped (and the lasso its
+            // selection, to move them again); only who owns each stroke changes.
+            var gone: [String: [Int]] = [:]
+            for m in picked { gone[m.entryId, default: []].append(m.index) }
+            let movedTo = Dictionary(zip(pickedKeys, pickedKeys.indices.map { count - pickedKeys.count + $0 }), uniquingKeysWith: { a, _ in a })
+            owners = owners.map { o in
+                if let i = movedTo[o.key] { return Owner(entryId: target, index: i, key: o.key) }
+                let below = gone[o.entryId]?.filter { $0 < o.index }.count ?? 0
+                return Owner(entryId: o.entryId, index: o.index - below, key: o.key)
+            }
+            blocks = after
+            layoutSheet()
         }
 
         private func added(_ pk: PKStroke) {
@@ -517,6 +571,12 @@ struct PenToolbar: View {
     @Binding var size: Double
     let canUndo: Bool
     let onUndo: () -> Void
+    /// Write or Draw, whichever was last: a size or color picked under the eraser or lasso goes back to it.
+    @State private var lastInking: PenTool = .write
+
+    /// Sizes and colors belong to Write and Draw; under the eraser or lasso none is shown as chosen (they
+    /// come back as they were).
+    private var inking: Bool { tool == .write || tool == .draw }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -528,12 +588,13 @@ struct PenToolbar: View {
             ForEach(Array(penSizes.enumerated()), id: \.offset) { i, s in
                 Button {
                     size = s
+                    if !inking { tool = lastInking }
                 } label: {
                     Capsule()
                         .fill(Theme.text)
                         .frame(width: 18, height: CGFloat(s))
                         .frame(width: 36, height: 36)
-                        .background(size == s ? Theme.rule : Color.clear, in: Circle())
+                        .background(inking && size == s ? Theme.rule : Color.clear, in: Circle())
                         .contentShape(Circle())  // the whole circle takes the tap, not just the thin line
                 }
                 .accessibilityLabel(S.sizes[i])
@@ -542,13 +603,13 @@ struct PenToolbar: View {
             ForEach(["ink", "task", "event", "note"], id: \.self) { c in
                 Button {
                     color = c
-                    if tool == .erase || tool == .lasso { tool = .write }
+                    if !inking { tool = lastInking }
                 } label: {
                     Circle()
                         .fill(Color(uiColor: Theme.ui(c)))
                         .frame(width: 22, height: 22)
                         .padding(3)
-                        .overlay(Circle().stroke(Theme.text, lineWidth: color == c ? 1.5 : 0))
+                        .overlay(Circle().stroke(Theme.text, lineWidth: inking && color == c ? 1.5 : 0))
                         .frame(width: 36, height: 36)
                         .contentShape(Circle())
                 }
@@ -568,6 +629,8 @@ struct PenToolbar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .glassBackground(in: Capsule(), interactive: true, clear: true)
+        .onChange(of: tool) { if inking { lastInking = tool } }
+        .onAppear { if inking { lastInking = tool } }
     }
 
     private func toolButton(_ t: PenTool, icon: String, label: String) -> some View {

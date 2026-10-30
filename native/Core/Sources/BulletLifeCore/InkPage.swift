@@ -127,9 +127,10 @@ extension InkPage {
     /// the line they were dropped on (or a new line), as one stroke written there would. `moved` are the
     /// strokes where they were dropped, in page coordinates. Emptied lines stay as blank lines (the page does
     /// not shift under the pen) and their transcription goes with their handwriting; every line that lost or
-    /// gained handwriting is transcribed again.
-    public static func move(_ moved: [PageStroke], in lines: [Line], typedRows: (Line) -> Int) -> [Line] {
-        guard !moved.isEmpty else { return lines }
+    /// gained handwriting is transcribed again. Returns the lines and the entry the strokes went to (they are
+    /// its last strokes, in the order given).
+    public static func move(_ moved: [PageStroke], in lines: [Line], typedRows: (Line) -> Int) -> (lines: [Line], entryId: String?) {
+        guard !moved.isEmpty else { return (lines, nil) }
         var picked: [String: Set<Int>] = [:]
         for m in moved { picked[m.entryId, default: []].insert(m.index) }
         // The page as it will be once the strokes leave their lines.
@@ -170,12 +171,14 @@ extension InkPage {
                 ink.n = nil
                 lines[i].ink = ink
             }
+            return (lines, id)
         case .new(let afterId, let blanks, _):
-            let added = (0..<blanks).map { _ in Line() } + [Line(ink: Ink(strokes: strokes))]
+            let fresh = Line(ink: Ink(strokes: strokes))
+            let added = (0..<blanks).map { _ in Line() } + [fresh]
             let at = afterId.flatMap { a in lines.firstIndex { $0.id == a } }.map { $0 + 1 } ?? lines.count
             lines.insert(contentsOf: added, at: at)
+            return (lines, fresh.id)
         }
-        return lines
     }
 
     /// The hand-drawn bullet of a transcribed line (its box, in the entry's coordinates), which answers taps
