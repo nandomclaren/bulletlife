@@ -158,12 +158,9 @@ extension View {
 /// Behind a floating header: the page shows through, blurred, and the blur fades out at its lower edge.
 struct HeaderBlur: View {
     var body: some View {
-        // The blur tinted with the theme's paper: the page shows through softly, in its own tone (the bare
-        // material whitens a dark page).
-        ZStack {
-            Rectangle().fill(.ultraThinMaterial)
-            Theme.paper.opacity(0.78)
-        }
+        // The theme's paper, dissolving at its lower edge: the page scrolls under it in its own tone. The
+        // system's glass, even tinted, laid a light veil over the dark themes.
+        Theme.paper
             .mask(
                 LinearGradient(
                     stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
