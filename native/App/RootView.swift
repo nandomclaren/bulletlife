@@ -181,6 +181,9 @@ struct RootView: View {
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var searching = false
+    /// The theme and palette the pages were built with.
+    @State private var builtLook = ""
+    private var currentLook: String { "\(theme)/\(palette)" }
     /// How far the divider between two pages is being dragged (hold it, then drag to close a page).
     @State private var dividerDrag: CGFloat = 0
     @AppStorage("firstDay") private var firstDay = 1
@@ -195,8 +198,10 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             pages
-                // A new theme or palette: the page is drawn again in its colors (UIKit text keeps what it drew).
-                .id("\(theme)/\(palette)")
+                // A new theme or palette: the page is built again in its colors (UIKit text keeps what it drew),
+                // once it is back on screen. Rebuilt while Settings was pushed over it, the stack showed nothing.
+                .id(builtLook)
+                .onAppear { if builtLook != currentLook { builtLook = currentLook } }
                 .background(Theme.paper.ignoresSafeArea())
                 // Behind the pages (the line under the toolbar, the room a pushed page leaves) is paper too,
                 // not the navigation's own white.
