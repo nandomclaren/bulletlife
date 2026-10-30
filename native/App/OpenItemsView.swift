@@ -11,6 +11,8 @@ struct OpenItemsButton: View {
     @Query private var records: [EntryRecord]
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("firstDay") private var firstDay = 1
+    /// Settings: the count can be hidden.
+    @AppStorage("openCount") private var showCount = true
 
     var body: some View {
         let count = OpenItems.items(records.map(\.light), eventStates: eventStates, firstDay: firstDay, today: Dates.today()).count
@@ -19,7 +21,7 @@ struct OpenItemsButton: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "tray")
-                if count > 0 { Text("\(count)").font(Theme.body(14, weight: .medium)).monospacedDigit() }
+                if showCount && count > 0 { Text("\(count)").font(Theme.body(14, weight: .medium)).monospacedDigit() }
             }
             .foregroundStyle(Theme.muted)
         }

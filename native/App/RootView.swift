@@ -174,6 +174,7 @@ struct RootView: View {
     @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var searching = false
 
     /// Two pages need the room of an iPad's full width; narrower, the notebook is one page.
     private var layout: PageLayout {
@@ -201,6 +202,9 @@ struct RootView: View {
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
                 .onChange(of: nav.showOpen) { if !nav.showOpen { nav.openToday = false } }
+                .sheet(isPresented: $searching) {
+                    SearchView { place, highlight, focus in nav.go(place, highlight: highlight, focus: focus) }
+                }
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarLeading) {
                         if !nav.history.isEmpty {
@@ -219,6 +223,13 @@ struct RootView: View {
                         .accessibilityLabel(S.index)
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            searching = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .keyboardShortcut("k", modifiers: .command)
+                        .accessibilityLabel(S.search)
                         OpenItemsButton(isOpen: $nav.showOpen)
                         if sizeClass == .regular { layoutMenu }
                         PageMenu(place: nav.place)

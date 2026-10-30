@@ -233,6 +233,12 @@ enum S {
     static let twoPages = "Two pages"
     static let openBook = "Open book"
     static let closePage = "Close page"
+    static let search = "Search"
+    static let searchPrompt = "Entries and collections"
+    static let entriesSection = "Entries"
+    static let nothingFound = "Nothing found."
+    static let done = "Done"
+    static let openCount = "Count on Open items"
     static let theme = "Theme"
     static let themes = ["auto": "Automatic", "paper": "Paper", "graphite": "Graphite", "night": "Night"]
     static let themeHints = ["auto": "Follows the system", "paper": "Light", "graphite": "Dark", "night": "Black, for OLED screens"]

@@ -987,3 +987,26 @@ final class MoveLineTests: XCTestCase {
         XCTAssertEqual(out?[0].indent, 0)
     }
 }
+
+final class SearchTests: XCTestCase {
+    let e = { (id: String, text: String, at: String) in
+        Entry(id: id, logId: "daily:2026-10-19", order: "a0", type: .task, text: text, createdAt: at, updatedAt: at)
+    }
+
+    func testFindsEveryWordIgnoringCaseAndAccentsNewestFirst() {
+        var collapsed = e("3", "banco de dados", "2026-10-15")
+        collapsed.collapsed = true
+        let entries = [e("1", "Ligar para o Banco", "2026-10-01"), e("2", "Renew passport at the consulate", "2026-10-10"), collapsed, e("4", "   ", "2026-10-16")]
+        XCTAssertEqual(Search.entries(entries, query: "BANCO").map(\.item.id), ["3", "1"])
+        XCTAssertEqual(Search.entries(entries, query: "passport consul").map(\.item.id), ["2"])
+        let r = Search.entries(entries, query: "lígar banco")[0].ranges
+        XCTAssertEqual(r.map(\.location), [0, 13])
+        XCTAssertEqual(r.map(\.length), [5, 5])
+        XCTAssertTrue(Search.entries(entries, query: "  ").isEmpty)
+    }
+
+    func testMatchesCollectionNames() {
+        let logs = [Log(id: "collection:1", kind: .collection, title: "Livros lidos", createdAt: "", updatedAt: "")]
+        XCTAssertEqual(Search.collections(logs, query: "livros").map(\.item.title), ["Livros lidos"])
+    }
+}

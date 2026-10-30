@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("logWeekly") private var weekly = true
     @AppStorage("logDaily") private var daily = true
     @AppStorage("setupBanner") private var setupBanner = true
+    @AppStorage("openCount") private var openCount = true
     @AppStorage("closeDay") private var closeDay = true
     @AppStorage("closeDayAt") private var closeDayAt = "20:00"
     @AppStorage("glyphStyle") private var glyphStyle = GlyphStyle.checkboxes.rawValue
@@ -105,6 +106,7 @@ struct SettingsView: View {
             }
             Section {
                 Toggle(S.setupBanner, isOn: $setupBanner)
+                Toggle(S.openCount, isOn: $openCount)
                 Toggle(S.closeDay, isOn: $closeDay)
                 if closeDay {
                     DatePicker(S.closeDayTime, selection: closeDayTime, displayedComponents: .hourAndMinute)
