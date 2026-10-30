@@ -301,6 +301,14 @@ struct RootView: View {
         // Light or dark only this way: holding the window too made the two fight, and painting the scene's
         // windows covered the app with the system's overlay windows.
         .preferredColorScheme(Theme.Look(rawValue: theme)?.scheme)
+        // The Close the day reminder tapped: tomorrow's page, with what is still open today beside it.
+        .onReceive(NotificationCenter.default.publisher(for: Reminders.openCloseDay)) { _ in
+            let today = Dates.today()
+            UserDefaults.standard.set(true, forKey: "banner.closeDay.\(today)")
+            nav.go(.time(.day(Dates.addDays(today, 1))))
+            nav.openToday = true
+            nav.showOpen = true
+        }
     }
 
     /// The page the divider is being dragged over fades, as it is about to close.

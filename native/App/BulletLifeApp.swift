@@ -5,6 +5,7 @@ import SwiftUI
 
 @main
 struct BulletLifeApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     let container: ModelContainer = {
         // iCloud sync is off until the app has an Apple Developer team with iCloud (phase N5): then
         // `.automatic` with the iCloud capability; the models are already shaped for it.

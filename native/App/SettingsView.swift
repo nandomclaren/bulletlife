@@ -37,6 +37,8 @@ struct SettingsView: View {
     @AppStorage("prefixPriority") private var prefixPriority = "*"
     @AppStorage("closeDay") private var closeDay = true
     @AppStorage("closeDayAt") private var closeDayAt = "20:00"
+    @AppStorage("closeDayNotify") private var closeDayNotify = false
+    @State private var notificationsOff = false
     @AppStorage("glyphStyle") private var glyphStyle = GlyphStyle.checkboxes.rawValue
     @AppStorage("dateOrder") private var dateOrder = DateOrder.dmy.rawValue
     @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
@@ -125,8 +127,22 @@ struct SettingsView: View {
                 Toggle(S.closeDay, isOn: $closeDay)
                 if closeDay {
                     DatePicker(S.closeDayTime, selection: closeDayTime, displayedComponents: .hourAndMinute)
+                    Toggle(S.closeDayNotify, isOn: $closeDayNotify)
+                    if notificationsOff { Text(S.notificationsOff).font(.footnote).foregroundStyle(.secondary) }
                 }
             }
+            .onChange(of: closeDayNotify) {
+                guard closeDayNotify else { return Reminders.update() }
+                Task {
+                    let allowed = await Reminders.requestPermission()
+                    notificationsOff = !allowed
+                    if !allowed { closeDayNotify = false }
+                    Reminders.update()
+                }
+            }
+            .onChange(of: closeDay) { Reminders.update() }
+            .onChange(of: closeDayAt) { Reminders.update() }
+            .onChange(of: daily) { Reminders.update() }
             Section {
                 prefixField(S.task, $prefixTask)
                 prefixField(S.event, $prefixEvent)
