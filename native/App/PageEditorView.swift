@@ -965,7 +965,7 @@ final class InkPreviewView: UIView {
         addSubview(close)
         addSubview(handle)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
-        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(move(_:))))
+        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragSideways(_:))))
         handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
         isAccessibilityElement = true
     }
@@ -1022,7 +1022,7 @@ final class InkPreviewView: UIView {
     @objc private func remove() { coordinator?.deleteDrawing(id) }
 
     /// Sideways, within the text column.
-    @objc private func move(_ g: UIPanGestureRecognizer) {
+    @objc private func dragSideways(_ g: UIPanGestureRecognizer) {
         switch g.state {
         case .began: start = frame
         case .changed: frame.origin.x = start.minX + g.translation(in: superview).x
