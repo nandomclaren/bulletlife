@@ -155,6 +155,7 @@ struct SlotEditor: View {
         PageEditorView(
             lines: $lines, eventStates: eventStates, doneMark: doneMark, embedded: true, minHeight: minHeight, fitOneLine: fitOneLine,
             highlight: lines.contains { $0.id == highlight } ? highlight : nil, readOnly: consulting,
+            onLineDone: { [logId] in Rewrites.check($0, logId: logId, repo: repo) },
             onSelection: { PageSelection.set(logId: logId, $0) }
         ) { action, id in
             // > or <: "Migrated" or "Scheduled", with Undo.

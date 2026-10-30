@@ -1037,3 +1037,30 @@ final class PrefixSettingsTests: XCTestCase {
         XCTAssertEqual(Rapid.leading("## Title", prefixes: p)?.type, .heading)
     }
 }
+
+final class SimilarTests: XCTestCase {
+    let m = { (a: String, b: String) in Similar.isStrongMatch(Similar.normalize(a), Similar.normalize(b)) }
+
+    func testNormalizes() {
+        XCTAssertEqual(Similar.normalize("Ligar para o Banco, até às 18h! due:2026-10-20"), ["ligar", "banco", "ate", "18h"])
+    }
+
+    func testMatchesTheSameItemWrittenDifferently() {
+        XCTAssertTrue(m("Call the bank", "call bank"))
+        XCTAssertTrue(m("Renew passport at the consulate", "renew passport consulate"))
+        XCTAssertTrue(m("Pagar aluguel", "pagar o aluguel!"))
+        XCTAssertTrue(m("Gym", "gym"))
+    }
+
+    func testStaysQuietOnWeakOverlaps() {
+        XCTAssertFalse(m("Call the bank", "Call mom"))
+        XCTAssertFalse(m("Buy bread", "Buy a new phone case"))
+        XCTAssertFalse(m("Gym", "Gym with Ana on Friday"))
+    }
+
+    func testPicksTheClosest() {
+        let c = ["renew passport", "renew passport at the consulate", "call bank"]
+        XCTAssertEqual(Similar.bestMatch("Renew passport at consulate", c) { $0 }, "renew passport at the consulate")
+        XCTAssertNil(Similar.bestMatch("Water the plants", c) { $0 })
+    }
+}

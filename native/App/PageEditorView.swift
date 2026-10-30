@@ -29,6 +29,8 @@ struct PageEditorView: UIViewRepresentable {
     var restore: ScrollRestore? = nil
     /// How far the page is scrolled, from the top of its content (for Back to return there).
     var onScroll: (CGFloat) -> Void = { _ in }
+    /// A line just finished (Return, or leaving the text): the page may recognize it as an open item rewritten.
+    var onLineDone: (Line) -> Void = { _ in }
     /// The lines selected (with collapsed children), for the page menu's Export, Copy As and Share.
     var onSelection: ([Line]) -> Void = { _ in }
     var onAction: (LineAction, String) -> Void
@@ -397,6 +399,7 @@ struct PageEditorView: UIViewRepresentable {
             let multi = start.index != end.index
             // Return, or text with line breaks (paste, the Scribble palette's return key).
             if text.contains("\n") || text.contains("\r") {
+                if !multi && !parent.readOnly { parent.onLineDone(lines[start.index]) }
                 var base = lines
                 var at = start
                 // A due date finished by Return is stored as a date too.
@@ -614,6 +617,10 @@ struct PageEditorView: UIViewRepresentable {
                 guard let view, range.location + range.length <= view.textStorage.length else { return }
                 view.textStorage.removeAttribute(.backgroundColor, range: range)
             }
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            if !parent.readOnly, let at = currentCaret() { parent.onLineDone(lines[at.index]) }
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {

@@ -113,6 +113,7 @@ struct PageView: View {
                 readOnly: consulting,
                 restore: loadedFor == logId && nav.restore?.place == place ? nav.restore : nil,
                 onScroll: { [place] in nav.remember($0, for: place) },
+                onLineDone: { [logId] in Rewrites.check($0, logId: logId, repo: repo) },
                 onSelection: { PageSelection.set(logId: logId, $0) }
             ) { act($0, on: $1) }
             .frame(maxWidth: 720)

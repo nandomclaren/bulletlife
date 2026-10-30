@@ -247,6 +247,10 @@ enum S {
     static let twoPages = "Two pages"
     static let openBook = "Open book"
     static let closePage = "Close page"
+    static func looksLike(_ text: String, _ origin: String) -> String { "Looks like the open item “\(text)” (\(origin))." }
+    static let linkIt = "Link it"
+    static let notThisOne = "Not this one"
+    static let linked = "Linked. The original is marked as written here."
     static let prefixes = "Rapid logging"
     static let prefixesHint =
         "Typed at the start of a line, then a space. Up to three characters each, all different; an empty or repeated one keeps its default."

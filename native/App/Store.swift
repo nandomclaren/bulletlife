@@ -168,6 +168,20 @@ struct Repository {
         }
     }
 
+    /// Every entry without its ink (fast: for queries over the whole notebook).
+    func lightEntries() -> [Entry] {
+        ((try? context.fetch(FetchDescriptor<EntryRecord>())) ?? []).map(\.light)
+    }
+
+    /// "Link it" (CLAUDE.md 4.4): the user confirms a line is the rewrite of an open item. The original gets its >
+    /// (if it was still open) and is marked as written there.
+    func link(_ sourceId: String, writtenAs placedId: String) {
+        update(id: sourceId) { e in
+            if e.state != .migrated && e.state != .scheduled { e.state = .migrated }
+            e.placement = Placement(status: .placed, placedEntryId: placedId, confirmedAt: Self.now())
+        }
+    }
+
     /// Posted when a page is written: a page shown only to consult (the second of two pages) reads it again.
     /// userInfo: "logId", "slot".
     static let saved = Notification.Name("BulletLife.pageSaved")
