@@ -160,33 +160,37 @@ struct HeaderBlur: View {
     @Environment(\.colorScheme) private var scheme
     @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
 
-    /// How much of the system's blur is applied: words under the header turn into a smudge, not legible text.
-    private let blur: CGFloat = 0.75
-    /// Paper over the blur, to hide what is left of its light tint (Graphite's grey shows it most).
-    private var cover: Double {
-        guard scheme == .dark else { return 0.55 }
-        return theme == Theme.Look.night.rawValue ? 0.65 : 0.72
-    }
+    /// The band below the header where the blur begins: the page goes soft gradually, from here up.
+    static let fade: CGFloat = 72
 
-    /// Height of the soft edge below the header, where the page fades in.
-    static let fade: CGFloat = 32
+    /// A little paper over the blur, to keep its light tint from showing (Graphite's grey shows it most).
+    private var cover: Double {
+        guard scheme == .dark else { return 0.25 }
+        return theme == Theme.Look.night.rawValue ? 0.3 : 0.4
+    }
 
     var body: some View {
-        // Even all over the header (so its titles read clearly), then a soft edge below it.
-        VStack(spacing: 0) {
-            layer
-            layer
-                .frame(height: Self.fade)
-                .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+        // A progressive blur: light blurs stacked, each reaching a little less far down, so words get softer the
+        // higher they go and stay visible as a smudge; no line where the blur starts.
+        GeometryReader { g in
+            let h = max(g.size.height, 1)
+            let edge = max(0.01, min(0.99, (h - Self.fade) / h))  // the header's bottom, from the top
+            ZStack {
+                PartialBlur(fraction: 0.22).mask(Self.reach(solid: edge, clear: 1))
+                PartialBlur(fraction: 0.22).mask(Self.reach(solid: edge * 0.9, clear: edge + (1 - edge) * 0.45))
+                PartialBlur(fraction: 0.25).mask(Self.reach(solid: edge * 0.55, clear: edge))
+                Theme.paper.opacity(cover).mask(Self.reach(solid: edge * 0.8, clear: 1))
+            }
         }
         .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
     }
 
-    private var layer: some View {
-        ZStack {
-            PartialBlur(fraction: blur)
-            Theme.paper.opacity(cover)
-        }
+    /// Full from the top down to `solid`, fading out by `clear` (fractions of the height).
+    static func reach(solid: CGFloat, clear: CGFloat) -> LinearGradient {
+        LinearGradient(
+            stops: [.init(color: .black, location: 0), .init(color: .black, location: solid), .init(color: .clear, location: max(solid + 0.01, clear))],
+            startPoint: .top, endPoint: .bottom)
     }
 }
 
