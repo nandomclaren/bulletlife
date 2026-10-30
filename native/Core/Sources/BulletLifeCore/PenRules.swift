@@ -129,6 +129,11 @@ public enum PenRules {
         return row
     }
 
+    /// A writing stroke's ruled line within an entry starting at `top` (see strokeRow).
+    public static func rowWithin(_ box: Box, top: Double) -> Int {
+        max(0, Int(((box.y0 - top + min(box.height, inkRow * 0.6) * 0.5) / inkRow).rounded(.down)))
+    }
+
     /// Which entry a stroke goes into:
     /// - typed entries never take ink: writing on or next to one starts a new entry right after it;
     /// - a handwritten line takes more writing on its own lines, and the line right below it (also a blank

@@ -234,6 +234,7 @@ enum S {
     static let write = "Write"
     static let draw = "Draw"
     static let eraser = "Eraser"
+    static let lasso = "Lasso"
     static let undo = "Undo"
     static let sizes = ["Fine", "Medium", "Bold"]
     static let colorNames = ["ink": "Ink", "task": "Red", "event": "Blue", "note": "Green"]

@@ -8,7 +8,7 @@ import SwiftUI
 import UIKit
 
 enum PenTool: String, CaseIterable {
-    case write, draw, erase
+    case write, draw, erase, lasso
 }
 
 /// Pen sizes, as the stroke's drawn diameter: fine, medium, bold (Fernando's choice after trying them on the iPad;
@@ -65,9 +65,13 @@ struct PenSheetView: UIViewRepresentable {
         canvas.delegate = context.coordinator
         let sheet = SheetBackground()
         canvas.insertSubview(sheet, at: 0)
+        // The bullets' tap targets, over the ink (the finger taps them; the pen keeps writing).
+        let bullets = PassThroughView()
+        canvas.addSubview(bullets)
         let coordinator = context.coordinator
         coordinator.canvas = canvas
         coordinator.sheet = sheet
+        coordinator.bullets = bullets
         canvas.onWidthChange = { [weak coordinator] in coordinator?.render() }
         return canvas
     }
@@ -102,6 +106,7 @@ struct PenSheetView: UIViewRepresentable {
         var parent: PenSheetView
         weak var canvas: SheetCanvas?
         weak var sheet: SheetBackground?
+        weak var bullets: PassThroughView?
         var lines: [Line] = []
         var blocks: [PlacedBlock] = []
         /// Who owns each stroke on the canvas, in the canvas's order.
@@ -131,10 +136,20 @@ struct PenSheetView: UIViewRepresentable {
             guard width > 0 else { return }
             blocks = InkPage.blocks(lines) { sheet.typedRows($0, width: width) }
             let colors = Dictionary(zip(lines.map(\.id), Outline.colorTypes(lines)), uniquingKeysWith: { a, _ in a })
+            let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var strokes: [PKStroke] = []
             owners = []
             for (n, ps) in InkPage.strokes(blocks).enumerated() {
-                let tint = ps.stroke.b == true ? Theme.ui(colors[ps.entryId]?.rawValue ?? "ink") : Theme.ui(ps.stroke.c)
+                var tint = ps.stroke.b == true ? Theme.ui(colors[ps.entryId]?.rawValue ?? "ink") : Theme.ui(ps.stroke.c)
+                // A handwritten line shows its state like a typed one: done and cancelled fade, and the drawn
+                // bullet gives way to ×, > or < (drawn on the sheet).
+                if let l = byId[ps.entryId], States.stateful(l.type, eventStates: parent.eventStates) {
+                    if ps.stroke.b == true, [.done, .migrated, .scheduled].contains(l.state) {
+                        tint = tint.withAlphaComponent(0)
+                    } else if ps.stroke.b != true, l.state == .done || l.state == .cancelled {
+                        tint = tint.withAlphaComponent(0.45)
+                    }
+                }
                 let pk = Self.pkStroke(ps.stroke, color: tint, date: Date(timeIntervalSinceReferenceDate: Double(n)))
                 strokes.append(pk)
                 owners.append(Owner(entryId: ps.entryId, index: ps.index, key: Self.key(pk)))
@@ -154,11 +169,76 @@ struct PenSheetView: UIViewRepresentable {
             canvas.contentSize = CGSize(width: width, height: height)
             sheet.frame = CGRect(x: 0, y: 0, width: width, height: height)
             sheet.show(lines: lines, blocks: blocks, eventStates: parent.eventStates, doneMark: parent.doneMark)
+            layoutBullets(frame: sheet.frame)
+        }
+
+        /// Tap targets on the bullets, typed and hand-drawn: a tap moves the state on, holding opens the menu,
+        /// as on a typed bullet in Type mode.
+        private func layoutBullets(frame: CGRect) {
+            guard let bullets else { return }
+            bullets.frame = frame
+            bullets.subviews.forEach { $0.removeFromSuperview() }
+            let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            for b in blocks {
+                guard let l = byId[b.id] else { continue }
+                var center: CGPoint?
+                if b.typed {
+                    if l.type == .task || l.type == .event || l.type == .note {
+                        center = CGPoint(x: SheetBackground.textX(l) - 15, y: CGFloat(b.top) + CGFloat(inkRow) / 2)
+                    }
+                } else if let box = InkPage.handBullet(l) {
+                    center = CGPoint(x: (box.x0 + box.x1) / 2, y: b.top + (box.y0 + box.y1) / 2)
+                }
+                guard let center else { continue }
+                let id = l.id
+                let hit = PenBulletView(frame: CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44))
+                hit.accessibilityLabel = "\(l.type.rawValue), \(l.state.rawValue)"
+                hit.onTap = { [weak self] in self?.tapped(id) }
+                hit.menuProvider = { [weak self] in self?.menu(for: id) }
+                bullets.addSubview(hit)
+            }
+        }
+
+        private func tapped(_ id: String) {
+            guard let l = lines.first(where: { $0.id == id }), States.stateful(l.type, eventStates: parent.eventStates) else { return }
+            act(.state(States.next(l.state)), id)
+        }
+
+        private func act(_ action: LineAction, _ id: String) {
+            remember()
+            action.apply(to: &lines, id: id, eventStates: parent.eventStates)
+            parent.lines = lines
+            render()
+        }
+
+        /// The bullet menu in Pen mode: type, state, signifiers (indenting and deleting belong to the pen).
+        private func menu(for id: String) -> UIMenu? {
+            guard let l = lines.first(where: { $0.id == id }) else { return nil }
+            let types = UIMenu(options: .displayInline, children: [
+                UIAction(title: S.task, state: l.type == .task ? .on : .off) { [weak self] _ in self?.act(.type(.task), id) },
+                UIAction(title: S.event, state: l.type == .event ? .on : .off) { [weak self] _ in self?.act(.type(.event), id) },
+                UIAction(title: S.note, state: l.type == .note ? .on : .off) { [weak self] _ in self?.act(.type(.note), id) },
+            ])
+            var states: [UIMenuElement] = []
+            if States.stateful(l.type, eventStates: parent.eventStates) {
+                states = [
+                    UIAction(title: S.migrate) { [weak self] _ in self?.act(.state(.migrated), id) },
+                    UIAction(title: S.schedule) { [weak self] _ in self?.act(.state(.scheduled), id) },
+                ]
+                if l.state != .open { states.append(UIAction(title: S.reopen) { [weak self] _ in self?.act(.state(.open), id) }) }
+            }
+            let signifiers = UIMenu(options: .displayInline, children: [
+                UIAction(title: S.priority, state: l.priority ? .on : .off) { [weak self] _ in self?.act(.togglePriority, id) },
+                UIAction(title: S.inspiration, state: l.inspiration ? .on : .off) { [weak self] _ in self?.act(.toggleInspiration, id) },
+                UIAction(title: S.explore, state: l.explore ? .on : .off) { [weak self] _ in self?.act(.toggleExplore, id) },
+            ])
+            return UIMenu(children: [types] + (states.isEmpty ? [] : [UIMenu(options: .displayInline, children: states)]) + [signifiers])
         }
 
         func pkTool() -> PKTool {
             switch parent.tool {
             case .erase: return PKEraserTool(.vector)
+            case .lasso: return PKLassoTool()
             case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
             }
         }
@@ -168,13 +248,44 @@ struct PenSheetView: UIViewRepresentable {
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !rendering else { return }
             let strokes = canvasView.drawing.strokes
-            if strokes.count == owners.count + 1, let last = strokes.last {
+            if strokes.count == owners.count + 1, let last = strokes.last, parent.tool != .lasso {
                 added(last)
             } else if strokes.count < owners.count {
                 erased(strokes)
-            } else if strokes.count != owners.count {
+            } else if strokes.count == owners.count {
+                moved(strokes)
+            } else {
+                // More than one stroke, or a copy pasted with the lasso: the page keeps what was written.
                 render()
             }
+        }
+
+        /// The lasso moved strokes: they go onto the line they were dropped on (or a new line), in one step.
+        private func moved(_ strokes: [PKStroke]) {
+            let byKey = Dictionary(owners.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
+            let tops = Dictionary(blocks.map { ($0.id, $0.top) }, uniquingKeysWith: { a, _ in a })
+            let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            var picked: [PageStroke] = []
+            for pk in strokes {
+                guard let o = byKey[Self.key(pk)], let top = tops[o.entryId], let ink = byId[o.entryId]?.ink, o.index < ink.strokes.count,
+                    let first = pk.path.first
+                else { continue }
+                var s = ink.strokes[o.index]
+                guard s.p.count >= 2 else { continue }
+                // Where PencilKit has the stroke now, against where it was: the move, applied to the stored points.
+                let now = first.location.applying(pk.transform)
+                let dx = Double(now.x) - s.p[0], dy = Double(now.y) - (s.p[1] + top)
+                guard abs(dx) > 1 || abs(dy) > 1 else { continue }
+                s.p = s.p.enumerated().map { j, v in j % 3 == 0 ? v + dx : j % 3 == 1 ? v + top + dy : v }
+                picked.append(PageStroke(entryId: o.entryId, index: o.index, stroke: s))
+            }
+            guard !picked.isEmpty else { return }
+            let width = canvas?.bounds.width ?? 0
+            remember()
+            lines = InkPage.move(picked, in: lines) { sheet?.typedRows($0, width: width) ?? 1 }
+            lastStroke = nil
+            parent.lines = lines
+            render()
         }
 
         private func added(_ pk: PKStroke) {
@@ -355,6 +466,26 @@ final class SheetBackground: UIView {
         labels = []
         let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let colors = Dictionary(zip(lines.map(\.id), Outline.colorTypes(lines)), uniquingKeysWith: { a, _ in a })
+        for b in blocks where !b.typed {
+            guard let l = byId[b.id], States.stateful(l.type, eventStates: eventStates), let box = InkPage.handBullet(l) else { continue }
+            let cy = CGFloat(b.top + (box.y0 + box.y1) / 2)
+            let tint = Theme.ui(colors[l.id]?.rawValue ?? "text")
+            if [.done, .migrated, .scheduled].contains(l.state) {
+                let mark = UILabel()
+                mark.text = States.glyph(l.type, l.state, eventStates: eventStates, doneMark: doneMark)
+                mark.font = UIFont(name: "AvenirNext-Bold", size: 21) ?? .boldSystemFont(ofSize: 21)
+                mark.textColor = tint
+                mark.sizeToFit()
+                mark.center = CGPoint(x: CGFloat((box.x0 + box.x1) / 2), y: cy - 1)
+                addSubview(mark)
+                labels.append(mark)
+            } else if l.state == .cancelled, let words = InkPage.handWords(l) {
+                let strike = UIView(frame: CGRect(x: words.x0, y: Double(cy) - 0.75, width: words.x1 - words.x0, height: 1.5))
+                strike.backgroundColor = Theme.ui("muted")
+                addSubview(strike)
+                labels.append(strike)
+            }
+        }
         for b in blocks where b.typed {
             guard let l = byId[b.id] else { continue }
             let x = Self.textX(l)
@@ -392,6 +523,7 @@ struct PenToolbar: View {
             toolButton(.write, icon: "pencil.tip", label: S.write)
             toolButton(.draw, icon: "scribble", label: S.draw)
             toolButton(.erase, icon: "eraser", label: S.eraser)
+            toolButton(.lasso, icon: "lasso", label: S.lasso)
             Divider().frame(height: 24)
             ForEach(Array(penSizes.enumerated()), id: \.offset) { i, s in
                 Button {
@@ -410,7 +542,7 @@ struct PenToolbar: View {
             ForEach(["ink", "task", "event", "note"], id: \.self) { c in
                 Button {
                     color = c
-                    if tool == .erase { tool = .write }
+                    if tool == .erase || tool == .lasso { tool = .write }
                 } label: {
                     Circle()
                         .fill(Color(uiColor: Theme.ui(c)))
@@ -448,5 +580,39 @@ struct PenToolbar: View {
                 .contentShape(Circle())
         }
         .accessibilityLabel(label)
+    }
+}
+
+/// A layer whose own area lets touches through to the canvas; only its subviews (the bullets) take them.
+final class PassThroughView: UIView {
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        subviews.contains { !$0.isHidden && $0.frame.contains(point) }
+    }
+}
+
+/// A bullet on the ruled sheet: tap and hold, like a typed bullet in Type mode.
+final class PenBulletView: UIView, UIContextMenuInteractionDelegate {
+    var onTap: (() -> Void)?
+    var menuProvider: (() -> UIMenu?)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped))
+        // The finger: a tap of the pen is writing (a dot), never a state change.
+        tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        addGestureRecognizer(tap)
+        addInteraction(UIContextMenuInteraction(delegate: self))
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    @objc private func tapped() { onTap?() }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        guard let menu = menuProvider?() else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
     }
 }

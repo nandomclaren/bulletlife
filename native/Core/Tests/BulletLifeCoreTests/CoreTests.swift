@@ -883,3 +883,55 @@ final class DueTests: XCTestCase {
         XCTAssertEqual(Due.runs(sorted)[0].sorted, true)
     }
 }
+
+final class LassoTests: XCTestCase {
+    let w = { (pts: [(Double, Double)]) in Stroke(k: .writing, p: pts.flatMap { [$0.0, $0.1, 0.5] }) }
+
+    func testRowWithinReadsTheRuledLineInItsEntry() {
+        XCTAssertEqual(PenRules.rowWithin(Box(points: [20, 90, 0.5, 60, 110, 0.5]), top: 40), 1)
+    }
+
+    func testMoveToAnotherLineKeepsTheEmptiedLineBlank() {
+        // Line a has two words; the second is dropped on line b (its second row on the sheet, y 40-80).
+        let a = Line(ink: Ink(strokes: [w([(70, 10), (110, 30)]), w([(200, 10), (240, 30)])], tx: "hi there", n: 2))
+        var aText = a
+        aText.text = "hi there"
+        let b = Line(ink: Ink(strokes: [w([(70, 50), (110, 70)])].map { var s = $0; s.p = s.p.enumerated().map { $0 % 3 == 1 ? $1 - 40 : $1 }; return s }, tx: "x", n: 1))
+        var bText = b
+        bText.text = "x"
+        var dropped = aText.ink!.strokes[1]
+        dropped.p = dropped.p.enumerated().map { $0 % 3 == 1 ? $1 + 40 : $1 }
+        let out = InkPage.move([PageStroke(entryId: a.id, index: 1, stroke: dropped)], in: [aText, bText]) { _ in 1 }
+        XCTAssertEqual(out.map(\.id), [a.id, b.id])
+        XCTAssertEqual(out[0].ink?.strokes.count, 1)
+        XCTAssertNil(out[0].ink?.n)  // transcribed again
+        XCTAssertEqual(out[1].ink?.strokes.count, 2)
+        XCTAssertEqual(out[1].ink?.strokes[1].r, 0)
+        XCTAssertEqual(out[1].ink?.strokes[1].box.y0, 10)  // in b's own coordinates
+        XCTAssertNil(out[1].ink?.n)
+    }
+
+    func testMovingAllHandwritingAwayLeavesABlankLine() {
+        var a = Line(type: .task, ink: Ink(strokes: [w([(70, 10), (110, 30)])], tx: "call", n: 1))
+        a.text = "call"
+        var dropped = a.ink!.strokes[0]
+        dropped.p = dropped.p.enumerated().map { $0 % 3 == 1 ? $1 + 120 : $1 }
+        let out = InkPage.move([PageStroke(entryId: a.id, index: 0, stroke: dropped)], in: [a]) { _ in 1 }
+        XCTAssertEqual(out.count, 4)  // a (now blank), two skipped lines, the moved word
+        XCTAssertEqual(out[0].id, a.id)
+        XCTAssertNil(out[0].ink)
+        XCTAssertEqual(out[0].text, "")
+        XCTAssertEqual(out[0].type, .text)
+        XCTAssertEqual(out[3].ink?.strokes.first?.box.y0, 10)
+    }
+
+    func testHandBulletAndWords() {
+        var dot = w([(70, 18), (73, 21)])
+        dot.b = true
+        let l = Line(ink: Ink(strokes: [dot, w([(100, 10), (160, 30)]), Stroke(k: .drawing, p: [300, 0, 0.5, 400, 30, 0.5])]))
+        XCTAssertEqual(InkPage.handBullet(l), Box(x0: 70, y0: 18, x1: 73, y1: 21))
+        XCTAssertEqual(InkPage.handWords(l)?.x0, 100)
+        XCTAssertEqual(InkPage.handWords(l)?.x1, 160)
+        XCTAssertNil(InkPage.handBullet(Line(text: "typed")))
+    }
+}

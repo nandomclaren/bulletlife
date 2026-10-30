@@ -122,6 +122,76 @@ public enum InkPage {
     }
 }
 
+extension InkPage {
+    /// Lasso move (repo.ts moveInk): the strokes the lasso held leave their lines and go, in one step, onto
+    /// the line they were dropped on (or a new line), as one stroke written there would. `moved` are the
+    /// strokes where they were dropped, in page coordinates. Emptied lines stay as blank lines (the page does
+    /// not shift under the pen) and their transcription goes with their handwriting; every line that lost or
+    /// gained handwriting is transcribed again.
+    public static func move(_ moved: [PageStroke], in lines: [Line], typedRows: (Line) -> Int) -> [Line] {
+        guard !moved.isEmpty else { return lines }
+        var picked: [String: Set<Int>] = [:]
+        for m in moved { picked[m.entryId, default: []].insert(m.index) }
+        // The page as it will be once the strokes leave their lines.
+        var top = 0.0
+        let after = blocks(lines, typedRows: typedRows).map { b -> PlacedBlock in
+            let strokes = b.strokes.enumerated().filter { !(picked[b.id]?.contains($0.offset) ?? false) }.map(\.element)
+            let height = b.typed ? b.height : max(inkRow, Double(Ink(strokes: strokes).rows) * inkRow)
+            defer { top += height }
+            return PlacedBlock(id: b.id, top: top, height: height, typed: b.typed, strokes: strokes)
+        }
+        let anchor = (moved.first { $0.stroke.k == .writing } ?? moved[0]).stroke
+        let row = max(0, PenRules.strokeRow(anchor.box, kind: anchor.k, last: nil, now: 0))
+        let placed = PenRules.place(after, contentEnd: top, stroke: anchor, row: row)
+        let strokes = moved.map { m -> Stroke in
+            var s = m.stroke
+            s.r = s.k == .writing ? PenRules.rowWithin(s.box, top: placed.top) : 0
+            s.p = s.p.enumerated().map { j, v in j % 3 == 1 ? v - placed.top : v }
+            return s
+        }
+        var lines = lines
+        for (id, gone) in picked {
+            guard let i = lines.firstIndex(where: { $0.id == id }), var ink = lines[i].ink else { continue }
+            let transcribed = ink.tx != nil && lines[i].text == ink.tx
+            ink.strokes = ink.strokes.enumerated().filter { !gone.contains($0.offset) }.map(\.element)
+            if !ink.hasWriting && transcribed {
+                lines[i].text = ""
+                lines[i].type = .text
+                lines[i].state = .open
+            }
+            ink.n = nil
+            lines[i].ink = ink.strokes.isEmpty ? nil : ink
+        }
+        switch placed {
+        case .join(let id, _, _, _):
+            if let i = lines.firstIndex(where: { $0.id == id }) {
+                var ink = lines[i].ink ?? Ink(strokes: [])
+                ink.strokes += strokes
+                ink.n = nil
+                lines[i].ink = ink
+            }
+        case .new(let afterId, let blanks, _):
+            let added = (0..<blanks).map { _ in Line() } + [Line(ink: Ink(strokes: strokes))]
+            let at = afterId.flatMap { a in lines.firstIndex { $0.id == a } }.map { $0 + 1 } ?? lines.count
+            lines.insert(contentsOf: added, at: at)
+        }
+        return lines
+    }
+
+    /// The hand-drawn bullet of a transcribed line (its box, in the entry's coordinates), which answers taps
+    /// like a typed bullet and shows ×, > and < over it.
+    public static func handBullet(_ l: Line) -> Box? {
+        l.ink?.strokes.first { $0.b == true }.map(\.box)
+    }
+
+    /// Where a cancelled handwritten line is struck through: across its words (not the bullet, nor drawings).
+    public static func handWords(_ l: Line) -> (x0: Double, x1: Double)? {
+        let words = (l.ink?.strokes ?? []).filter { $0.k == .writing && $0.b != true }.map(\.box)
+        guard let x0 = words.map(\.x0).min(), let x1 = words.map(\.x1).max() else { return nil }
+        return (x0, x1)
+    }
+}
+
 /// What Type mode shows of a line's ink (src/editor/render.ts inkPreview): a drawing always, in a box the user
 /// can size and move sideways; handwriting only until it has a transcription (then the text stands for it).
 public enum InkPreview {
