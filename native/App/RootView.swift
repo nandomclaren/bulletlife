@@ -87,7 +87,13 @@ final class Navigator: ObservableObject {
             if history.count > 100 { history.removeFirst() }
         }
         move(to: next)
-        self.highlight = highlight
+        if let highlight {
+            // Cleared first, so the same entry opened again is marked again.
+            self.highlight = nil
+            DispatchQueue.main.async { self.highlight = highlight }
+        } else {
+            self.highlight = nil
+        }
         if let focus { self.focus = focus }
     }
 
@@ -175,6 +181,8 @@ struct RootView: View {
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var searching = false
+    /// A search result to open once the search sheet is gone (so the page scrolls and marks it in view).
+    @State private var found: (place: Place, highlight: String?, focus: String?)?
 
     /// Two pages need the room of an iPad's full width; narrower, the notebook is one page.
     private var layout: PageLayout {
@@ -202,8 +210,8 @@ struct RootView: View {
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
                 .onChange(of: nav.showOpen) { if !nav.showOpen { nav.openToday = false } }
-                .sheet(isPresented: $searching) {
-                    SearchView { place, highlight, focus in nav.go(place, highlight: highlight, focus: focus) }
+                .sheet(isPresented: $searching, onDismiss: openFound) {
+                    SearchView { place, highlight, focus in found = (place, highlight, focus) }
                 }
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarLeading) {
@@ -230,6 +238,13 @@ struct RootView: View {
                         }
                         .keyboardShortcut("k", modifiers: .command)
                         .accessibilityLabel(S.search)
+                        // ⌘F too, as in other apps.
+                        .background {
+                            Button("") { searching = true }
+                                .keyboardShortcut("f", modifiers: .command)
+                                .opacity(0)
+                                .accessibilityHidden(true)
+                        }
                         OpenItemsButton(isOpen: $nav.showOpen)
                         if sizeClass == .regular { layoutMenu }
                         PageMenu(place: nav.place)
@@ -247,6 +262,12 @@ struct RootView: View {
         .onAppear(perform: applyLook)
         .onChange(of: theme) { applyLook() }
         .onChange(of: palette) { applyLook() }
+    }
+
+    private func openFound() {
+        guard let f = found else { return }
+        found = nil
+        nav.go(f.place, highlight: f.highlight, focus: f.focus)
     }
 
     /// One page, two pages, or the open book: a system menu with the current one checked.

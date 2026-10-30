@@ -84,6 +84,8 @@ struct PageEditorView: UIViewRepresentable {
             c.rebuild(caret: c.currentCaret())
         }
         if !embedded { setTopInset(view, topInset) }
+        // Cleared: the same entry can be marked again next time.
+        if highlight == nil { c.flashed = nil }
         if let highlight, highlight != c.flashed {
             c.flashed = highlight
             DispatchQueue.main.async { c.flash(highlight) }
