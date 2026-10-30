@@ -292,7 +292,8 @@ struct RootView: View {
                 }
         }
         // "Migrated" / "Scheduled" with Undo, above the pen toolbar.
-        .overlay(alignment: .bottom) { ToastView().padding(.bottom, 84) }
+        // (On iPhone, where there is no pen toolbar, it sits lower.)
+        .overlay(alignment: .bottom) { ToastView().padding(.bottom, sizeClass == .compact ? 24 : 84) }
         .environmentObject(nav)
         // The app's menu commands (Go: search, Today, levels, pages) act on this window's notebook.
         .focusedSceneObject(nav)

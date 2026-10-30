@@ -20,6 +20,7 @@ struct TimeHeader<Accessory: View>: View {
     /// The open book's right page shows only its name; ‹ › on the left page turn two pages.
     @Environment(\.pageRole) private var role
     @Environment(\.pageStep) private var step
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -41,54 +42,73 @@ struct TimeHeader<Accessory: View>: View {
         .animation(.easeInOut(duration: 0.2), value: compact)
     }
 
-    private var controls: some View {
+    /// On a narrow screen (iPhone) the trail gets a line of its own, above ‹ Today › and the calendar; there is
+    /// no room for both on one.
+    @ViewBuilder private var controls: some View {
+        if sizeClass == .compact {
+            VStack(alignment: .leading, spacing: 8) {
+                Trail(period: $period)
+                HStack(spacing: 12) {
+                    buttons
+                    Spacer(minLength: 0)
+                    accessory
+                }
+                .font(Theme.body(15))
+            }
+        } else {
             HStack(spacing: 12) {
                 Trail(period: $period)
                 Spacer(minLength: 8)
                 accessory
-                Button {
-                    period = period.moved(-step, firstDay: firstDay)
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .accessibilityLabel(S.previous)
-                // Today: this level's period of today; holding it goes to the finest log on, today.
-                Text(S.today)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.rule))
-                    .foregroundStyle(Theme.task)
-                    .onTapGesture { period = Period.containing(Dates.today(), like: period, firstDay: firstDay) }
-                    .onLongPressGesture { period = Prefs.active.finest(Dates.today(), firstDay: firstDay) }
-                    .accessibilityAddTraits(.isButton)
-                Button {
-                    period = period.moved(step, firstDay: firstDay)
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .accessibilityLabel(S.next)
-                // The calendar: any day, at this page's level.
-                Button {
-                    picked = Dates.fromIso(period.anchor(today: Dates.today(), firstDay: firstDay))
-                    picking = true
-                } label: {
-                    Image(systemName: "calendar")
-                }
-                .accessibilityLabel(S.goToDate)
-                .popover(isPresented: $picking) {
-                    DatePicker(S.goToDate, selection: $picked, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .labelsHidden()
-                        .frame(width: 320)
-                        .padding()
-                        .presentationCompactAdaptation(.popover)
-                        .onChange(of: picked) {
-                            period = Period.containing(Dates.toIso(picked), like: period, firstDay: firstDay)
-                            picking = false
-                        }
-                }
+                buttons
             }
             .font(Theme.body(15))
+        }
+    }
+
+    /// ‹ Today › and the calendar.
+    @ViewBuilder private var buttons: some View {
+        Button {
+            period = period.moved(-step, firstDay: firstDay)
+        } label: {
+            Image(systemName: "chevron.left")
+        }
+        .accessibilityLabel(S.previous)
+        // Today: this level's period of today; holding it goes to the finest log on, today.
+        Text(S.today)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Theme.rule))
+            .foregroundStyle(Theme.task)
+            .onTapGesture { period = Period.containing(Dates.today(), like: period, firstDay: firstDay) }
+            .onLongPressGesture { period = Prefs.active.finest(Dates.today(), firstDay: firstDay) }
+            .accessibilityAddTraits(.isButton)
+        Button {
+            period = period.moved(step, firstDay: firstDay)
+        } label: {
+            Image(systemName: "chevron.right")
+        }
+        .accessibilityLabel(S.next)
+        // The calendar: any day, at this page's level.
+        Button {
+            picked = Dates.fromIso(period.anchor(today: Dates.today(), firstDay: firstDay))
+            picking = true
+        } label: {
+            Image(systemName: "calendar")
+        }
+        .accessibilityLabel(S.goToDate)
+        .popover(isPresented: $picking) {
+            DatePicker(S.goToDate, selection: $picked, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .frame(width: 320)
+                .padding()
+                .presentationCompactAdaptation(.popover)
+                .onChange(of: picked) {
+                    period = Period.containing(Dates.toIso(picked), like: period, firstDay: firstDay)
+                    picking = false
+                }
+        }
     }
 }
 
@@ -104,6 +124,8 @@ struct Trail: View {
         let anchor = period.anchor(today: Dates.today(), firstDay: firstDay)
         // Levels turned off in Settings are left out (the Year is always on).
         let items = Period.trail(anchor: anchor, firstDay: firstDay, active: ActiveLogs(monthly: monthly, weekly: weekly, daily: daily))
+        // When it doesn't fit (iPhone), it scrolls sideways, and the current level stays in view.
+        ScrollViewReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(Array(items.enumerated()), id: \.offset) { n, item in
@@ -115,10 +137,19 @@ struct Trail: View {
                         .font(Theme.body(15, weight: current ? .bold : .regular))
                         .foregroundStyle(current ? Theme.text : Theme.muted)
                         .buttonStyle(.plain)
+                        .id(n)
                 }
             }
         }
+        .onAppear { reveal(proxy, items) }
+        .onChange(of: period) { reveal(proxy, items) }
+        }
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func reveal(_ proxy: ScrollViewProxy, _ items: [Period]) {
+        guard let n = items.firstIndex(where: { $0.sameLevel(period) }) else { return }
+        proxy.scrollTo(n, anchor: .trailing)
     }
 
     static func label(_ p: Period) -> String {
