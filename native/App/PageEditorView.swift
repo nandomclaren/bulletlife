@@ -64,7 +64,7 @@ struct PageEditorView: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: EditorTextView, context: Context) -> CGSize? {
         guard embedded, let width = proposal.width, width > 0, width.isFinite else { return nil }
         let fit = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        return CGSize(width: width, height: max(minHeight, ceil(fit.height)))
+        return CGSize(width: width, height: max(minHeight, ceil(fit.height), ceil(context.coordinator.inkBottom + 8)))
     }
 
     func updateUIView(_ view: EditorTextView, context: Context) {
@@ -104,6 +104,8 @@ struct PageEditorView: UIViewRepresentable {
         var erased: Set<String> = []
         let undo = UndoManager()
         private var bullets: [BulletView] = []
+        /// The lowest drawing's bottom, in the text view: the page (or an embedded editor) is at least that tall.
+        var inkBottom: CGFloat = 0
         private var chevrons: [UIButton] = []
         /// Text that came in several characters at once (Scribble, dictation): its prefix is read after a pause.
         private var pendingPrefix: (id: String, timer: Timer)?
@@ -147,7 +149,10 @@ struct PageEditorView: UIViewRepresentable {
             style.minimumLineHeight = l.type == .heading ? 32 : parent.embedded ? EditorLayout.font.lineHeight : 27
             style.paragraphSpacing = 5
             // Ink shown in the line (a drawing, or handwriting not transcribed yet) sits above its text.
-            if let f = previewFrame(l) { style.paragraphSpacingBefore = CGFloat(f.height) + 6 }
+            // Handwriting not transcribed yet sits above its text, and so does a drawing until it is moved by hand;
+            // then it floats over the page, taking no room.
+            let floating = InkPreview.kind(l) == .drawing && l.ink?.view?.y != nil
+            if !floating, let f = previewFrame(l) { style.paragraphSpacingBefore = CGFloat(f.height) + 6 }
             var a: [NSAttributedString.Key: Any] = [
                 .font: l.type == .heading ? EditorLayout.headingFont : EditorLayout.font,
                 .foregroundColor: faded ? Theme.ui("muted") : Theme.ui("text"),
@@ -249,50 +254,13 @@ struct PageEditorView: UIViewRepresentable {
             layoutDecor()
         }
 
-        /// A drawing's size and sideways place in Type mode (its strokes never change).
-        func setDrawingView(_ id: String, width: Double, x: Double) {
+        /// A drawing's size and place in Type mode (its strokes never change). It floats over the page, free of
+        /// the lines: it may cover text, and it can go below the last line. `y` from the top of the text.
+        func setDrawingView(_ id: String, width: Double, x: Double, y: Double?) {
             guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].ink != nil else { return }
             var next = lines
-            next[i].ink?.view = Ink.View(w: width.rounded(), x: max(0, x).rounded())
+            next[i].ink?.view = Ink.View(w: width.rounded(), x: max(0, x).rounded(), y: y.map { max(0, $0).rounded() })
             apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
-        }
-
-        /// Where a dragged drawing would go: the gap between lines nearest to `y` (text view coordinates), as the
-        /// index in the page of the line it comes before (the end: the line count), and the gap's height.
-        func gap(atY y: CGFloat) -> (before: Int, y: CGFloat)? {
-            guard let view = textView, !visible.isEmpty else { return nil }
-            let lm = view.layoutManager
-            let s = starts()
-            let length = (view.text as NSString).length
-            var bottom: CGFloat = view.textContainerInset.top
-            for (k, i) in visible.enumerated() {
-                let rect: CGRect
-                if length == 0 || s[k] >= length {
-                    rect = lm.extraLineFragmentRect
-                } else {
-                    var range = NSRange()
-                    let glyph = lm.glyphIndexForCharacter(at: s[k])
-                    let first = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: &range)
-                    let paragraph = (view.text as NSString).paragraphRange(for: NSRange(location: s[k], length: 0))
-                    let last = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: max(s[k], NSMaxRange(paragraph) - 1)), effectiveRange: nil)
-                    rect = first.union(last)
-                }
-                let r = rect.offsetBy(dx: 0, dy: view.textContainerInset.top)
-                if y < r.midY { return (i, r.minY) }
-                bottom = r.maxY
-            }
-            return (lines.count, bottom)
-        }
-
-        /// A drawing dropped: its line (with its sub-items) moves to the gap, and its sideways place is kept, in
-        /// one Undo step.
-        func dropDrawing(_ id: String, before: Int?, width: Double, x: Double) {
-            guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].ink != nil else { return }
-            var next = lines
-            next[i].ink?.view = Ink.View(w: width.rounded(), x: max(0, x).rounded())
-            if let before, let moved = PageEdit.moveLine(next, id: id, before: before) { next = moved }
-            let at = next.firstIndex { $0.id == id } ?? i
-            apply(Edited(lines: next, caret: Caret(index: at, offset: 0)))
         }
 
         /// Deletes a drawing (the × of the selected one, Delete, or Backspace on its empty line). Handwriting is
@@ -839,6 +807,7 @@ struct PageEditorView: UIViewRepresentable {
             }
             // Ink in the lines: drawings, and handwriting not transcribed yet.
             var usedInk = 0
+            inkBottom = 0
             for (k, i) in visible.enumerated() {
                 let l = lines[i]
                 guard let f = previewFrame(l), let kind = InkPreview.kind(l) else { continue }
@@ -851,13 +820,22 @@ struct PageEditorView: UIViewRepresentable {
                 let v = inkView(usedInk)
                 usedInk += 1
                 v.configure(line: l, kind: kind, color: colors[i], selected: selectedDrawing == l.id, coordinator: self)
+                // A drawing placed by hand stays where it was put; otherwise it starts at its line.
+                let top = kind == .drawing ? l.ink?.view?.y.map { CGFloat($0) } : nil
                 v.frame = CGRect(
-                    x: view.textContainerInset.left + textIndent(l) + CGFloat(f.x), y: view.textContainerInset.top + rect.minY + 3,
+                    x: view.textContainerInset.left + textIndent(l) + CGFloat(f.x), y: view.textContainerInset.top + (top ?? rect.minY + 3),
                     width: CGFloat(f.width), height: CGFloat(f.height))
+                if kind == .drawing { inkBottom = max(inkBottom, v.frame.maxY) }
                 v.maxWidth = CGFloat(f.width) + max(0, view.bounds.width - view.textContainerInset.left - view.textContainerInset.right - textIndent(l) - 8 - CGFloat(f.width))
                 v.setNeedsDisplay()
             }
             for (n, v) in inkViews.enumerated() { v.isHidden = n >= usedInk }
+            // Room below the text for a drawing put lower than the last line.
+            if !parent.embedded {
+                let text = lm.usedRect(for: view.textContainer).maxY + view.textContainerInset.top
+                let bottom = max(240, inkBottom + 80 - text)
+                if view.textContainerInset.bottom != bottom { view.textContainerInset.bottom = bottom }
+            }
             // Due dates as pills; lists out of date order get a quiet "Sort by date".
             var usedPills = 0
             let today = Dates.today()
@@ -1236,7 +1214,7 @@ final class InkPreviewView: UIView {
     @objc private func tap() { coordinator?.tappedDrawing(id) }
     @objc private func remove() { coordinator?.deleteDrawing(id) }
 
-    /// Sideways within the text column, and up or down to another line: a thin rule shows the gap it goes to.
+    /// Anywhere on the page: it floats over the text (it may cover some) and can go below the last line.
     @objc private func drag(_ g: UIPanGestureRecognizer) {
         let t = g.translation(in: superview)
         switch g.state {
@@ -1244,36 +1222,12 @@ final class InkPreviewView: UIView {
             start = frame
             superview?.bringSubviewToFront(self)
         case .changed:
-            frame.origin = CGPoint(x: start.minX + t.x, y: start.minY + t.y)
-            target = abs(t.y) > 16 ? coordinator?.gap(atY: frame.midY) : nil
-            showDrop()
+            frame.origin = CGPoint(x: start.minX + t.x, y: max(0, start.minY + t.y))
         case .ended, .cancelled:
             let x = max(0, frame.minX - start.minX + offsetInColumn)
-            let before = g.state == .ended ? target?.before : nil
-            target = nil
-            showDrop()
-            if before == nil { frame.origin.y = start.minY }
-            coordinator?.dropDrawing(id, before: before, width: Double(bounds.width), x: Double(x))
+            let inset = (superview as? UITextView)?.textContainerInset.top ?? 0
+            coordinator?.setDrawingView(id, width: Double(bounds.width), x: Double(x), y: Double(frame.minY - inset))
         default: break
-        }
-    }
-
-    private var target: (before: Int, y: CGFloat)?
-    private var dropRule: UIView?
-
-    private func showDrop() {
-        guard let target, let host = superview else {
-            dropRule?.removeFromSuperview()
-            dropRule = nil
-            return
-        }
-        let rule = dropRule ?? UIView()
-        rule.backgroundColor = tintColor
-        rule.layer.cornerRadius = 1
-        rule.frame = CGRect(x: start.minX - CGFloat(ink?.view?.x ?? 0), y: target.y - 1, width: maxWidth, height: 2)
-        if dropRule == nil {
-            host.addSubview(rule)
-            dropRule = rule
         }
     }
 
@@ -1289,7 +1243,7 @@ final class InkPreviewView: UIView {
             frame = CGRect(x: start.minX, y: start.minY, width: w, height: start.height * w / start.width)
             setNeedsDisplay()
         case .ended, .cancelled:
-            coordinator?.setDrawingView(id, width: Double(bounds.width), x: Double(offsetInColumn))
+            coordinator?.setDrawingView(id, width: Double(bounds.width), x: Double(offsetInColumn), y: ink?.view?.y)
         default: break
         }
     }

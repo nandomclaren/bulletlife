@@ -182,12 +182,16 @@ public struct Stroke: Codable, Equatable, Sendable {
 }
 
 public struct Ink: Codable, Equatable, Sendable {
+    /// A drawing in Type mode: its width, sideways offset from its line's text, and (once placed by hand) its
+    /// height on the page, from the top of the text: it floats over the page, free of the lines.
     public struct View: Codable, Equatable, Sendable {
         public var w: Double
         public var x: Double
-        public init(w: Double, x: Double) {
+        public var y: Double?
+        public init(w: Double, x: Double, y: Double? = nil) {
             self.w = w
             self.x = x
+            self.y = y
         }
     }
 
