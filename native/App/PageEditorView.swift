@@ -1217,7 +1217,7 @@ final class BulletView: UIView, UIContextMenuInteractionDelegate {
 
 /// A line's ink in Type mode: handwriting not transcribed yet (smaller, as written), or a drawing in a box that
 /// can be selected (tap), sized (drag the corner), moved sideways (drag it) and deleted (×).
-final class InkPreviewView: UIView {
+final class InkPreviewView: UIView, UIEditMenuInteractionDelegate {
     private var ink: Ink?
     private var id = ""
     private var kind: InkPreview.Kind = .writing
@@ -1225,8 +1225,13 @@ final class InkPreviewView: UIView {
     private weak var coordinator: PageEditorView.Coordinator?
     /// The widest the drawing can be from where its box starts (the page's text column).
     var maxWidth: CGFloat = 600
-    private let close = UIButton(type: .system)
+    /// Selected, as the system shows a picture or shape: a thin rounded outline in the accent color, a round
+    /// handle at the corner to size it, and the edit menu (Delete) above it.
+    private let outline = CAShapeLayer()
     private let handle = UIView()
+    private let knob = UIView()
+    private lazy var editMenu = UIEditMenuInteraction(delegate: self)
+    private var selected = false
     private var start: CGRect = .zero
 
     override init(frame: CGRect) {
@@ -1234,18 +1239,24 @@ final class InkPreviewView: UIView {
         backgroundColor = .clear
         isOpaque = false
         contentMode = .redraw
-        layer.cornerRadius = 6
-        close.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-        close.tintColor = Theme.ui("muted")
-        close.addTarget(self, action: #selector(remove), for: .touchUpInside)
-        close.accessibilityLabel = S.deleteDrawing
-        handle.backgroundColor = Theme.ui("muted")
-        handle.layer.cornerRadius = 3
-        addSubview(close)
+        outline.fillColor = nil
+        outline.lineWidth = 1.5
+        layer.addSublayer(outline)
+        // The handle's target is larger than the knob drawn in it.
+        knob.isUserInteractionEnabled = false
+        knob.layer.cornerRadius = 7
+        knob.layer.borderWidth = 1.5
+        knob.layer.shadowColor = UIColor.black.cgColor
+        knob.layer.shadowOpacity = 0.18
+        knob.layer.shadowRadius = 2
+        knob.layer.shadowOffset = CGSize(width: 0, height: 1)
+        handle.addSubview(knob)
         addSubview(handle)
+        addInteraction(editMenu)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
         addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(drag(_:))))
         handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
+        handle.accessibilityLabel = S.resizeDrawing
         isAccessibilityElement = true
     }
 
@@ -1259,22 +1270,41 @@ final class InkPreviewView: UIView {
         self.coordinator = coordinator
         let editable = kind == .drawing && !coordinator.parent.readOnly
         isUserInteractionEnabled = editable
-        close.isHidden = !(editable && selected)
-        handle.isHidden = !(editable && selected)
+        self.selected = editable && selected
+        handle.isHidden = !self.selected
+        outline.isHidden = !self.selected
         gestureRecognizers?.forEach { if $0 is UIPanGestureRecognizer { $0.isEnabled = editable && selected } }
-        layer.borderWidth = editable && selected ? 1 : 0
-        layer.borderColor = Theme.ui("muted").cgColor
+        let accent = Theme.ui("task").resolvedColor(with: traitCollection)
+        outline.strokeColor = accent.cgColor
+        knob.backgroundColor = .white
+        knob.layer.borderColor = accent.cgColor
         accessibilityLabel = kind == .drawing ? S.drawing : S.handwritingPending
+        accessibilityCustomActions = self.selected ? [UIAccessibilityCustomAction(name: S.deleteDrawing) { [weak self] _ in self?.remove(); return true }] : nil
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        close.frame = CGRect(x: bounds.width - 14, y: -14, width: 28, height: 28)
-        handle.frame = CGRect(x: bounds.width - 10, y: bounds.height - 10, width: 14, height: 14)
+        let box = bounds.insetBy(dx: -4, dy: -4)
+        outline.frame = bounds
+        outline.path = UIBezierPath(roundedRect: box, cornerRadius: 8).cgPath
+        handle.frame = CGRect(x: box.maxX - 16, y: box.maxY - 16, width: 32, height: 32)
+        knob.frame = CGRect(x: 9, y: 9, width: 14, height: 14)
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         bounds.insetBy(dx: -16, dy: -16).contains(point)
+    }
+
+    // MARK: Delete, from the system's edit menu
+
+    func editMenuInteraction(_ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        UIMenu(children: [
+            UIAction(title: S.delete, image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in self?.remove() },
+        ])
+    }
+
+    private func showMenu() {
+        editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: bounds.midX, y: -6)))
     }
 
     override func draw(_ rect: CGRect) {
@@ -1297,8 +1327,14 @@ final class InkPreviewView: UIView {
         }
     }
 
-    @objc private func tap() { coordinator?.tappedDrawing(id) }
-    @objc private func remove() { coordinator?.deleteDrawing(id) }
+    /// A tap selects it and offers Delete above it; another tap lets it go.
+    @objc private func tap() {
+        let wasSelected = selected
+        coordinator?.tappedDrawing(id)
+        if !wasSelected { DispatchQueue.main.async { [weak self] in self?.showMenu() } }
+    }
+
+    private func remove() { coordinator?.deleteDrawing(id) }
 
     /// Anywhere on the page: it floats over the text (it may cover some) and can go below the last line.
     @objc private func drag(_ g: UIPanGestureRecognizer) {
