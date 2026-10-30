@@ -180,10 +180,14 @@ struct MonthPage: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Where the top of the days is, to shrink the header once they scroll under it.
+                    // Where the top of the days is, to shrink the header once they scroll under it. Shrinking moves the
+                    // days up by about the header's lost height (~40 pt), so it shrinks past 100 pt and grows back only
+                    // near the top: a single threshold flipped back and forth forever and froze the page.
                     Color.clear
                         .frame(height: 0)
-                        .onGeometryChange(for: Bool.self) { $0.frame(in: .scrollView).minY < -24 } action: { scrolled = $0 }
+                        .onGeometryChange(for: CGFloat.self) { ($0.frame(in: .scrollView).minY / 10).rounded() * 10 } action: { y in
+                            if !scrolled && y < -100 { scrolled = true } else if scrolled && y > -20 { scrolled = false }
+                        }
                     ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
                         if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
                         dayRow(iso, today: today, logId: logId)
