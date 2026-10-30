@@ -338,8 +338,6 @@ struct RootView: View {
             .environment(\.pageBeside, true)
         }
     }
-
-    }
 }
 
 /// A page of the notebook where `nav` is: Day, Week and collections are free pages (Type or Pen); Month and
