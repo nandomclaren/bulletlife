@@ -60,8 +60,6 @@ struct PenSheetView: UIViewRepresentable {
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.alwaysBounceVertical = true
-        // The page gives the whole top inset (toolbar and header); the system adds nothing.
-        canvas.contentInsetAdjustmentBehavior = .never
         canvas.minimumZoomScale = 1
         canvas.maximumZoomScale = 1
         canvas.delegate = context.coordinator

@@ -157,92 +157,15 @@ extension View {
 
 /// Behind a floating header: the page shows through, blurred, and the blur fades out at its lower edge.
 struct HeaderBlur: View {
-    @Environment(\.colorScheme) private var scheme
-    @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
-
-    /// The band below the header where the blur begins: the page goes soft gradually, from here up.
-    static let fade: CGFloat = 72
-
-    /// A little paper over the blur, to keep its light tint from showing (Graphite's grey shows it most).
-    private var cover: Double {
-        guard scheme == .dark else { return 0.25 }
-        return theme == Theme.Look.night.rawValue ? 0.3 : 0.4
-    }
-
     var body: some View {
-        // A progressive blur: light blurs stacked, each reaching a little less far down, so words get softer the
-        // higher they go and stay visible as a smudge; no line where the blur starts.
-        GeometryReader { g in
-            let h = max(g.size.height, 1)
-            let edge = max(0.01, min(0.99, (h - Self.fade) / h))  // the header's bottom, from the top
-            ZStack {
-                PartialBlur(fraction: 0.22).mask(Self.reach(solid: edge, clear: 1))
-                PartialBlur(fraction: 0.22).mask(Self.reach(solid: edge * 0.9, clear: edge + (1 - edge) * 0.45))
-                PartialBlur(fraction: 0.25).mask(Self.reach(solid: edge * 0.55, clear: edge))
-                Theme.paper.opacity(cover).mask(Self.reach(solid: edge * 0.8, clear: 1))
-            }
-        }
-        .ignoresSafeArea(edges: .top)
-        .allowsHitTesting(false)
-    }
-
-    /// Full from the top down to `solid`, fading out by `clear` (fractions of the height).
-    static func reach(solid: CGFloat, clear: CGFloat) -> LinearGradient {
-        LinearGradient(
-            stops: [.init(color: .black, location: 0), .init(color: .black, location: solid), .init(color: .clear, location: max(solid + 0.01, clear))],
-            startPoint: .top, endPoint: .bottom)
-    }
-}
-
-/// The system's blur at a fraction of its strength (and of its tint): the effect is set inside a paused
-/// animator held at that fraction, the usual way to get a lighter UIVisualEffectView. It is set up again
-/// whenever the view enters a window, the app comes back to the foreground, or light/dark changes, as the
-/// system finishes or drops paused animations then.
-struct PartialBlur: UIViewRepresentable {
-    var fraction: CGFloat
-
-    func makeUIView(context: Context) -> PartialBlurView { PartialBlurView(fraction: fraction) }
-
-    func updateUIView(_ view: PartialBlurView, context: Context) { view.fraction = fraction }
-}
-
-final class PartialBlurView: UIVisualEffectView {
-    var fraction: CGFloat {
-        didSet { if fraction != oldValue { setUp() } }
-    }
-    private var animator: UIViewPropertyAnimator?
-    private var foreground: NSObjectProtocol?
-
-    init(fraction: CGFloat) {
-        self.fraction = fraction
-        super.init(effect: nil)
-        isUserInteractionEnabled = false
-        foreground = NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.setUp() }
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: PartialBlurView, _: UITraitCollection) in view.setUp() }
-    }
-
-    required init?(coder: NSCoder) { fatalError("not used") }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if window != nil { setUp() }
-    }
-
-    private func setUp() {
-        animator?.stopAnimation(true)
-        effect = nil
-        let a = UIViewPropertyAnimator(duration: 1, curve: .linear) { [weak self] in self?.effect = UIBlurEffect(style: .regular) }
-        a.pausesOnCompletion = true
-        a.fractionComplete = fraction
-        animator = a
-    }
-
-    deinit {
-        // A paused animator must be stopped before it is released.
-        animator?.stopAnimation(true)
-        if let foreground { NotificationCenter.default.removeObserver(foreground) }
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask(
+                LinearGradient(
+                    stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
+                    startPoint: .top, endPoint: .bottom)
+            )
+            .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -255,8 +178,7 @@ extension View {
             .padding(.bottom, 12)
             .frame(maxWidth: width, alignment: .leading)
             .frame(maxWidth: .infinity)
-            // The soft edge hangs below the header, over the page.
-            .background(alignment: .top) { HeaderBlur().padding(.bottom, -HeaderBlur.fade) }
+            .background(HeaderBlur())
     }
 }
 

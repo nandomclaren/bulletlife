@@ -13,8 +13,6 @@ struct PageView: View {
     @State private var collectionTitle = ""
     /// The floating header's height: the page starts below it and scrolls under it.
     @State private var headerHeight: CGFloat = 0
-    /// The toolbar's height above the page: the text and the sheet start below it, but scroll up under it.
-    @State private var safeTop: CGFloat = 0
     /// Deleting a collection asks twice.
     @State private var confirmDelete = false
     @State private var confirmDeleteAgain = false
@@ -88,14 +86,10 @@ struct PageView: View {
         ZStack(alignment: .top) {
             PenSheetView(
                 lines: $lines, tool: penTool, color: penColor, size: penSize, eventStates: eventStates, doneMark: doneMark,
-                undoRequests: undoRequests, topInset: headerHeight + safeTop, onCanUndo: { canUndo = $0 }
+                undoRequests: undoRequests, topInset: headerHeight, onCanUndo: { canUndo = $0 }
             )
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
-            // The sheet goes up under the toolbar too, so the ink passes under the header and is not cut short.
-            .ignoresSafeArea(edges: .top)
-            // How far under the toolbar it reaches (the safe area it now covers).
-            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { safeTop = $0 }
             floatingHeader(width: 760)
         }
         .overlay(alignment: .bottom) {
@@ -108,15 +102,11 @@ struct PageView: View {
         ZStack(alignment: .top) {
             PageEditorView(
                 lines: $lines, eventStates: eventStates, doneMark: doneMark,
-                highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil, topInset: headerHeight + safeTop,
+                highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil, topInset: headerHeight,
                 readOnly: consulting, onSelection: { PageSelection.set(logId: logId, $0) }
             ) { act($0, on: $1) }
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
-            // The text goes up under the toolbar too, so it passes under the header and is not cut short.
-            .ignoresSafeArea(edges: .top)
-            // How far under the toolbar it reaches (the safe area it now covers).
-            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { safeTop = $0 }
             floatingHeader(width: 720)
         }
     }

@@ -267,7 +267,8 @@ struct RootView: View {
         }
         .environmentObject(nav)
         .tint(Theme.task)
-        // The theme, the standard way: every view (SwiftUI and UIKit inside it) is told light or dark.
+        // Light or dark only this way: holding the window too made the two fight, and painting the scene's
+        // windows covered the app with the system's overlay windows.
         .preferredColorScheme(Theme.Look(rawValue: theme)?.scheme)
     }
 
@@ -338,6 +339,7 @@ struct RootView: View {
             .environment(\.pageBeside, true)
         }
     }
+
 }
 
 /// A page of the notebook where `nav` is: Day, Week and collections are free pages (Type or Pen); Month and
@@ -445,8 +447,6 @@ struct PageDivider: View {
         Rectangle()
             .fill(Theme.rule)
             .frame(width: 1)
-            // Paper under the toolbar, where the line does not go (else the window's own background shows).
-            .background(Theme.paper.ignoresSafeArea())
             .overlay {
                 Capsule()
                     .fill(Theme.muted)
@@ -495,4 +495,3 @@ struct SidesOnly: Shape {
         Path(rect.insetBy(dx: 0, dy: -10_000))
     }
 }
-
