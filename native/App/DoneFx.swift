@@ -1,6 +1,6 @@
 // Done animations (CLAUDE.md 8, Settings › Done animation): a small moment when an entry is completed, and a
 // quieter one when it is cancelled. Pure decoration in Core Animation over the page: the entry has already
-// changed when it plays. Timings are the PWA's (its mockup ×1.4). Reduce Motion turns them off.
+// changed when it plays. Timings are the PWA's (its mockup ×1.4), played at 60% of that speed (Fernando). Reduce Motion turns them off.
 import UIKit
 
 enum DoneAnimation: String, CaseIterable, Identifiable {
@@ -13,7 +13,7 @@ enum DoneAnimation: String, CaseIterable, Identifiable {
 }
 
 enum DoneFx {
-    private static let slow = 1.4
+    private static let slow = 1.4 / 0.6
     private static let ease = CAMediaTimingFunction(controlPoints: 0.2, 0.7, 0.2, 1)
 
     /// `bullet`: the view around the glyph; `mark`: the glyph (×, ✓) that comes in; `host` and `textRect`: the

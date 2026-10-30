@@ -4,6 +4,7 @@
 import BulletLifeCore
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// The quiet button that opens the panel, with how many items are open (no red badge, no alarm).
 struct OpenItemsButton: View {
@@ -100,10 +101,8 @@ struct OpenItemsPanel: View {
             Button {
                 act(item) { $0.state = States.next($0.state) }
             } label: {
-                Text(glyph.isEmpty ? " " : glyph)
-                    .font(Theme.body(17, weight: .bold))
-                    .foregroundStyle(Theme.color(e.type))
-                    .frame(width: 22)
+                DoneGlyph(glyph: glyph, type: e.type, state: e.state, check: doneMark == "✓")
+                    .frame(width: 22, height: 22)
                     .contentShape(Rectangle().inset(by: -10))
             }
             .buttonStyle(.plain)
@@ -161,5 +160,41 @@ struct OpenItemsPanel: View {
                 e.placement = nil
             }
         }
+    }
+}
+
+/// A bullet in the panel that plays the done animation (Settings) when its entry is completed or cancelled here.
+struct DoneGlyph: UIViewRepresentable {
+    let glyph: String
+    let type: EntryType
+    let state: EntryState
+    let check: Bool
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.font = UIFont(name: "AvenirNext-Bold", size: 17) ?? .boldSystemFont(ofSize: 17)
+        label.isUserInteractionEnabled = false
+        context.coordinator.state = state
+        return label
+    }
+
+    func updateUIView(_ label: UILabel, context: Context) {
+        label.text = glyph.isEmpty ? " " : glyph
+        let color = Theme.ui(type == .text || type == .heading ? "text" : type.rawValue)
+        label.textColor = color
+        let before = context.coordinator.state
+        context.coordinator.state = state
+        if before != state, state == .done || state == .cancelled {
+            DispatchQueue.main.async {
+                DoneFx.play(cancel: state == .cancelled, check: check, bullet: label, mark: label, color: color, host: nil, textRect: nil)
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var state: EntryState = .open
     }
 }

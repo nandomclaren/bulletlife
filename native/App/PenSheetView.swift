@@ -225,6 +225,7 @@ struct PenSheetView: UIViewRepresentable {
                 guard let center else { continue }
                 let id = l.id
                 let hit = PenBulletView(frame: CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44))
+                hit.lineId = id
                 hit.accessibilityLabel = "\(l.type.rawValue), \(l.state.rawValue)"
                 hit.onTap = { [weak self] in self?.tapped(id) }
                 hit.menuProvider = { [weak self] in self?.menu(for: id) }
@@ -235,6 +236,21 @@ struct PenSheetView: UIViewRepresentable {
         private func tapped(_ id: String) {
             guard let l = lines.first(where: { $0.id == id }), States.stateful(l.type, eventStates: parent.eventStates) else { return }
             act(.state(States.next(l.state)), id)
+            celebrate(id)
+        }
+
+        /// The done animation (Settings), on the bullet as the sheet now draws it.
+        private func celebrate(_ id: String) {
+            guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].state == .done || lines[i].state == .cancelled,
+                let sheet
+            else { return }
+            let hit = bullets?.subviews.first { ($0 as? PenBulletView)?.lineId == id }
+            guard let bullet = sheet.glyphs[id] ?? hit else { return }
+            let root = Outline.colorTypes(lines)[i]
+            let color = Theme.ui(root == .text || root == .heading ? "task" : root.rawValue)
+            DoneFx.play(
+                cancel: lines[i].state == .cancelled, check: parent.doneMark == "✓", bullet: bullet, mark: sheet.glyphs[id], color: color,
+                host: sheet, textRect: sheet.words[id])
         }
 
         private func act(_ action: LineAction, _ id: String) {
@@ -463,6 +479,10 @@ final class SheetBackground: UIView {
         didSet { updateRules() }
     }
     private var labels: [UIView] = []
+    /// Each line's bullet as drawn on the sheet (the typed glyph, or ×, > or < over a drawn bullet), and where its
+    /// words are: what the done animation plays on.
+    private(set) var glyphs: [String: UIView] = [:]
+    private(set) var words: [String: CGRect] = [:]
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -518,11 +538,14 @@ final class SheetBackground: UIView {
     func show(lines: [Line], blocks: [PlacedBlock], eventStates: Bool, doneMark: String) {
         labels.forEach { $0.removeFromSuperview() }
         labels = []
+        glyphs = [:]
+        words = [:]
         let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let colors = Dictionary(zip(lines.map(\.id), Outline.colorTypes(lines)), uniquingKeysWith: { a, _ in a })
         for b in blocks where !b.typed {
             guard let l = byId[b.id], States.stateful(l.type, eventStates: eventStates), let box = InkPage.handBullet(l) else { continue }
             let cy = CGFloat(b.top + (box.y0 + box.y1) / 2)
+            if let w = InkPage.handWords(l) { words[l.id] = CGRect(x: w.x0, y: Double(cy) - inkRow / 2, width: w.x1 - w.x0, height: inkRow) }
             let tint = Theme.ui(colors[l.id]?.rawValue ?? "text")
             if [.done, .migrated, .scheduled].contains(l.state) {
                 let mark = UILabel()
@@ -533,6 +556,7 @@ final class SheetBackground: UIView {
                 mark.center = CGPoint(x: CGFloat((box.x0 + box.x1) / 2), y: cy - 1)
                 addSubview(mark)
                 labels.append(mark)
+                glyphs[l.id] = mark
             } else if l.state == .cancelled, let words = InkPage.handWords(l) {
                 let strike = UIView(frame: CGRect(x: words.x0, y: Double(cy) - 0.75, width: words.x1 - words.x0, height: 1.5))
                 strike.backgroundColor = Theme.ui("muted")
@@ -552,6 +576,9 @@ final class SheetBackground: UIView {
                 struck: stateful && l.state == .cancelled)
             addSubview(text)
             labels.append(text)
+            if let size = text.attributedText?.size() {
+                words[l.id] = CGRect(x: x, y: CGFloat(b.top), width: min(size.width, text.bounds.width), height: CGFloat(inkRow))
+            }
             let glyph = States.glyph(l.type, l.state, eventStates: eventStates, doneMark: doneMark)
             if !glyph.isEmpty {
                 let bullet = UILabel(frame: CGRect(x: x - 26, y: CGFloat(b.top), width: 22, height: CGFloat(inkRow)))
@@ -559,6 +586,7 @@ final class SheetBackground: UIView {
                 bullet.attributedText = Self.attributed(glyph, heading: false, color: tint, faded: false, struck: false)
                 addSubview(bullet)
                 labels.append(bullet)
+                glyphs[l.id] = bullet
             }
         }
     }
@@ -655,6 +683,7 @@ final class PassThroughView: UIView {
 
 /// A bullet on the ruled sheet: tap and hold, like a typed bullet in Type mode.
 final class PenBulletView: UIView, UIContextMenuInteractionDelegate {
+    var lineId = ""
     var onTap: (() -> Void)?
     var menuProvider: (() -> UIMenu?)?
 
