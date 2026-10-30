@@ -105,6 +105,11 @@ enum PageLayout: String, CaseIterable, Identifiable {
 /// Which page a view is part of: the main one, the second of two pages, or the open book's right page.
 enum PageRole { case main, second, facing }
 
+extension Notification.Name {
+    /// Typing began or the pen wrote on a page (its `PageRole` is the object).
+    static let writingOnPage = Notification.Name("writingOnPage")
+}
+
 private struct PageRoleKey: EnvironmentKey { static let defaultValue = PageRole.main }
 private struct PageStepKey: EnvironmentKey { static let defaultValue = 1 }
 private struct PageBesideKey: EnvironmentKey { static let defaultValue = false }
@@ -133,6 +138,8 @@ struct RootView: View {
     @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
     @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
+    /// The page last written on, with two pages open: Open items opens entries on the other one.
+    @State private var writingOn = PageRole.main
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Two pages need the room of an iPad's full width; narrower, the notebook is one page.
@@ -152,8 +159,11 @@ struct RootView: View {
                     OpenItemsPanel(onlyToday: nav.openToday) { item in
                         let target: Place = item.source.period.map { Place.time($0) } ?? .collection(item.source.logId)
                         let focus = item.entry.slot.isEmpty ? nil : item.entry.slot
-                        // With two pages, it opens on the second, beside the page being written (CLAUDE.md 4.2).
-                        let opener = layout == .two && target != nav.place ? second : nav
+                        // With two pages, it opens on the one not being written on (CLAUDE.md 4.2), unless that
+                        // page is already where you write.
+                        let here = writingOn == .second ? second : nav
+                        let other = writingOn == .second ? nav : second
+                        let opener = layout == .two && target != here.place ? other : here
                         opener.go(target, highlight: item.entry.id, focus: focus)
                         if sizeClass == .compact { nav.showOpen = false }
                     }
@@ -195,6 +205,9 @@ struct RootView: View {
         .onAppear(perform: applyLook)
         .onChange(of: theme) { applyLook() }
         .onChange(of: palette) { applyLook() }
+        .onReceive(NotificationCenter.default.publisher(for: .writingOnPage)) { note in
+            if let role = note.object as? PageRole, role != .facing { writingOn = role }
+        }
     }
 
     /// One page, two pages, or the open book: a system menu with the current one checked.

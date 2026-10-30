@@ -25,6 +25,8 @@ struct PageEditorView: UIViewRepresentable {
     /// The lines selected (with collapsed children), for the page menu's Export, Copy As and Share.
     var onSelection: ([Line]) -> Void = { _ in }
     var onAction: (LineAction, String) -> Void
+    /// Which page this is (two pages open): writing here is noted, so Open items opens on the other page.
+    @Environment(\.pageRole) var role
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -571,6 +573,10 @@ struct PageEditorView: UIViewRepresentable {
                 guard let view, range.location + range.length <= view.textStorage.length else { return }
                 view.textStorage.removeAttribute(.backgroundColor, range: range)
             }
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            NotificationCenter.default.post(name: .writingOnPage, object: parent.role)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {

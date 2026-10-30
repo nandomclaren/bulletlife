@@ -41,6 +41,8 @@ func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) 
 
 struct PenSheetView: UIViewRepresentable {
     @Binding var lines: [Line]
+    /// Which page this is (two pages open): writing here is noted, so Open items opens on the other page.
+    @Environment(\.pageRole) var role
     var tool: PenTool
     var color: String
     var size: Double
@@ -343,6 +345,7 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         private func added(_ pk: PKStroke) {
+            NotificationCenter.default.post(name: .writingOnPage, object: parent.role)
             var p: [Double] = []
             for point in pk.path {
                 let at = point.location.applying(pk.transform)
