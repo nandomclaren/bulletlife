@@ -13,7 +13,15 @@ enum Theme {
         var id: String { rawValue }
         var name: String { S.themes[rawValue] ?? rawValue }
         var hint: String { S.themeHints[rawValue] ?? "" }
-        /// What the window is held to (nil: the system decides).
+        /// What SwiftUI is told (nil: the system decides).
+        var scheme: ColorScheme? {
+            switch self {
+            case .auto: return nil
+            case .paper: return .light
+            case .graphite, .night: return .dark
+            }
+        }
+        /// What the window is held to (unspecified: the system decides).
         var style: UIUserInterfaceStyle {
             switch self {
             case .auto: return .unspecified

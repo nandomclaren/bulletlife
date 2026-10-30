@@ -265,6 +265,8 @@ struct RootView: View {
         }
         .environmentObject(nav)
         .tint(Theme.task)
+        // The theme, the standard way: every view (SwiftUI and UIKit inside it) is told light or dark.
+        .preferredColorScheme(Theme.Look(rawValue: theme)?.scheme)
         .onAppear(perform: applyLook)
         .onChange(of: theme) { applyLook() }
         .onChange(of: palette) { applyLook() }
