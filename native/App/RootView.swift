@@ -4,6 +4,7 @@
 import BulletLifeCore
 import SwiftData
 import UIKit
+import CoreSpotlight
 import SwiftUI
 
 enum Place: Hashable {
@@ -214,6 +215,7 @@ struct RootView: View {
     @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.modelContext) private var context
     /// The theme and palette the pages were built with.
     @State private var builtLook = ""
     private var currentLook: String { "\(theme)/\(palette)" }
@@ -301,6 +303,17 @@ struct RootView: View {
         // Light or dark only this way: holding the window too made the two fight, and painting the scene's
         // windows covered the app with the system's overlay windows.
         .preferredColorScheme(Theme.Look(rawValue: theme)?.scheme)
+        // The system's search: the notebook indexed at launch and page by page as it is written; a result
+        // opens its page with the entry marked.
+        .task { Spotlight.indexAll(repo: Repository(context: context)) }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { note in
+            guard let logId = note.userInfo?["logId"] as? String else { return }
+            Spotlight.index(logId: logId, slot: note.userInfo?["slot"] as? String ?? "", repo: Repository(context: context))
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            guard let t = Spotlight.target(activity, repo: Repository(context: context)) else { return }
+            nav.go(t.place, highlight: t.id, focus: t.focus)
+        }
         // The Close the day reminder tapped: tomorrow's page, with what is still open today beside it.
         .onReceive(NotificationCenter.default.publisher(for: Reminders.openCloseDay)) { _ in
             let today = Dates.today()
