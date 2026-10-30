@@ -146,7 +146,9 @@ struct OpenItemsPanel: View {
 
     /// > or < on one entry; marking it again takes it back to open.
     private func mark(_ item: OpenItem, _ state: EntryState) {
+        let old = item.entry.state
         act(item) { $0.state = $0.state == state ? .open : state }
+        if old != state { Toasts.marked(state) { act(item) { $0.state = old } } }
     }
 
     private func act(_ item: OpenItem, _ change: (inout Entry) -> Void) {

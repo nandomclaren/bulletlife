@@ -256,6 +256,20 @@ struct PageView: View {
     }
 
     private func act(_ action: LineAction, on id: String) {
+        // > or <: "Migrated" or "Scheduled", with Undo.
+        if case .state(let s) = action, let old = lines.first(where: { $0.id == id })?.state, old != s {
+            let page = $lines
+            let consulted = consulting
+            let store = repo
+            let states = eventStates
+            Toasts.marked(s) {
+                if consulted {
+                    store.consult(.state(old), id: id, eventStates: states)
+                } else if let i = page.wrappedValue.firstIndex(where: { $0.id == id }) {
+                    page.wrappedValue[i].state = old
+                }
+            }
+        }
         if consulting, action != .toggleCollapsed {
             repo.consult(action, id: id, eventStates: eventStates)
         } else {

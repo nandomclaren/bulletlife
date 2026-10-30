@@ -288,6 +288,8 @@ struct RootView: View {
                     }
                 }
         }
+        // "Migrated" / "Scheduled" with Undo, above the pen toolbar.
+        .overlay(alignment: .bottom) { ToastView().padding(.bottom, 84) }
         .environmentObject(nav)
         .tint(Theme.task)
         // Light or dark only this way: holding the window too made the two fight, and painting the scene's

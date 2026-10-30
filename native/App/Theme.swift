@@ -247,6 +247,8 @@ enum S {
     static let twoPages = "Two pages"
     static let openBook = "Open book"
     static let closePage = "Close page"
+    static let migrated = "Migrated"
+    static let scheduled = "Scheduled"
     static let pageDivider = "Divider between pages"
     static let closeRightPage = "Close the right page"
     static let closeLeftPage = "Close the left page"

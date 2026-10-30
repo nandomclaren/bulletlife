@@ -272,6 +272,12 @@ struct PenSheetView: UIViewRepresentable {
                 host: sheet, textRect: sheet.words[id])
         }
 
+        /// > or <, with "Migrated" or "Scheduled" and Undo.
+        private func mark(_ state: EntryState, _ id: String, from old: EntryState) {
+            act(.state(state), id)
+            Toasts.marked(state) { [weak self] in self?.act(.state(old), id) }
+        }
+
         private func act(_ action: LineAction, _ id: String) {
             remember()
             action.apply(to: &lines, id: id, eventStates: parent.eventStates)
@@ -290,8 +296,8 @@ struct PenSheetView: UIViewRepresentable {
             var states: [UIMenuElement] = []
             if States.stateful(l.type, eventStates: parent.eventStates) {
                 states = [
-                    UIAction(title: S.migrate) { [weak self] _ in self?.act(.state(.migrated), id) },
-                    UIAction(title: S.schedule) { [weak self] _ in self?.act(.state(.scheduled), id) },
+                    UIAction(title: S.migrate) { [weak self] _ in self?.mark(.migrated, id, from: l.state) },
+                    UIAction(title: S.schedule) { [weak self] _ in self?.mark(.scheduled, id, from: l.state) },
                 ]
                 if l.state != .open { states.append(UIAction(title: S.reopen) { [weak self] _ in self?.act(.state(.open), id) }) }
             }

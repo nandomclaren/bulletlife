@@ -157,6 +157,20 @@ struct SlotEditor: View {
             highlight: lines.contains { $0.id == highlight } ? highlight : nil, readOnly: consulting,
             onSelection: { PageSelection.set(logId: logId, $0) }
         ) { action, id in
+            // > or <: "Migrated" or "Scheduled", with Undo.
+            if case .state(let s) = action, let old = lines.first(where: { $0.id == id })?.state, old != s {
+                let slot = $lines
+                let consulted = consulting
+                let store = repo
+                let states = eventStates
+                Toasts.marked(s) {
+                    if consulted {
+                        store.consult(.state(old), id: id, eventStates: states)
+                    } else if let i = slot.wrappedValue.firstIndex(where: { $0.id == id }) {
+                        slot.wrappedValue[i].state = old
+                    }
+                }
+            }
             if consulting, action != .toggleCollapsed {
                 repo.consult(action, id: id, eventStates: eventStates)
             } else {
