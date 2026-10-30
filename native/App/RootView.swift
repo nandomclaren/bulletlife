@@ -267,7 +267,10 @@ struct RootView: View {
     private func openFound() {
         guard let f = found else { return }
         found = nil
-        nav.go(f.place, highlight: f.highlight, focus: f.focus)
+        // With two pages, on the page to consult (the right one), as Open items; an entry of the page being
+        // written is marked there.
+        let opener = layout == .two && f.place != nav.place ? second : nav
+        opener.go(f.place, highlight: f.highlight, focus: f.focus)
     }
 
     /// One page, two pages, or the open book: a system menu with the current one checked.

@@ -88,7 +88,8 @@ struct PageEditorView: UIViewRepresentable {
         if highlight == nil { c.flashed = nil }
         if let highlight, highlight != c.flashed {
             c.flashed = highlight
-            DispatchQueue.main.async { c.flash(highlight) }
+            // After the page is laid out (a page just opened, or one beside another, may not be yet).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { c.flash(highlight) }
         }
     }
 
@@ -544,6 +545,8 @@ struct PageEditorView: UIViewRepresentable {
             let start = location(of: Caret(index: i, offset: 0))
             let range = NSRange(location: start, length: (lines[i].text as NSString).length)
             guard range.location + range.length <= view.textStorage.length else { return }
+            view.layoutIfNeeded()
+            view.layoutManager.ensureLayout(for: view.textContainer)
             view.scrollRangeToVisible(range)
             let mark = Theme.ui("task").withAlphaComponent(0.16)
             view.textStorage.addAttribute(.backgroundColor, value: mark, range: range)
