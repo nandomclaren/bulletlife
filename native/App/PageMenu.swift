@@ -102,20 +102,32 @@ struct PageMenu: View {
     @State private var sharing: [Any]?
 
     var body: some View {
+        // Everything here takes the page out of the app (a file, the clipboard, another app): the system's
+        // share icon says so better than "…".
         Menu {
-            Menu(S.export) {
-                ForEach(ExportFormat.allCases, id: \.self) { f in Button(f.name) { exportFile(f) } }
-            }
-            Menu(S.copyAs) {
-                ForEach(ExportFormat.allCases, id: \.self) { f in Button(f.name) { copy(f) } }
-            }
-            Menu(S.share) {
+            Menu {
                 ForEach(ExportFormat.allCases, id: \.self) { f in Button(f.name) { share(f) } }
+            } label: {
+                Label(S.share, systemImage: "square.and.arrow.up")
+            }
+            Menu {
+                ForEach(ExportFormat.allCases, id: \.self) { f in Button(f.name) { copy(f) } }
+            } label: {
+                Label(S.copyAs, systemImage: "doc.on.doc")
+            }
+            Menu {
+                ForEach(ExportFormat.allCases, id: \.self) { f in Button(f.name) { exportFile(f) } }
+            } label: {
+                Label(S.export, systemImage: "arrow.down.doc")
             }
             Divider()
-            Button(S.exportPDF) { exportPDF() }
+            Button {
+                exportPDF()
+            } label: {
+                Label(S.exportPDF, systemImage: "printer")
+            }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "square.and.arrow.up")
         }
         .accessibilityLabel(S.pageMenu)
         .disabled(place == .index)
