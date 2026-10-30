@@ -318,17 +318,19 @@ struct RootView: View {
             main
         case .two:
             HStack(spacing: 0) {
-                main.opacity(fading(.left))
-                PageDivider(drag: $dividerDrag, close: closePage)
-                SecondPage(nav: second).opacity(fading(.right))
+                main.opacity(fading(.left)).offset(x: min(0, dividerDrag))
+                PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
+                SecondPage(nav: second).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
+            .clipped()
             .environment(\.pageBeside, true)
         case .book:
             HStack(spacing: 0) {
-                main.opacity(fading(.left))
-                PageDivider(drag: $dividerDrag, close: closePage)
-                FacingPage(nav: nav).opacity(fading(.right))
+                main.opacity(fading(.left)).offset(x: min(0, dividerDrag))
+                PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
+                FacingPage(nav: nav).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
+            .clipped()
             .environment(\.pageBeside, true)
         }
     }
@@ -433,8 +435,9 @@ struct FacingPage: View {
     }
 }
 
-/// The line between two pages. Held for a moment, it shows a handle (as the system's split view does); dragged
-/// far enough to one side, it closes the page on that side and the other stays as a single page.
+/// The line between two pages. Held for a moment, it shows a handle (as the system's split view does); dragged,
+/// the line goes with the finger and pushes the page on that side away; far enough, that page closes and the
+/// other stays as a single page.
 struct PageDivider: View {
     enum Side { case left, right }
     @Binding var drag: CGFloat
@@ -446,13 +449,14 @@ struct PageDivider: View {
         Rectangle()
             .fill(Theme.rule)
             .frame(width: 1)
+            // Paper under the toolbar, where the line does not go (else the window's own background shows).
+            .background(Theme.paper.ignoresSafeArea())
             .overlay {
                 Capsule()
                     .fill(Theme.muted)
                     .frame(width: 6, height: 44)
                     .opacity(holding ? 1 : 0)
                     .scaleEffect(holding ? 1 : 0.6)
-                    .offset(x: drag)
             }
             .overlay {
                 // A wider place to hold than the line itself.
@@ -465,7 +469,8 @@ struct PageDivider: View {
                                 withAnimation(.spring(duration: 0.2)) { holding = true }
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             }
-                            .sequenced(before: DragGesture(minimumDistance: 0))
+                            // In the window's space: the divider itself moves with the finger.
+                            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                             .onChanged { value in
                                 if case .second(true, let d) = value, let d { drag = d.translation.width }
                             }
