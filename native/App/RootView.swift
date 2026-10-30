@@ -340,14 +340,13 @@ struct RootView: View {
         }
     }
 
-    /// Paper, Graphite and Night hold the window to light or dark (Automatic follows the system); the colors
-    /// read the theme and palette when they are drawn.
+    /// The window's paper; Paper, Graphite and Night set light or dark through preferredColorScheme (Automatic
+    /// follows the system), and the colors read the theme and palette when they are drawn.
     private func applyLook() {
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-            for window in scene.windows {
-                window.overrideUserInterfaceStyle = Theme.look.style
-                window.backgroundColor = Theme.ui("paper")
-            }
+            // Light or dark comes from preferredColorScheme alone: holding the window too made the two fight
+            // (the screen stayed blank). The window only keeps the paper behind everything.
+            for window in scene.windows { window.backgroundColor = Theme.ui("paper") }
         }
     }
 }

@@ -21,14 +21,6 @@ enum Theme {
             case .graphite, .night: return .dark
             }
         }
-        /// What the window is held to (unspecified: the system decides).
-        var style: UIUserInterfaceStyle {
-            switch self {
-            case .auto: return .unspecified
-            case .paper: return .light
-            case .graphite, .night: return .dark
-            }
-        }
     }
 
     /// The bullets' colors: task, event, note, each with a light and a dark version (the theme picks one).
