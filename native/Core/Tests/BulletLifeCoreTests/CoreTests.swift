@@ -968,3 +968,22 @@ final class InlineRunTests: XCTestCase {
         XCTAssertEqual(empty.from, 2)
     }
 }
+
+final class MoveLineTests: XCTestCase {
+    func testMovesTheLineWithItsChildren() {
+        let a = Line(text: "a"), d = Line(indent: 0, text: "drawing"), c = Line(indent: 1, text: "child"), b = Line(text: "b")
+        let out = PageEdit.moveLine([a, d, c, b], id: d.id, before: 4)
+        XCTAssertEqual(out?.map(\.text), ["a", "b", "drawing", "child"])
+        XCTAssertEqual(PageEdit.moveLine([a, d, c, b], id: d.id, before: 0)?.map(\.text), ["drawing", "child", "a", "b"])
+        // Dropped right where it is: no move.
+        XCTAssertNil(PageEdit.moveLine([a, d, c, b], id: d.id, before: 1))
+        XCTAssertNil(PageEdit.moveLine([a, d, c, b], id: d.id, before: 3))
+    }
+
+    func testNeverDeeperThanOneUnderTheLineAbove() {
+        let a = Line(text: "a"), b = Line(indent: 1, text: "b"), d = Line(indent: 2, text: "d")
+        let out = PageEdit.moveLine([a, b, d], id: d.id, before: 0)
+        XCTAssertEqual(out?.map(\.text), ["d", "a", "b"])
+        XCTAssertEqual(out?[0].indent, 0)
+    }
+}

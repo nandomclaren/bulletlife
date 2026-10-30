@@ -250,6 +250,44 @@ struct PageEditorView: UIViewRepresentable {
             apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
         }
 
+        /// Where a dragged drawing would go: the gap between lines nearest to `y` (text view coordinates), as the
+        /// index in the page of the line it comes before (the end: the line count), and the gap's height.
+        func gap(atY y: CGFloat) -> (before: Int, y: CGFloat)? {
+            guard let view = textView, !visible.isEmpty else { return nil }
+            let lm = view.layoutManager
+            let s = starts()
+            let length = (view.text as NSString).length
+            var bottom: CGFloat = view.textContainerInset.top
+            for (k, i) in visible.enumerated() {
+                let rect: CGRect
+                if length == 0 || s[k] >= length {
+                    rect = lm.extraLineFragmentRect
+                } else {
+                    var range = NSRange()
+                    let glyph = lm.glyphIndexForCharacter(at: s[k])
+                    let first = lm.lineFragmentRect(forGlyphAt: glyph, effectiveRange: &range)
+                    let paragraph = (view.text as NSString).paragraphRange(for: NSRange(location: s[k], length: 0))
+                    let last = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: max(s[k], NSMaxRange(paragraph) - 1)), effectiveRange: nil)
+                    rect = first.union(last)
+                }
+                let r = rect.offsetBy(dx: 0, dy: view.textContainerInset.top)
+                if y < r.midY { return (i, r.minY) }
+                bottom = r.maxY
+            }
+            return (lines.count, bottom)
+        }
+
+        /// A drawing dropped: its line (with its sub-items) moves to the gap, and its sideways place is kept, in
+        /// one Undo step.
+        func dropDrawing(_ id: String, before: Int?, width: Double, x: Double) {
+            guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].ink != nil else { return }
+            var next = lines
+            next[i].ink?.view = Ink.View(w: width.rounded(), x: max(0, x).rounded())
+            if let before, let moved = PageEdit.moveLine(next, id: id, before: before) { next = moved }
+            let at = next.firstIndex { $0.id == id } ?? i
+            apply(Edited(lines: next, caret: Caret(index: at, offset: 0)))
+        }
+
         /// Deletes a drawing (the × of the selected one, Delete, or Backspace on its empty line). Handwriting is
         /// never deleted from Type mode.
         func deleteDrawing(_ id: String) {
@@ -1086,7 +1124,7 @@ final class InkPreviewView: UIView {
         addSubview(close)
         addSubview(handle)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
-        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragSideways(_:))))
+        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(drag(_:))))
         handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
         isAccessibilityElement = true
     }
@@ -1142,15 +1180,44 @@ final class InkPreviewView: UIView {
     @objc private func tap() { coordinator?.tappedDrawing(id) }
     @objc private func remove() { coordinator?.deleteDrawing(id) }
 
-    /// Sideways, within the text column.
-    @objc private func dragSideways(_ g: UIPanGestureRecognizer) {
+    /// Sideways within the text column, and up or down to another line: a thin rule shows the gap it goes to.
+    @objc private func drag(_ g: UIPanGestureRecognizer) {
+        let t = g.translation(in: superview)
         switch g.state {
-        case .began: start = frame
-        case .changed: frame.origin.x = start.minX + g.translation(in: superview).x
+        case .began:
+            start = frame
+            superview?.bringSubviewToFront(self)
+        case .changed:
+            frame.origin = CGPoint(x: start.minX + t.x, y: start.minY + t.y)
+            target = abs(t.y) > 16 ? coordinator?.gap(atY: frame.midY) : nil
+            showDrop()
         case .ended, .cancelled:
             let x = max(0, frame.minX - start.minX + offsetInColumn)
-            coordinator?.setDrawingView(id, width: Double(bounds.width), x: Double(x))
+            let before = g.state == .ended ? target?.before : nil
+            target = nil
+            showDrop()
+            if before == nil { frame.origin.y = start.minY }
+            coordinator?.dropDrawing(id, before: before, width: Double(bounds.width), x: Double(x))
         default: break
+        }
+    }
+
+    private var target: (before: Int, y: CGFloat)?
+    private var dropRule: UIView?
+
+    private func showDrop() {
+        guard let target, let host = superview else {
+            dropRule?.removeFromSuperview()
+            dropRule = nil
+            return
+        }
+        let rule = dropRule ?? UIView()
+        rule.backgroundColor = tintColor
+        rule.layer.cornerRadius = 1
+        rule.frame = CGRect(x: start.minX - CGFloat(ink?.view?.x ?? 0), y: target.y - 1, width: maxWidth, height: 2)
+        if dropRule == nil {
+            host.addSubview(rule)
+            dropRule = rule
         }
     }
 

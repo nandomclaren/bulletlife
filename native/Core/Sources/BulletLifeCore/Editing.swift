@@ -270,3 +270,22 @@ public enum PageEdit {
         l.explore = false
     }
 }
+
+extension PageEdit {
+    /// Moves a line (with its sub-items) so it comes before line `before` (an index in the page; the end is the
+    /// line count), as dragging a drawing in Type mode does (LineEditor.tsx moveLine). Where it lands it is
+    /// never deeper than one level under the line above. Nil when it would not move.
+    public static func moveLine(_ lines: [Line], id: String, before: Int) -> [Line]? {
+        guard let i = lines.firstIndex(where: { $0.id == id }) else { return nil }
+        let end = Outline.subtreeEnd(lines, i)
+        guard before < i || before > end else { return nil }
+        var out = lines
+        var block = Array(out[i..<end])
+        out.removeSubrange(i..<end)
+        let at = before > i ? before - block.count : before
+        let shift = min(block[0].indent, Outline.maxIndent(out + [Line()], at)) - block[0].indent
+        for k in block.indices { block[k].indent = max(0, block[k].indent + shift) }
+        out.insert(contentsOf: block, at: at)
+        return out
+    }
+}
