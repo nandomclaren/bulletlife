@@ -80,10 +80,26 @@ struct PageEditorView: UIViewRepresentable {
             // Another page, a transcription, or a change from the bullet menu: lay the page out again. The
             // keyboard's own undo steps would no longer match the text, so Undo starts afresh.
             let samePage = Set(c.lines.map(\.id)).intersection(lines.map(\.id)).count > 0
+            // Handwriting just transcribed: its text takes the place of the writing with a soft cross-fade, not a
+            // jump (a picture of the page as it was fades out over the new one).
+            let before = Dictionary(c.lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            let transcribed = samePage && lines.contains { l in
+                guard let old = before[l.id], old.ink != nil, old.text.isEmpty else { return false }
+                return !l.text.isEmpty && l.ink != nil
+            }
+            let picture = transcribed && !UIAccessibility.isReduceMotionEnabled ? view.snapshotView(afterScreenUpdates: false) : nil
             c.lines = lines
             if !samePage { c.erased = InkPage.erasedInType(lines) }
             c.undo.removeAllActions()
             c.rebuild(caret: samePage ? c.currentCaret() : nil)
+            if let picture, let host = view.superview {
+                picture.frame = view.frame
+                picture.isUserInteractionEnabled = false
+                host.addSubview(picture)
+                UIView.animate(withDuration: 0.45, delay: 0.05, options: [.curveEaseInOut]) {
+                    picture.alpha = 0
+                } completion: { _ in picture.removeFromSuperview() }
+            }
         } else if restyle {
             c.rebuild(caret: c.currentCaret())
         }

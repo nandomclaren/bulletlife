@@ -50,6 +50,9 @@ struct PenSheetView: UIViewRepresentable {
     var undoRequests: Int
     /// Room for a header floating over the sheet (it scrolls under it).
     var topInset: CGFloat = 0
+    /// Where to put the sheet back (Back), applied once per restore; and how far it is scrolled.
+    var restore: ScrollRestore? = nil
+    var onScroll: (CGFloat) -> Void = { _ in }
     var onCanUndo: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -105,6 +108,15 @@ struct PenSheetView: UIViewRepresentable {
                 c.render()
             }
         }
+        if let r = restore, r.id != c.restored {
+            c.restored = r.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak canvas] in
+                guard let canvas else { return }
+                let top = -canvas.adjustedContentInset.top
+                let bottom = max(top, canvas.contentSize.height + canvas.adjustedContentInset.bottom - canvas.bounds.height)
+                canvas.setContentOffset(CGPoint(x: canvas.contentOffset.x, y: min(max(top, r.y + top), bottom)), animated: false)
+            }
+        }
         if undoRequests != c.undoSeen {
             c.undoSeen = undoRequests
             // After this update: undoing writes the page back.
@@ -115,6 +127,13 @@ struct PenSheetView: UIViewRepresentable {
     // MARK: -
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
+        /// The last restore applied (see `restore`).
+        var restored = 0
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            parent.onScroll(scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+        }
+
         var parent: PenSheetView
         weak var canvas: SheetCanvas?
         weak var sheet: SheetBackground?

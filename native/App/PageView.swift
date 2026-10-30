@@ -90,7 +90,10 @@ struct PageView: View {
         ZStack(alignment: .top) {
             PenSheetView(
                 lines: $lines, tool: penTool, color: penColor, size: penSize, eventStates: eventStates, doneMark: doneMark,
-                undoRequests: undoRequests, topInset: headerHeight, onCanUndo: { canUndo = $0 }
+                undoRequests: undoRequests, topInset: headerHeight,
+                restore: loadedFor == logId && nav.restore?.place == place ? nav.restore : nil,
+                onScroll: { [place] in nav.remember($0, for: place) },
+                onCanUndo: { canUndo = $0 }
             )
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)

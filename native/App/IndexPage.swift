@@ -14,6 +14,7 @@ struct IndexPage: View {
     @State private var name = ""
     @State private var date = Date()
     @FocusState private var nameFocused: Bool
+    @EnvironmentObject private var nav: Navigator
     /// Consulted beside another page: its pages open there, nothing else changes from here.
     @Environment(\.pageRole) private var role
     private var consulting: Bool { role == .second }
@@ -53,6 +54,7 @@ struct IndexPage: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
+        .remembersScroll(nav, place: .index)
         .background(Theme.paper)
     }
 
