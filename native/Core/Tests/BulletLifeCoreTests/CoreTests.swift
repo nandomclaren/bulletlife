@@ -1010,3 +1010,17 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(Search.collections(logs, query: "livros").map(\.item.title), ["Livros lidos"])
     }
 }
+
+final class LevelStepTests: XCTestCase {
+    func testUpAndDownAroundTheAnchor() {
+        let day = Period.day("2026-10-30")
+        XCTAssertEqual(day.level(-1, today: "2026-10-30", firstDay: 1), .week(Dates.weekKey("2026-10-30", firstDay: 1)))
+        XCTAssertNil(day.level(1, today: "2026-10-30", firstDay: 1))
+        // A month other than today's goes down to its first day's week.
+        XCTAssertEqual(Period.month("2026-09").level(1, today: "2026-10-30", firstDay: 1), .week(Dates.weekKey("2026-09-01", firstDay: 1)))
+        XCTAssertNil(Period.year("2026").level(-1, today: "2026-10-30", firstDay: 1))
+        // Weekly off: Day goes up to the Month.
+        let noWeeks = ActiveLogs(monthly: true, weekly: false, daily: true)
+        XCTAssertEqual(day.level(-1, today: "2026-10-30", firstDay: 1, active: noWeeks), .month("2026-10"))
+    }
+}

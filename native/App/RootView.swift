@@ -269,12 +269,13 @@ struct RootView: View {
                         }
                         .keyboardShortcut("k", modifiers: .command)
                         .accessibilityLabel(S.search)
-                        // ⌘F too, as in other apps.
+                        // ⌘F too, as in other apps; and the keyboard's way around the notebook.
                         .background {
                             Button("") { searching = true }
                                 .keyboardShortcut("f", modifiers: .command)
                                 .opacity(0)
                                 .accessibilityHidden(true)
+                            KeyboardNavigation(nav: nav)
                         }
                         OpenItemsButton(isOpen: $nav.showOpen)
                         if sizeClass == .regular { layoutMenu }
@@ -518,5 +519,46 @@ struct PageDivider: View {
 struct SidesOnly: Shape {
     func path(in rect: CGRect) -> Path {
         Path(rect.insetBy(dx: 0, dy: -10_000))
+    }
+}
+
+/// Keyboard shortcuts around the notebook (CLAUDE.md 5.1): ⌘T Today; ⌃⌘↑ / ⌃⌘↓ a level up or down (Day ›
+/// Week › Month › Year, around the day looked at); ⌃⌘← / ⌃⌘→ the previous or next page at the same level.
+/// Hidden buttons, so they show in the iPad's shortcut list (holding ⌘) and work from the editor too.
+struct KeyboardNavigation: View {
+    @ObservedObject var nav: Navigator
+    @AppStorage("firstDay") private var firstDay = 1
+
+    var body: some View {
+        Group {
+            Button(S.today) { today() }.keyboardShortcut("t", modifiers: .command)
+            Button(S.levelUp) { level(-1) }.keyboardShortcut(.upArrow, modifiers: [.control, .command])
+            Button(S.levelDown) { level(1) }.keyboardShortcut(.downArrow, modifiers: [.control, .command])
+            Button(S.previous) { move(-1) }.keyboardShortcut(.leftArrow, modifiers: [.control, .command])
+            Button(S.next) { move(1) }.keyboardShortcut(.rightArrow, modifiers: [.control, .command])
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+
+    private var current: Period? {
+        if case .time(let p) = nav.place { return p }
+        return nil
+    }
+
+    private func today() {
+        let p = current.map { Period.containing(Dates.today(), like: $0, firstDay: firstDay) }
+        nav.go(.time(p ?? Prefs.active.finest(Dates.today(), firstDay: firstDay)))
+    }
+
+    private func level(_ step: Int) {
+        guard let p = current, let next = p.level(step, today: Dates.today(), firstDay: firstDay, active: Prefs.active) else { return }
+        nav.go(.time(next))
+    }
+
+    private func move(_ step: Int) {
+        guard let p = current else { return }
+        nav.go(.time(p.moved(step, firstDay: firstDay)))
     }
 }

@@ -173,6 +173,15 @@ public enum Period: Hashable, Sendable {
         return today >= a && today <= end(firstDay: firstDay) ? today : a
     }
 
+    /// One level up (-1: Day › Week › Month › Year) or down (+1) from this page, around the day it is looked at
+    /// from (keyboard shortcuts; the trail's neighbours). Nil at the top or bottom of the active levels.
+    public func level(_ step: Int, today: String, firstDay: Weekday, active: ActiveLogs = ActiveLogs()) -> Period? {
+        let items = Period.trail(anchor: anchor(today: today, firstDay: firstDay), firstDay: firstDay, active: active)
+        guard let i = items.firstIndex(where: { $0.sameLevel(self) }) else { return nil }
+        let j = i + step
+        return items.indices.contains(j) ? items[j] : nil
+    }
+
     /// The navigation trail from the anchor, coarsest first: Year › Month › Week › Day (a week can span two
     /// months; the month shown is the anchor's). Levels turned off are left out (the Year is always on).
     public static func trail(anchor: String, firstDay: Weekday, active: ActiveLogs = ActiveLogs()) -> [Period] {

@@ -469,6 +469,23 @@ struct PageEditorView: UIViewRepresentable {
         }
 
         /// ⌘↩: the line's state goes on to the next (open → done → cancelled → open).
+        /// ⌃⌥→ / ⌃⌥←: the line with the caret marked > or < (again: back to open), with the notice and Undo.
+        func markLine(_ state: EntryState) {
+            guard !parent.readOnly, let at = currentCaret(), States.stateful(lines[at.index].type, eventStates: parent.eventStates) else { return }
+            let id = lines[at.index].id
+            let old = lines[at.index].state
+            let new: EntryState = old == state ? .open : state
+            setState(id, new)
+            Toasts.marked(new) { [weak self] in self?.setState(id, old) }
+        }
+
+        private func setState(_ id: String, _ state: EntryState) {
+            guard let i = lines.firstIndex(where: { $0.id == id }) else { return }
+            var next = lines
+            next[i].state = state
+            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
+        }
+
         func cycleState() {
             guard !parent.readOnly else { return }
             guard let at = currentCaret(), States.stateful(lines[at.index].type, eventStates: parent.eventStates) else { return }
@@ -1077,6 +1094,9 @@ final class EditorTextView: UITextView {
             UIKeyCommand(input: "b", modifierFlags: .command, action: #selector(toggleBoldface(_:))),
             UIKeyCommand(input: "i", modifierFlags: .command, action: #selector(toggleItalics(_:))),
             UIKeyCommand(input: "h", modifierFlags: [.command, .shift], action: #selector(toggleHighlight)),
+            // ⌃⌥→ / ⌃⌥←: migrate / schedule the line (⌥→ / ⌥← stay the system's, word by word).
+            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [.control, .alternate], action: #selector(migrateLine)),
+            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [.control, .alternate], action: #selector(scheduleLine)),
         ]
         commands.forEach { $0.wantsPriorityOverSystemBehavior = true }
         return commands
@@ -1086,6 +1106,8 @@ final class EditorTextView: UITextView {
     @objc private func outdentLines() { coordinator?.shiftSelection(-1) }
     @objc private func cycleState() { coordinator?.cycleState() }
     @objc private func toggleHighlight() { coordinator?.toggleInline("==") }
+    @objc private func migrateLine() { coordinator?.markLine(.migrated) }
+    @objc private func scheduleLine() { coordinator?.markLine(.scheduled) }
 
     // The system's Format menu (B / I) writes Markdown marks too, never hidden attributes.
     override func toggleBoldface(_ sender: Any?) { coordinator?.toggleInline("**") }

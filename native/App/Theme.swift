@@ -247,6 +247,8 @@ enum S {
     static let twoPages = "Two pages"
     static let openBook = "Open book"
     static let closePage = "Close page"
+    static let levelUp = "Level up"
+    static let levelDown = "Level down"
     static let backup = "Backup"
     static let exportEverything = "Export everything…"
     static let exportEverythingHint =
