@@ -321,19 +321,23 @@ struct RootView: View {
         case .single:
             main
         case .two:
+            // The pages meet with no gap (a gap showed the system's background under the toolbar); the divider
+            // is drawn over the seam.
             HStack(spacing: 0) {
                 main.opacity(fading(.left)).offset(x: min(0, dividerDrag))
-                PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
                 SecondPage(nav: second).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
+            .overlay { PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag) }
             .clipShape(SidesOnly())
             .environment(\.pageBeside, true)
         case .book:
+            // The pages meet with no gap (a gap showed the system's background under the toolbar); the divider
+            // is drawn over the seam.
             HStack(spacing: 0) {
                 main.opacity(fading(.left)).offset(x: min(0, dividerDrag))
-                PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
                 FacingPage(nav: nav).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
+            .overlay { PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag) }
             .clipShape(SidesOnly())
             .environment(\.pageBeside, true)
         }
@@ -445,8 +449,6 @@ struct PageDivider: View {
         Rectangle()
             .fill(Theme.rule)
             .frame(width: 1)
-            // Paper under the toolbar, where the line does not go (else the window's own background shows).
-            .background(Theme.paper.ignoresSafeArea())
             .overlay {
                 Capsule()
                     .fill(Theme.muted)
