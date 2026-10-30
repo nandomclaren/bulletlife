@@ -88,7 +88,7 @@ enum PageDocs {
     static func text(_ doc: ExportDoc, _ format: ExportFormat, style: GlyphStyle) -> String {
         switch format {
         case .markdown: return Export.markdown(doc, style: style)
-        case .rich: return Export.html(doc)
+        case .rich: return Export.html(doc, colors: Theme.exportColors)
         case .plain: return Export.plain(doc)
         }
     }
@@ -144,7 +144,7 @@ struct PageMenu: View {
     private func copy(_ f: ExportFormat) {
         guard let doc = current()?.doc else { return }
         switch f {
-        case .rich: UIPasteboard.general.setItems([["public.html": Export.html(doc), "public.utf8-plain-text": Export.plain(doc)]])
+        case .rich: UIPasteboard.general.setItems([["public.html": Export.html(doc, colors: Theme.exportColors), "public.utf8-plain-text": Export.plain(doc)]])
         default: UIPasteboard.general.string = PageDocs.text(doc, f, style: style)
         }
     }

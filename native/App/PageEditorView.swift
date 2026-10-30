@@ -453,6 +453,7 @@ struct PageEditorView: UIViewRepresentable {
             var next = lines
             next[at.index].state = States.next(next[at.index].state)
             apply(Edited(lines: next, caret: at))
+            celebrate(lines[at.index].id)
         }
 
         // MARK: Typing inside a line
@@ -912,6 +913,32 @@ struct PageEditorView: UIViewRepresentable {
             var next = lines
             next[i].state = States.next(next[i].state)
             apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
+            celebrate(id)
+        }
+
+        /// The done animation (Settings), when a tap or ⌘↩ completes or cancels a line.
+        func celebrate(_ id: String) {
+            guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].state == .done || lines[i].state == .cancelled,
+                let view = textView, let b = bullets.first(where: { $0.lineId == id && !$0.isHidden })
+            else { return }
+            let root = Outline.colorTypes(lines)[i]
+            let color = Theme.ui(root == .text || root == .heading ? "task" : root.rawValue)
+            b.playDone(cancel: lines[i].state == .cancelled, check: parent.doneMark == "✓", color: color, host: view, textRect: textRect(i))
+        }
+
+        /// The words of a line, in the text view's coordinates (its first visual line).
+        private func textRect(_ i: Int) -> CGRect? {
+            guard let view = textView, !lines[i].text.isEmpty else { return nil }
+            let start = location(of: Caret(index: i, offset: 0))
+            let length = min((lines[i].text as NSString).length, (view.text as NSString).length - start)
+            guard length > 0 else { return nil }
+            let lm = view.layoutManager
+            let glyphs = lm.glyphRange(forCharacterRange: NSRange(location: start, length: length), actualCharacterRange: nil)
+            var line = NSRange()
+            _ = lm.lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: &line)
+            let first = NSIntersectionRange(glyphs, line)
+            let r = lm.boundingRect(forGlyphRange: first.length > 0 ? first : glyphs, in: view.textContainer)
+            return r.offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
         }
 
         func menu(for id: String) -> UIMenu? {
@@ -972,7 +999,7 @@ final class EditorTextView: UITextView {
         guard let lines = coordinator?.selectedLines(), !lines.isEmpty else { return super.copy(sender) }
         let doc = ExportDoc.selection(lines)
         UIPasteboard.general.setItems([[
-            Paste.linesType: Paste.json(lines), "public.html": Export.html(doc), "public.utf8-plain-text": Export.plain(doc),
+            Paste.linesType: Paste.json(lines), "public.html": Export.html(doc, colors: Theme.exportColors), "public.utf8-plain-text": Export.plain(doc),
         ]])
     }
 
@@ -1039,6 +1066,7 @@ final class BulletView: UIView, UIContextMenuInteractionDelegate {
     /// Signifiers, just left of the bullet: * priority, ! inspiration, an eye for explore.
     private let signifiers = UILabel()
     private var id = ""
+    var lineId: String { id }
     private weak var coordinator: PageEditorView.Coordinator?
 
     override init(frame: CGRect) {
@@ -1075,6 +1103,10 @@ final class BulletView: UIView, UIContextMenuInteractionDelegate {
         if line.inspiration { parts.append(S.inspiration) }
         if line.explore { parts.append(S.explore) }
         accessibilityLabel = parts.joined(separator: ", ")
+    }
+
+    func playDone(cancel: Bool, check: Bool, color: UIColor, host: UIView, textRect: CGRect?) {
+        DoneFx.play(cancel: cancel, check: check, bullet: self, mark: label, color: color, host: host, textRect: textRect)
     }
 
     override func layoutSubviews() {

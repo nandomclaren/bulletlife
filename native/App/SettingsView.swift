@@ -3,6 +3,7 @@
 import BulletLifeCore
 import SwiftData
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
@@ -32,6 +33,9 @@ struct SettingsView: View {
     @AppStorage("closeDayAt") private var closeDayAt = "20:00"
     @AppStorage("glyphStyle") private var glyphStyle = GlyphStyle.checkboxes.rawValue
     @AppStorage("dateOrder") private var dateOrder = DateOrder.dmy.rawValue
+    @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
+    @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
+    @AppStorage("doneAnimation") private var doneAnimation = DoneAnimation.ink.rawValue
     @State private var printing: [Any]?
     @ObservedObject private var handwriting = Handwriting.shared
 
@@ -44,6 +48,49 @@ struct SettingsView: View {
                 Text(S.importTitle)
             } footer: {
                 Text(S.importHint)
+            }
+            Section {
+                Picker(S.theme, selection: $theme) {
+                    ForEach(Theme.Look.allCases) { look in
+                        VStack(alignment: .leading) {
+                            Text(look.name)
+                            Text(look.hint).font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .tag(look.rawValue)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                Picker(selection: $palette) {
+                    ForEach(Theme.Palette.allCases) { p in
+                        HStack {
+                            Text(p.name)
+                            Spacer()
+                            PaletteDots(palette: p)
+                        }
+                        .tag(p.rawValue)
+                    }
+                } label: {
+                    Text(S.palette)
+                }
+                .pickerStyle(.navigationLink)
+                Picker(selection: $doneAnimation) {
+                    ForEach(DoneAnimation.allCases) { a in
+                        VStack(alignment: .leading) {
+                            Text(a.name)
+                            Text(a.hint).font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .tag(a.rawValue)
+                    }
+                } label: {
+                    Text(S.doneAnimation)
+                }
+                .pickerStyle(.navigationLink)
+                DonePreview(animation: doneAnimation, check: doneMark == "✓")
+                    .frame(height: 44)
+            } header: {
+                Text(S.looks)
+            } footer: {
+                Text(S.paletteHint + " " + S.doneAnimationHint)
             }
             Section {
                 // At least one of Month, Week and Day stays on (the last one can't be turned off).
@@ -158,5 +205,93 @@ struct SettingsView: View {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(PageMenu.fileName("Bullet Life · \(range.name)", "pdf"))
         try? PdfExport.render(pages, firstDay: firstDay).write(to: url)
         printing = [url]
+    }
+}
+
+/// A palette's three colors, in the tone the theme shows.
+struct PaletteDots: View {
+    let palette: Theme.Palette
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<3, id: \.self) { k in
+                let c = palette.colors[k]
+                Circle()
+                    .fill(Color(uiColor: UIColor(hex: scheme == .dark ? c.1 : c.0)))
+                    .frame(width: 12, height: 12)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// A sample task: tapping its bullet plays the chosen done animation (and cancels on the second tap, as on a page).
+struct DonePreview: UIViewRepresentable {
+    let animation: String
+    let check: Bool
+
+    func makeUIView(context: Context) -> PreviewRow { PreviewRow() }
+
+    func updateUIView(_ row: PreviewRow, context: Context) {
+        row.animation = DoneAnimation(rawValue: animation) ?? .ink
+        row.check = check
+        row.refresh()
+    }
+
+    final class PreviewRow: UIView {
+        var animation: DoneAnimation = .ink
+        var check = false
+        private var state: EntryState = .open
+        private let bullet = UIView()
+        private let glyph = UILabel()
+        private let text = UILabel()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .secondarySystemGroupedBackground
+            glyph.textAlignment = .center
+            glyph.font = UIFont(name: "AvenirNext-Bold", size: 17) ?? .boldSystemFont(ofSize: 17)
+            bullet.addSubview(glyph)
+            addSubview(bullet)
+            text.font = UIFont(name: "AvenirNext-Regular", size: 17) ?? .systemFont(ofSize: 17)
+            addSubview(text)
+            bullet.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
+            bullet.isAccessibilityElement = true
+            bullet.accessibilityTraits = .button
+            refresh()
+        }
+
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            bullet.frame = CGRect(x: 0, y: (bounds.height - 44) / 2, width: 44, height: 44)
+            glyph.frame = bullet.bounds
+            text.sizeToFit()
+            text.frame.origin = CGPoint(x: 48, y: (bounds.height - text.frame.height) / 2)
+        }
+
+        func refresh() {
+            glyph.text = States.glyph(.task, state, eventStates: true, doneMark: check ? "✓" : "×")
+            glyph.textColor = Theme.ui("task")
+            let attrs: [NSAttributedString.Key: Any] = [
+                .foregroundColor: state == .open ? Theme.ui("text") : Theme.ui("muted"),
+                .strikethroughStyle: state == .cancelled ? NSUnderlineStyle.single.rawValue : 0,
+            ]
+            text.attributedText = NSAttributedString(string: S.previewTask, attributes: attrs)
+            bullet.accessibilityLabel = "\(S.task), \(state.rawValue)"
+            setNeedsLayout()
+        }
+
+        @objc private func tap() {
+            state = States.next(state)
+            refresh()
+            layoutIfNeeded()
+            guard state == .done || state == .cancelled else { return }
+            DoneFx.play(
+                animation, cancel: state == .cancelled, check: check, bullet: bullet, mark: glyph, color: Theme.ui("task"), host: self,
+                textRect: text.frame)
+        }
     }
 }

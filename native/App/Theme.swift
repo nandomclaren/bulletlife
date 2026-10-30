@@ -5,24 +5,83 @@ import SwiftUI
 import UIKit
 
 enum Theme {
-    static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
+    // MARK: Theme and palette (Settings, kept on this device like the PWA's)
+
+    /// Automatic (the system's light or dark), Paper (light), Graphite (dark), Night (black, for OLED).
+    enum Look: String, CaseIterable, Identifiable {
+        case auto, paper, graphite, night
+        var id: String { rawValue }
+        var name: String { S.themes[rawValue] ?? rawValue }
+        var hint: String { S.themeHints[rawValue] ?? "" }
+        /// What the window is held to (nil: the system decides).
+        var style: UIUserInterfaceStyle {
+            switch self {
+            case .auto: return .unspecified
+            case .paper: return .light
+            case .graphite, .night: return .dark
+            }
+        }
     }
 
-    static let paper = dynamic(0xFAF8F4, 0x141414)
-    static let text = dynamic(0x1F1D1A, 0xECE9E4)
-    static let muted = dynamic(0x726D65, 0x8D8A85)
-    static let rule = dynamic(0xE6E1D8, 0x2A2A2A)
-    static let task = dynamic(0xE0533D, 0xEF6B56)
-    static let event = dynamic(0x3B82C4, 0x5B9BD8)
-    static let note = dynamic(0x2A9D8F, 0x3BB3A4)
-
-    static func dynamicUI(_ light: UInt32, _ dark: UInt32) -> UIColor {
-        UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) }
+    /// The bullets' colors: task, event, note, each with a light and a dark version (the theme picks one).
+    enum Palette: String, CaseIterable, Identifiable {
+        case classic, ocean, forest, dusk, ink
+        var id: String { rawValue }
+        var name: String { S.palettes[rawValue] ?? rawValue }
+        /// task, event, note: (light, dark).
+        var colors: [(UInt32, UInt32)] {
+            switch self {
+            case .classic: return [(0xE0533D, 0xEF6B56), (0x3B82C4, 0x5B9BD8), (0x2A9D8F, 0x3BB3A4)]
+            case .ocean: return [(0x2563A8, 0x6AA3E8), (0xD2603F, 0xF08A70), (0xB0852A, 0xD9AC55)]
+            case .forest: return [(0x2F7D4F, 0x5CB37F), (0xB0683A, 0xD8905F), (0x7A6AA8, 0xA99BE0)]
+            case .dusk: return [(0x6B4FBB, 0xA690EE), (0xC4467A, 0xE6789F), (0x2C8F8A, 0x4FBDB6)]
+            // Like a fountain pen notebook: tasks in ink, the rest in quiet tones.
+            case .ink: return [(0x2B2D31, 0xE4E1DB), (0x5A7898, 0x8FA9C4), (0x9A8F80, 0xA39A8C)]
+            }
+        }
     }
 
-    /// UIKit colors by token: the pen's colors ('ink' and the bullets'), and the page's ('text', 'muted', 'rule').
-    /// The same instance each time, so the editor can tell whether a line already has its color.
+    static var look: Look {
+        _ = watcher
+        return currentLook
+    }
+    static var palette: Palette {
+        _ = watcher
+        return currentPalette
+    }
+    private static var currentLook = Look(rawValue: UserDefaults.standard.string(forKey: "theme") ?? "") ?? .auto
+    private static var currentPalette = Palette(rawValue: UserDefaults.standard.string(forKey: "palette") ?? "") ?? .classic
+    /// Settings are written through @AppStorage: the choice is read again as soon as it is stored, before any
+    /// view is drawn with it.
+    private static let watcher: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: UserDefaults.didChangeNotification, object: nil, queue: nil
+    ) { _ in
+        currentLook = Look(rawValue: UserDefaults.standard.string(forKey: "theme") ?? "") ?? .auto
+        currentPalette = Palette(rawValue: UserDefaults.standard.string(forKey: "palette") ?? "") ?? .classic
+    }
+
+    /// A color that follows light and dark, and Night's deeper tones.
+    static func shaded(_ light: UInt32, _ dark: UInt32, night: UInt32? = nil) -> UIColor {
+        UIColor { t in
+            guard t.userInterfaceStyle == .dark else { return UIColor(hex: light) }
+            return UIColor(hex: look == .night ? night ?? dark : dark)
+        }
+    }
+
+    static var paper: Color { Color(uiColor: ui("paper")) }
+    static var text: Color { Color(uiColor: ui("text")) }
+    static var muted: Color { Color(uiColor: ui("muted")) }
+    static var rule: Color { Color(uiColor: ui("rule")) }
+    static var task: Color { Color(uiColor: ui("task")) }
+    static var event: Color { Color(uiColor: ui("event")) }
+    static var note: Color { Color(uiColor: ui("note")) }
+
+    static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color { Color(uiColor: shaded(light, dark)) }
+    static func dynamicUI(_ light: UInt32, _ dark: UInt32) -> UIColor { shaded(light, dark) }
+
+    /// UIKit colors by token: the pen's colors ('ink' and the bullets'), and the page's ('paper', 'text',
+    /// 'muted', 'rule'). The same instance each time, so the editor can tell whether a line already has its
+    /// color; they read the theme and palette when drawn.
     static func ui(_ token: String) -> UIColor {
         if let c = uiCache[token] { return c }
         let c = makeUI(token)
@@ -32,15 +91,33 @@ enum Theme {
 
     private static var uiCache: [String: UIColor] = [:]
 
+    private static func bullet(_ k: Int) -> UIColor {
+        UIColor { t in
+            let c = palette.colors[k]
+            return UIColor(hex: t.userInterfaceStyle == .dark ? c.1 : c.0)
+        }
+    }
+
     private static func makeUI(_ token: String) -> UIColor {
         switch token {
-        case "task": return dynamicUI(0xE0533D, 0xEF6B56)
-        case "event": return dynamicUI(0x3B82C4, 0x5B9BD8)
-        case "note": return dynamicUI(0x2A9D8F, 0x3BB3A4)
-        case "muted": return dynamicUI(0x726D65, 0x8D8A85)
-        case "rule": return dynamicUI(0xE6E1D8, 0x2A2A2A)
-        default: return dynamicUI(0x1F1D1A, 0xECE9E4)  // 'ink', 'text', a heading
+        case "task": return bullet(0)
+        case "event": return bullet(1)
+        case "note": return bullet(2)
+        case "paper": return shaded(0xFAF8F4, 0x141414, night: 0x000000)
+        case "muted": return shaded(0x726D65, 0x8D8A85, night: 0x85827D)
+        case "rule": return shaded(0xE6E1D8, 0x2A2A2A, night: 0x222222)
+        default: return shaded(0x1F1D1A, 0xECE9E4, night: 0xE6E3DE)  // 'ink', 'text', a heading
         }
+    }
+
+    /// Rich Text uses the palette in use, light version (pasted documents are usually white).
+    static var exportColors: Export.Colors {
+        var c = Export.Colors()
+        let hex = { (v: UInt32) in String(format: "#%06X", v) }
+        c.task = hex(palette.colors[0].0)
+        c.event = hex(palette.colors[1].0)
+        c.note = hex(palette.colors[2].0)
+        return c
     }
 
     /// The color of a line's bullet (and caret): from the type of its root item (Outline.colorTypes).
@@ -150,6 +227,25 @@ enum S {
     static let eventStates = "Event states"
     static let eventStatesHint = "Complete, cancel, migrate and schedule events like tasks."
     static let doneMark = "Done mark"
+    static let looks = "Look"
+    static let theme = "Theme"
+    static let themes = ["auto": "Automatic", "paper": "Paper", "graphite": "Graphite", "night": "Night"]
+    static let themeHints = ["auto": "Follows the system", "paper": "Light", "graphite": "Dark", "night": "Black, for OLED screens"]
+    static let palette = "Palette"
+    static let paletteHint = "Colors of task, event and note bullets. Each palette has a light and a dark version."
+    static let palettes = ["classic": "Classic", "ocean": "Ocean", "forest": "Forest", "dusk": "Dusk", "ink": "Ink"]
+    static let doneAnimation = "Done animation"
+    static let doneAnimationHint = "Plays when you complete an entry; a quieter version when you cancel one. Tap the bullet to preview."
+    static let doneAnimations = [
+        "ink": "Ink", "pop": "Pop", "ripple": "Ripple", "sparks": "Sparks", "highlighter": "Highlighter", "settle": "Settle",
+        "colorSparks": "Colored sparks",
+    ]
+    static let doneAnimationHints = [
+        "ink": "The mark is drawn like a pen stroke", "pop": "The bullet swells for a moment", "ripple": "A thin ring spreads and fades",
+        "sparks": "Six tiny dots burst and fade", "highlighter": "A soft swipe of color across the text",
+        "settle": "The line takes a small breath", "colorSparks": "Sparks in red, blue and green",
+    ]
+    static let previewTask = "Water the plants"
     static let importTitle = "Bring over from the web app"
     static let importButton = "Import a backup file…"
     static let importHint =

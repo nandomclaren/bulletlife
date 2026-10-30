@@ -3,6 +3,7 @@
 // marks it briefly. Navigating never creates or writes anything.
 import BulletLifeCore
 import SwiftData
+import UIKit
 import SwiftUI
 
 enum Place: Hashable {
@@ -82,6 +83,8 @@ final class Navigator: ObservableObject {
 
 struct RootView: View {
     @StateObject private var nav = Navigator()
+    @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
+    @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.modelContext) private var context
 
@@ -92,6 +95,9 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             page
+                // A new theme or palette: the page is drawn again in its colors (UIKit text keeps what it drew).
+                .id("\(theme)/\(palette)")
+                .background(Theme.paper.ignoresSafeArea())
                 .safeAreaInset(edge: .top, spacing: 0) { Banners() }
                 // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
                 // iPhone (CLAUDE.md 4.2).
@@ -136,6 +142,17 @@ struct RootView: View {
         }
         .environmentObject(nav)
         .tint(Theme.task)
+        .onAppear(perform: applyLook)
+        .onChange(of: theme) { applyLook() }
+        .onChange(of: palette) { applyLook() }
+    }
+
+    /// Paper, Graphite and Night hold the window to light or dark (Automatic follows the system); the colors
+    /// read the theme and palette when they are drawn.
+    private func applyLook() {
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in scene.windows { window.overrideUserInterfaceStyle = Theme.look.style }
+        }
     }
 
     /// Day, Week and collections are free pages (Type or Pen); Month and Year have their fixed layouts.
