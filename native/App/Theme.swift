@@ -228,6 +228,11 @@ enum S {
     static let eventStatesHint = "Complete, cancel, migrate and schedule events like tasks."
     static let doneMark = "Done mark"
     static let looks = "Look"
+    static let pageLayout = "Pages"
+    static let singlePage = "One page"
+    static let twoPages = "Two pages"
+    static let openBook = "Open book"
+    static let openOnLeft = "This page is open on the left."
     static let theme = "Theme"
     static let themes = ["auto": "Automatic", "paper": "Paper", "graphite": "Graphite", "night": "Night"]
     static let themeHints = ["auto": "Follows the system", "paper": "Light", "graphite": "Dark", "night": "Black, for OLED screens"]

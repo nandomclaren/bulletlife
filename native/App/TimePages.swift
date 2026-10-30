@@ -17,15 +17,36 @@ struct TimeHeader<Accessory: View>: View {
     @AppStorage("firstDay") private var firstDay = 1
     @State private var picking = false
     @State private var picked = Date()
+    /// The open book's right page shows only its name; ‹ › on the left page turn two pages.
+    @Environment(\.pageRole) private var role
+    @Environment(\.pageStep) private var step
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if role != .facing { controls }
+            if !label.isEmpty && !compact {
+                Text(label.uppercased())
+                    .font(Theme.body(13, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.muted)
+                    .transition(.opacity)
+            }
+            Text(title)
+                .font(Theme.body(compact ? 19 : 30, weight: .bold))
+                .foregroundStyle(Theme.text)
+        }
+        // The facing page's name sits level with the left page's (where the controls would be).
+        .padding(.top, role == .facing ? 44 : 0)
+        .animation(.easeInOut(duration: 0.2), value: compact)
+    }
+
+    private var controls: some View {
             HStack(spacing: 12) {
                 Trail(period: $period)
                 Spacer(minLength: 8)
                 accessory
                 Button {
-                    period = period.moved(-1, firstDay: firstDay)
+                    period = period.moved(-step, firstDay: firstDay)
                 } label: {
                     Image(systemName: "chevron.left")
                 }
@@ -40,7 +61,7 @@ struct TimeHeader<Accessory: View>: View {
                     .onLongPressGesture { period = Prefs.active.finest(Dates.today(), firstDay: firstDay) }
                     .accessibilityAddTraits(.isButton)
                 Button {
-                    period = period.moved(1, firstDay: firstDay)
+                    period = period.moved(step, firstDay: firstDay)
                 } label: {
                     Image(systemName: "chevron.right")
                 }
@@ -67,18 +88,6 @@ struct TimeHeader<Accessory: View>: View {
                 }
             }
             .font(Theme.body(15))
-            if !label.isEmpty && !compact {
-                Text(label.uppercased())
-                    .font(Theme.body(13, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.muted)
-                    .transition(.opacity)
-            }
-            Text(title)
-                .font(Theme.body(compact ? 19 : 30, weight: .bold))
-                .foregroundStyle(Theme.text)
-        }
-        .animation(.easeInOut(duration: 0.2), value: compact)
     }
 }
 
@@ -170,8 +179,15 @@ struct MonthPage: View {
     @State private var marked: String?
     /// Scrolled past the first days: the header's title shrinks.
     @State private var scrolled = false
+    @State private var width: CGFloat = 0
+    /// Another page beside it (two pages, open book): one column.
+    @Environment(\.pageBeside) private var beside
 
     private var active: ActiveLogs { ActiveLogs(monthly: monthly, weekly: weekly, daily: daily) }
+
+    /// On its own on a wide screen, the days and Month tasks sit side by side, like an open notebook (as in
+    /// the PWA); with a page beside it, or narrower, Month tasks follow the days.
+    private var sideBySide: Bool { !beside && width >= 900 }
 
     var body: some View {
         let today = Dates.today()
@@ -179,28 +195,27 @@ struct MonthPage: View {
         let logId = Period.month(ym).logId
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ScrolledMarker(scrolled: $scrolled)
-                    ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
-                        if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
-                        dayRow(iso, today: today, logId: logId)
+                Group {
+                    if sideBySide {
+                        HStack(alignment: .top, spacing: 48) {
+                            days(today: today, logId: logId).frame(maxWidth: .infinity, alignment: .leading)
+                            tasks(logId: logId, first: true).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxWidth: 1240)
+                    } else {
+                        VStack(alignment: .leading, spacing: 0) {
+                            days(today: today, logId: logId)
+                            tasks(logId: logId, first: false)
+                        }
+                        .frame(maxWidth: 720, alignment: .leading)
                     }
-                    Text(S.monthTasks)
-                        .font(Theme.body(13, weight: .semibold))
-                        .tracking(1.2)
-                        .textCase(.uppercase)
-                        .foregroundStyle(Theme.muted)
-                        .padding(.top, 28)
-                        .padding(.bottom, 8)
-                    SlotEditor(logId: logId, slot: "", minHeight: 96, highlight: nav.highlight)
-                        .id("\(logId)/tasks")
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 8)
                 .padding(.bottom, 240)
-                .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.paper)
             // The header floats over the days, which scroll under it, seen blurred through.
@@ -214,6 +229,30 @@ struct MonthPage: View {
             .onAppear { reveal(proxy, logId: logId) }
             .onChange(of: nav.focus) { reveal(proxy, logId: logId) }
             .onChange(of: nav.highlight) { reveal(proxy, logId: logId) }
+        }
+    }
+
+    private func days(today: String, logId: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrolledMarker(scrolled: $scrolled)
+            ForEach(Array(Dates.monthDays(ym).enumerated()), id: \.element) { n, iso in
+                if n > 0 && Dates.weekday(iso) == firstDay { weekRule(iso) }
+                dayRow(iso, today: today, logId: logId)
+            }
+        }
+    }
+
+    private func tasks(logId: String, first: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(S.monthTasks)
+                .font(Theme.body(13, weight: .semibold))
+                .tracking(1.2)
+                .textCase(.uppercase)
+                .foregroundStyle(Theme.muted)
+                .padding(.top, first ? 8 : 28)
+                .padding(.bottom, 8)
+            SlotEditor(logId: logId, slot: "", minHeight: 96, highlight: nav.highlight)
+                .id("\(logId)/tasks")
         }
     }
 
