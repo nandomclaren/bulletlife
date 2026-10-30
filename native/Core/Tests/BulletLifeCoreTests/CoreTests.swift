@@ -818,3 +818,68 @@ final class InkPreviewTests: XCTestCase {
         XCTAssertEqual(s.x, 200)  // kept inside the column
     }
 }
+
+final class DueTests: XCTestCase {
+    let today = "2026-10-19"  // Monday
+    func p(_ s: String, _ order: DateOrder = .dmy) -> String? { Due.parse(s, today: today, order: order)?.iso }
+
+    func testParsing() {
+        XCTAssertEqual(p("2026-12-03"), "2026-12-03")
+        XCTAssertEqual(p("23/10"), "2026-10-23")
+        XCTAssertEqual(p("10-23"), "2026-10-23")
+        XCTAssertEqual(p("03/04"), "2026-04-03")
+        XCTAssertEqual(p("03/04", .mdy), "2026-03-04")
+        XCTAssertEqual(p("01-02 rest"), "2026-02-01")
+        XCTAssertEqual(p("today"), today)
+        XCTAssertEqual(p("Tomorrow"), "2026-10-20")
+        XCTAssertEqual(p("yesterday"), "2026-10-18")
+        XCTAssertEqual(p("fri"), "2026-10-23")
+        XCTAssertEqual(p("monday"), "2026-10-19")
+        XCTAssertEqual(p("next monday"), "2026-10-26")
+        XCTAssertEqual(p("next week"), "2026-10-26")
+        XCTAssertEqual(p("next month"), "2026-11-01")
+        XCTAssertEqual(p("in 3 days"), "2026-10-22")
+        XCTAssertEqual(p("in 2 weeks"), "2026-11-02")
+    }
+
+    func testUnfinishedOrInvalid() {
+        for s in ["next", "in 3", "tomorrowx", "31/02", "2026-13-01"] { XCTAssertNil(p(s), s) }
+    }
+
+    func testResolve() {
+        let r = Due.resolve("Call Ana due:tomorrow about rent", today: today)
+        XCTAssertEqual(r?.text, "Call Ana due:2026-10-20 about rent")
+        XCTAssertEqual(r?.shift, 2)
+        XCTAssertEqual(Due.resolve("Pay due:next monday", today: today)?.text, "Pay due:2026-10-26")
+        XCTAssertNil(Due.resolve("Pay due:2026-10-26", today: today))
+        XCTAssertNil(Due.resolve("Pay due:next", today: today))
+        XCTAssertNil(Due.resolve("overdue:today", today: today))
+        XCTAssertNil(Due.resolve("a due:fri", today: today, upTo: 7))
+        XCTAssertEqual(Due.of("x due:2026-10-26 y"), "2026-10-26")
+    }
+
+    func testLabels() {
+        XCTAssertEqual(Due.label("2026-10-19", today: today), "Today")
+        XCTAssertEqual(Due.label("2026-10-20", today: today), "Tomorrow")
+        XCTAssertEqual(Due.label("2026-10-18", today: today), "Yesterday")
+        XCTAssertEqual(Due.label("2026-10-23", today: today), "23 Oct")
+        XCTAssertEqual(Due.label("2026-10-23", today: today, order: .mdy), "Oct 23")
+        XCTAssertEqual(Due.label("2027-01-05", today: today), "5 Jan 2027")
+    }
+
+    func testSortingOnRequest() {
+        let L = { (t: String, type: EntryType, indent: Int, state: EntryState) in Line(type: type, state: state, indent: indent, text: t) }
+        XCTAssertEqual(Due.runs([L("Devocional", .task, 0, .open), L("Italiano", .task, 0, .open), L("Mercado due:2026-10-23", .task, 0, .open)]), [])
+        XCTAssertEqual(Due.runs([L("a due:2026-10-20", .task, 0, .open), L("no date", .task, 0, .open), L("b due:2026-10-25", .task, 0, .open)])[0].sorted, true)
+        let lines = [
+            L("List", .heading, 0, .open), L("b due:2026-10-25", .task, 0, .open), L("child of b", .note, 1, .open),
+            L("no date", .task, 0, .open), L("a due:2026-10-20", .task, 0, .cancelled), L("c due:2026-11-02", .task, 0, .open),
+            L("free text", .text, 0, .open), L("alone due:2026-10-01", .task, 0, .open),
+        ]
+        let runs = Due.runs(lines)
+        XCTAssertEqual(runs, [Due.Run(items: [1, 3, 4, 5], sorted: false)])
+        let sorted = Due.sort(lines, runs[0])
+        XCTAssertEqual(sorted.map(\.text), ["List", "a due:2026-10-20", "b due:2026-10-25", "child of b", "c due:2026-11-02", "no date", "free text", "alone due:2026-10-01"])
+        XCTAssertEqual(Due.runs(sorted)[0].sorted, true)
+    }
+}

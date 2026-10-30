@@ -2,16 +2,6 @@
 // It shows what is loose; resolving anything is always the user's own gesture on one entry.
 import Foundation
 
-/// Dates written in the text as "due:YYYY-MM-DD" (src/editor/due.ts).
-public enum Due {
-    static let token = try! NSRegularExpression(pattern: #"\bdue:(\d{4}-\d{2}-\d{2})(?![\w-])"#)
-
-    public static func of(_ text: String) -> String? {
-        let ns = text as NSString
-        guard let m = token.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else { return nil }
-        return ns.substring(with: m.range(at: 1))
-    }
-}
 
 public enum OpenCategory: String, Sendable {
     /// Due today or overdue, on any page.

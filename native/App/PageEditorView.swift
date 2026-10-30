@@ -164,6 +164,71 @@ struct PageEditorView: UIViewRepresentable {
             return InkPreview.frame(l, maxWidth: Double(width - inset - textIndent(l) - 8))
         }
 
+        // MARK: Due dates (CLAUDE.md 3.7)
+
+        private var dateOrder: DateOrder { DateOrder(rawValue: UserDefaults.standard.string(forKey: "dateOrder") ?? "") ?? .dmy }
+
+        func resolveDue(in text: String, upTo: Int) -> (text: String, shift: Int)? {
+            Due.resolve(text, today: Dates.today(), order: dateOrder, firstDay: Prefs.firstDay, upTo: upTo)
+        }
+
+        private var pills: [DuePillView] = []
+        private var sortButtons: [UIButton] = []
+
+        private func pill(_ n: Int) -> DuePillView {
+            if n < pills.count { return pills[n] }
+            let v = DuePillView()
+            textView?.addSubview(v)
+            pills.append(v)
+            return v
+        }
+
+        private func sortButton(_ n: Int) -> UIButton {
+            if n < sortButtons.count { return sortButtons[n] }
+            let b = UIButton(type: .system)
+            b.setImage(UIImage(systemName: "arrow.up.arrow.down", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .medium)), for: .normal)
+            b.setTitle(" " + S.sortByDate, for: .normal)
+            b.titleLabel?.font = UIFont(name: "AvenirNext-Medium", size: 12) ?? .systemFont(ofSize: 12)
+            b.tintColor = Theme.ui("muted")
+            b.addTarget(self, action: #selector(sortTapped(_:)), for: .touchUpInside)
+            textView?.addSubview(b)
+            sortButtons.append(b)
+            return b
+        }
+
+        /// Sorts a list by date, only because the user asked (the app never reorders by itself).
+        @objc private func sortTapped(_ sender: UIButton) {
+            guard let id = sender.accessibilityIdentifier, let i = lines.firstIndex(where: { $0.id == id }),
+                let run = Due.runs(lines).first(where: { $0.items.first == i })
+            else { return }
+            apply(Edited(lines: Due.sort(lines, run), caret: currentCaret() ?? Caret(index: i, offset: 0)))
+        }
+
+        /// The pill was tapped: a calendar to choose another date, written back into the same token.
+        func pickDate(lineId: String, tokenStart: Int, from source: UIView) {
+            guard let i = lines.firstIndex(where: { $0.id == lineId }),
+                let token = Due.tokens(lines[i].text).first(where: { $0.range.location == tokenStart }),
+                let presenter = textView?.window?.rootViewController.map(Self.topmost)
+            else { return }
+            let picker = DatePickerController(date: Dates.fromIso(token.iso)) { [weak self] date in
+                guard let self, let j = self.lines.firstIndex(where: { $0.id == lineId }) else { return }
+                var next = self.lines
+                next[j].text = (next[j].text as NSString).replacingCharacters(in: token.range, with: "due:\(Dates.toIso(date))")
+                self.apply(Edited(lines: next, caret: self.currentCaret() ?? Caret(index: j, offset: 0)))
+            }
+            picker.modalPresentationStyle = .popover
+            picker.popoverPresentationController?.sourceView = source
+            picker.popoverPresentationController?.sourceRect = source.bounds
+            picker.popoverPresentationController?.delegate = picker
+            presenter.present(picker, animated: true)
+        }
+
+        static func topmost(_ vc: UIViewController) -> UIViewController {
+            var top = vc
+            while let next = top.presentedViewController { top = next }
+            return top
+        }
+
         // MARK: Drawings in Type mode
 
         /// The drawing selected (tap it): it can then be sized, moved sideways or deleted.
@@ -273,7 +338,14 @@ struct PageEditorView: UIViewRepresentable {
             let multi = start.index != end.index
             // Return, or text with line breaks (paste, the Scribble palette's return key).
             if text.contains("\n") || text.contains("\r") {
-                var edited = multi || range.length > 0 ? PageEdit.deleteRange(lines, from: start, to: end) : Edited(lines: lines, caret: start)
+                var base = lines
+                var at = start
+                // A due date finished by Return is stored as a date too.
+                if !multi && range.length == 0, let r = resolveDue(in: base[at.index].text, upTo: at.offset) {
+                    base[at.index].text = r.text
+                    at.offset += r.shift
+                }
+                var edited = multi || range.length > 0 ? PageEdit.deleteRange(lines, from: start, to: end) : Edited(lines: base, caret: at)
                 edited = text == "\n" ? PageEdit.enter(edited.lines, at: edited.caret) : PageEdit.insertText(edited.lines, at: edited.caret, text)
                 apply(edited)
                 return false
@@ -359,6 +431,15 @@ struct PageEditorView: UIViewRepresentable {
                     schedulePrefix(lines[at.index].id)
                 } else if readTypedPrefix(at) {
                     bulk = false
+                    return
+                } else if at.offset > 0, let last = (lines[at.index].text as NSString).substring(to: at.offset).last, last.isWhitespace || ",;!?)".contains(last),
+                    let r = resolveDue(in: lines[at.index].text, upTo: at.offset - 1)
+                {
+                    // "due:tomorrow " just finished: stored as the date, so it never drifts (CLAUDE.md 3.7).
+                    var next = lines
+                    next[at.index].text = r.text
+                    bulk = false
+                    apply(Edited(lines: next, caret: Caret(index: at.index, offset: at.offset + r.shift)))
                     return
                 }
             }
@@ -531,7 +612,9 @@ struct PageEditorView: UIViewRepresentable {
                 let number = Outline.numberPrefix(l.text).map { ($0 as NSString).length } ?? 0
                 let checked = NSRange(location: full.location + number, length: full.length - number)
                 var wrong = false
-                storage.enumerateAttributes(in: checked) { a, _, stop in
+                let tokens = Due.tokens(l.text).map { NSRange(location: at + $0.range.location, length: $0.range.length) }
+                storage.enumerateAttributes(in: checked) { a, r, stop in
+                    if tokens.contains(where: { NSIntersectionRange($0, r).length > 0 }) { return }
                     let font = a[.font] as? UIFont
                     let fontOK = font?.fontName == wantFont?.fontName || (parent.fitOneLine && font?.familyName == wantFont?.familyName)
                     if !fontOK || (a[.paragraphStyle] as? NSParagraphStyle)?.headIndent != wantStyle?.headIndent
@@ -548,6 +631,10 @@ struct PageEditorView: UIViewRepresentable {
                     let r = NSRange(location: at, length: number)
                     let color = colors[i] == .text || colors[i] == .heading ? Theme.ui("task") : Theme.ui(colors[i].rawValue)
                     storage.addAttributes([.font: EditorLayout.bulletFont, .foregroundColor: color], range: r)
+                }
+                // A stored due date: its text makes room for the pill drawn over it (the text stays as written).
+                for t in tokens {
+                    storage.addAttributes([.foregroundColor: UIColor.clear, .font: EditorLayout.pillRoomFont], range: t)
                 }
             }
             storage.endEditing()
@@ -613,6 +700,40 @@ struct PageEditorView: UIViewRepresentable {
                 v.setNeedsDisplay()
             }
             for (n, v) in inkViews.enumerated() { v.isHidden = n >= usedInk }
+            // Due dates as pills; lists out of date order get a quiet "Sort by date".
+            var usedPills = 0
+            let today = Dates.today()
+            for (k, i) in visible.enumerated() {
+                let lineId = lines[i].id
+                for t in Due.tokens(lines[i].text) {
+                    let range = NSRange(location: s[k] + t.range.location, length: t.range.length)
+                    guard range.location + range.length <= length else { continue }
+                    let glyphs = lm.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                    let r = lm.boundingRect(forGlyphRange: glyphs, in: view.textContainer)
+                        .offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
+                    let p = pill(usedPills)
+                    usedPills += 1
+                    p.configure(label: Due.label(t.iso, today: today, order: dateOrder), status: Due.status(t.iso, today: today)) { [weak self, weak p] in
+                        guard let self, let p else { return }
+                        self.pickDate(lineId: lineId, tokenStart: t.range.location, from: p)
+                    }
+                    let size = p.sizeThatFits(.zero)
+                    p.frame = CGRect(x: r.minX, y: r.midY - size.height / 2, width: size.width, height: size.height)
+                }
+            }
+            for (n, p) in pills.enumerated() { p.isHidden = n >= usedPills }
+            var usedSorts = 0
+            for run in Due.runs(lines) where !run.sorted {
+                guard let k = visible.firstIndex(of: run.items[0]), s[k] < max(length, 1) else { continue }
+                let rect = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: min(s[k], max(0, length - 1))), effectiveRange: nil)
+                    .offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
+                let b = sortButton(usedSorts)
+                usedSorts += 1
+                b.accessibilityIdentifier = lines[run.items[0]].id
+                b.sizeToFit()
+                b.frame = CGRect(x: view.bounds.width - view.textContainerInset.right - b.bounds.width, y: rect.minY - 18, width: b.bounds.width, height: 18)
+            }
+            for (n, b) in sortButtons.enumerated() { b.isHidden = n >= usedSorts }
             for (n, b) in bullets.enumerated() { b.isHidden = n >= used }
             for (n, c) in chevrons.enumerated() { c.isHidden = n >= usedChevrons }
         }
@@ -689,6 +810,8 @@ enum EditorLayout {
     static let font = UIFont(name: "AvenirNext-Regular", size: 17) ?? .systemFont(ofSize: 17)
     static let headingFont = UIFont(name: "AvenirNext-Bold", size: 21) ?? .boldSystemFont(ofSize: 21)
     static let bulletFont = UIFont(name: "AvenirNext-DemiBold", size: 17) ?? .boldSystemFont(ofSize: 17)
+    /// A stored "due:YYYY-MM-DD" is set this small (and clear): about the room its pill takes.
+    static let pillRoomFont = UIFont(name: "AvenirNext-Regular", size: 12) ?? .systemFont(ofSize: 12)
 }
 
 /// The page's text view: hands Backspace at a line start, Tab and ⌘↩ to the editor, and keeps the page's own
@@ -926,4 +1049,76 @@ final class InkPreviewView: UIView {
         default: break
         }
     }
+}
+
+/// A due date as a pill: a calendar and "Today" / "Tomorrow" / "23 Oct", colored by how near it is.
+final class DuePillView: UIButton {
+    private var onTap: () -> Void = {}
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        var config = UIButton.Configuration.filled()
+        config.cornerStyle = .capsule
+        config.imagePadding = 4
+        config.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8)
+        config.image = UIImage(systemName: "calendar", withConfiguration: UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold))
+        configuration = config
+        addAction(UIAction { [weak self] _ in self?.onTap() }, for: .touchUpInside)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func configure(label: String, status: DueStatus, onTap: @escaping () -> Void) {
+        self.onTap = onTap
+        let color: UIColor
+        switch status {
+        case .overdue: color = Theme.ui("task")
+        case .today: color = Theme.ui("event")
+        case .future: color = Theme.ui("muted")
+        }
+        var config = configuration ?? .filled()
+        var title = AttributedString(label)
+        title.font = UIFont(name: "AvenirNext-DemiBold", size: 12) ?? .systemFont(ofSize: 12, weight: .semibold)
+        config.attributedTitle = title
+        config.baseForegroundColor = color
+        config.baseBackgroundColor = color.withAlphaComponent(0.13)
+        configuration = config
+        accessibilityLabel = "\(S.due) \(label)"
+    }
+}
+
+/// The calendar a due pill opens.
+final class DatePickerController: UIViewController, UIPopoverPresentationControllerDelegate {
+    private let picker = UIDatePicker()
+    private let onPick: (Date) -> Void
+
+    init(date: Date, onPick: @escaping (Date) -> Void) {
+        self.onPick = onPick
+        super.init(nibName: nil, bundle: nil)
+        picker.date = date
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        picker.datePickerMode = .date
+        picker.preferredDatePickerStyle = .inline
+        picker.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.onPick(self.picker.date)
+            self.dismiss(animated: true)
+        }, for: .valueChanged)
+        view.addSubview(picker)
+        picker.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            picker.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
+            picker.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            picker.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+        ])
+        preferredContentSize = CGSize(width: 340, height: 360)
+    }
+
+    /// A popover on iPhone too, not a full-screen sheet.
+    func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle { .none }
 }

@@ -179,6 +179,9 @@ enum S {
     static let drawing = "Drawing"
     static let handwritingPending = "Handwriting, not transcribed yet"
     static let deleteDrawing = "Delete drawing"
+    static let due = "Due"
+    static let sortByDate = "Sort by date"
+    static let dateFormat = "Date format"
     static let deleteCollection = "Delete collection…"
     static func deleteTitle(_ name: String) -> String { "Delete \u{201C}\(name)\u{201D}?" }
     static func deleteMessage(_ n: Int) -> String {

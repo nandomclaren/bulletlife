@@ -31,6 +31,7 @@ struct SettingsView: View {
     @AppStorage("closeDay") private var closeDay = true
     @AppStorage("closeDayAt") private var closeDayAt = "20:00"
     @AppStorage("glyphStyle") private var glyphStyle = GlyphStyle.checkboxes.rawValue
+    @AppStorage("dateOrder") private var dateOrder = DateOrder.dmy.rawValue
     @State private var printing: [Any]?
     @ObservedObject private var handwriting = Handwriting.shared
 
@@ -78,6 +79,11 @@ struct SettingsView: View {
                 Text(S.printHint)
             }
             Section {
+                // How a short due date is typed and shown: day or month first.
+                Picker(S.dateFormat, selection: $dateOrder) {
+                    Text("DD/MM").tag(DateOrder.dmy.rawValue)
+                    Text("MM/DD").tag(DateOrder.mdy.rawValue)
+                }
                 Picker(S.firstDay, selection: $firstDay) {
                     Text(S.monday).tag(1)
                     Text(S.sunday).tag(0)
