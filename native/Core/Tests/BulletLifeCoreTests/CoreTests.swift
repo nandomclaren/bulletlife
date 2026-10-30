@@ -791,3 +791,30 @@ final class PasteTests: XCTestCase {
         XCTAssertEqual(empty.lines.map(\.text), ["x", "y"])
     }
 }
+
+final class InkPreviewTests: XCTestCase {
+    let writing = Stroke(k: .writing, p: [10, 10, 0.5, 110, 30, 0.5])
+    let drawing = Stroke(k: .drawing, p: [0, 0, 0.5, 200, 100, 0.5])
+
+    func testWhatShows() {
+        XCTAssertEqual(InkPreview.kind(Line(ink: Ink(strokes: [writing]))), .writing)
+        XCTAssertNil(InkPreview.kind(Line(text: "hi", ink: Ink(strokes: [writing], tx: "hi", n: 1))))
+        XCTAssertNil(InkPreview.kind(Line(ink: Ink(strokes: [writing], tx: "", n: 1))))
+        XCTAssertEqual(InkPreview.kind(Line(text: "caption", ink: Ink(strokes: [drawing]))), .drawing)
+        XCTAssertNil(InkPreview.kind(Line(text: "typed")))
+    }
+
+    func testSizes() throws {
+        let w = try XCTUnwrap(InkPreview.frame(Line(ink: Ink(strokes: [writing])), maxWidth: 600))
+        XCTAssertEqual(w.width, 108 * 0.7, accuracy: 0.01)
+        XCTAssertEqual(w.height, 28 * 0.7, accuracy: 0.01)
+        // A drawing: 60% of its width + 20 by default (at most 240 + 20), or the width the user gave it.
+        let d = try XCTUnwrap(InkPreview.frame(Line(ink: Ink(strokes: [drawing])), maxWidth: 600))
+        XCTAssertEqual(d.width, 208 * 0.6 + 20, accuracy: 0.01)
+        var sized = Ink(strokes: [drawing])
+        sized.view = Ink.View(w: 400, x: 500)
+        let s = try XCTUnwrap(InkPreview.frame(Line(ink: sized), maxWidth: 600))
+        XCTAssertEqual(s.width, 400)
+        XCTAssertEqual(s.x, 200)  // kept inside the column
+    }
+}

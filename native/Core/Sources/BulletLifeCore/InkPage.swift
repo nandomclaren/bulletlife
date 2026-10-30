@@ -121,3 +121,43 @@ public enum InkPage {
         return lines
     }
 }
+
+/// What Type mode shows of a line's ink (src/editor/render.ts inkPreview): a drawing always, in a box the user
+/// can size and move sideways; handwriting only until it has a transcription (then the text stands for it).
+public enum InkPreview {
+    public enum Kind: Equatable, Sendable { case writing, drawing }
+
+    public static let pad = 4.0
+    public static let writingScale = 0.7
+    public static let minDrawingWidth = 60.0
+
+    public static func kind(_ l: Line) -> Kind? {
+        guard let ink = l.ink, !ink.strokes.isEmpty else { return nil }
+        if ink.strokes.allSatisfy({ $0.k == .drawing }) { return .drawing }
+        if l.text.isEmpty && ink.tx == nil { return .writing }
+        return nil
+    }
+
+    /// The strokes' bounds with a little room around them.
+    public static func bounds(_ ink: Ink) -> Box? {
+        let boxes = ink.strokes.filter { !$0.p.isEmpty }.map(\.box)
+        guard let first = boxes.first else { return nil }
+        let b = boxes.dropFirst().reduce(first) { Box(x0: min($0.x0, $1.x0), y0: min($0.y0, $1.y0), x1: max($0.x1, $1.x1), y1: max($0.y1, $1.y1)) }
+        return Box(x0: b.x0 - pad, y0: b.y0 - pad, x1: b.x1 + pad, y1: b.y1 + pad)
+    }
+
+    /// Its size in Type mode, at most `maxWidth` wide (and its sideways offset, for a drawing).
+    public static func frame(_ l: Line, maxWidth: Double) -> (width: Double, height: Double, x: Double)? {
+        guard let kind = kind(l), let ink = l.ink, let b = bounds(ink) else { return nil }
+        let w = max(1, b.x1 - b.x0), h = max(1, b.y1 - b.y0)
+        switch kind {
+        case .writing:
+            let width = min(w * writingScale, maxWidth)
+            return (width, h * width / w, 0)
+        case .drawing:
+            let width = min(max(ink.view?.w ?? min(w * 0.6, 240) + 20, minDrawingWidth), maxWidth)
+            let x = min(max(0, ink.view?.x ?? 0), max(0, maxWidth - width))
+            return (width, h * width / w, x)
+        }
+    }
+}

@@ -132,14 +132,15 @@ struct PageEditorView: UIViewRepresentable {
             let stateful = States.stateful(l.type, eventStates: parent.eventStates)
             let faded = stateful && l.state != .open
             let style = NSMutableParagraphStyle()
-            let bulletless = l.type == .text || l.type == .heading
-            let indent = parent.embedded && bulletless ? EditorLayout.bulletX(l.indent) : EditorLayout.textX(l.indent)
+            let indent = textIndent(l)
             style.firstLineHeadIndent = indent
             style.headIndent = indent
             // Embedded (Month, Year): the line is as tall as the normal text, so a shrunk phrase keeps its baseline
             // level with the day's number beside it.
             style.minimumLineHeight = l.type == .heading ? 32 : parent.embedded ? EditorLayout.font.lineHeight : 27
             style.paragraphSpacing = 5
+            // Ink shown in the line (a drawing, or handwriting not transcribed yet) sits above its text.
+            if let f = previewFrame(l) { style.paragraphSpacingBefore = CGFloat(f.height) + 6 }
             var a: [NSAttributedString.Key: Any] = [
                 .font: l.type == .heading ? EditorLayout.headingFont : EditorLayout.font,
                 .foregroundColor: faded ? Theme.ui("muted") : Theme.ui("text"),
@@ -147,6 +148,57 @@ struct PageEditorView: UIViewRepresentable {
             ]
             if stateful && l.state == .cancelled { a[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
             return a
+        }
+
+        /// Where a line's text starts: after the bullet's room (embedded pages start plain text at the margin).
+        func textIndent(_ l: Line) -> CGFloat {
+            let bulletless = l.type == .text || l.type == .heading
+            return parent.embedded && bulletless ? EditorLayout.bulletX(l.indent) : EditorLayout.textX(l.indent)
+        }
+
+        /// The ink a line shows in Type mode, sized for the page's width.
+        func previewFrame(_ l: Line) -> (width: Double, height: Double, x: Double)? {
+            guard l.ink != nil else { return nil }
+            let width = (textView?.bounds.width ?? 0) > 0 ? textView!.bounds.width : 600
+            let inset = textView.map { $0.textContainerInset.left + $0.textContainerInset.right } ?? 32
+            return InkPreview.frame(l, maxWidth: Double(width - inset - textIndent(l) - 8))
+        }
+
+        // MARK: Drawings in Type mode
+
+        /// The drawing selected (tap it): it can then be sized, moved sideways or deleted.
+        var selectedDrawing: String?
+        private var inkViews: [InkPreviewView] = []
+
+        func tappedDrawing(_ id: String) {
+            selectedDrawing = selectedDrawing == id ? nil : id
+            layoutDecor()
+        }
+
+        /// A drawing's size and sideways place in Type mode (its strokes never change).
+        func setDrawingView(_ id: String, width: Double, x: Double) {
+            guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].ink != nil else { return }
+            var next = lines
+            next[i].ink?.view = Ink.View(w: width.rounded(), x: max(0, x).rounded())
+            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
+        }
+
+        /// Deletes a drawing (the × of the selected one, Delete, or Backspace on its empty line). Handwriting is
+        /// never deleted from Type mode.
+        func deleteDrawing(_ id: String) {
+            guard let i = lines.firstIndex(where: { $0.id == id }), InkPreview.kind(lines[i]) == .drawing else { return }
+            var next = lines
+            next[i].ink = nil
+            selectedDrawing = nil
+            apply(Edited(lines: next, caret: Caret(index: i, offset: 0)))
+        }
+
+        private func inkView(_ n: Int) -> InkPreviewView {
+            if n < inkViews.count { return inkViews[n] }
+            let v = InkPreviewView()
+            textView?.addSubview(v)
+            inkViews.append(v)
+            return v
         }
 
         // MARK: Places in the text
@@ -256,9 +308,18 @@ struct PageEditorView: UIViewRepresentable {
         /// Backspace with the caret at a line start (called by the text view, also at the very top, where UIKit
         /// has nothing to delete). Returns whether it was handled.
         func backspaceAtLineStart() -> Bool {
+            if let id = selectedDrawing {
+                deleteDrawing(id)
+                return true
+            }
             guard let view = textView, view.selectedRange.length == 0 else { return false }
             let at = caret(at: view.selectedRange.location)
             guard at.offset == 0 else { return false }
+            // An empty line holding only a drawing: the first Backspace removes the drawing, like a picture.
+            if lines[at.index].text.isEmpty && InkPreview.kind(lines[at.index]) == .drawing {
+                deleteDrawing(lines[at.index].id)
+                return true
+            }
             if let edited = PageEdit.backspaceAtStart(lines, at: at) { apply(edited) }
             return true
         }
@@ -392,6 +453,10 @@ struct PageEditorView: UIViewRepresentable {
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             parent.onSelection(selectedLines())
+            if selectedDrawing != nil {
+                selectedDrawing = nil
+                layoutDecor()
+            }
             // Leaving a line written by Scribble reads its prefix now.
             if let pendingId = pendingPrefix?.id, let at = currentCaret(), lines[at.index].id != pendingId { applyPendingPrefix() }
             updateTyping()
@@ -527,6 +592,27 @@ struct PageEditorView: UIViewRepresentable {
                     c.frame = CGRect(x: view.textContainerInset.left + EditorLayout.bulletX(l.indent) - 18, y: rect.minY, width: 20, height: max(27, min(rect.height, 32)))
                 }
             }
+            // Ink in the lines: drawings, and handwriting not transcribed yet.
+            var usedInk = 0
+            for (k, i) in visible.enumerated() {
+                let l = lines[i]
+                guard let f = previewFrame(l), let kind = InkPreview.kind(l) else { continue }
+                var rect: CGRect
+                if length == 0 || (s[k] >= length && k == visible.count - 1 && l.text.isEmpty) {
+                    rect = lm.extraLineFragmentRect
+                } else {
+                    rect = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: min(s[k], length - 1)), effectiveRange: nil)
+                }
+                let v = inkView(usedInk)
+                usedInk += 1
+                v.configure(line: l, kind: kind, color: colors[i], selected: selectedDrawing == l.id, coordinator: self)
+                v.frame = CGRect(
+                    x: view.textContainerInset.left + textIndent(l) + CGFloat(f.x), y: view.textContainerInset.top + rect.minY + 3,
+                    width: CGFloat(f.width), height: CGFloat(f.height))
+                v.maxWidth = CGFloat(f.width) + max(0, view.bounds.width - view.textContainerInset.left - view.textContainerInset.right - textIndent(l) - 8 - CGFloat(f.width))
+                v.setNeedsDisplay()
+            }
+            for (n, v) in inkViews.enumerated() { v.isHidden = n >= usedInk }
             for (n, b) in bullets.enumerated() { b.isHidden = n >= used }
             for (n, c) in chevrons.enumerated() { c.isHidden = n >= usedChevrons }
         }
@@ -724,5 +810,120 @@ final class BulletView: UIView, UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
         guard let menu = coordinator?.menu(for: id) else { return nil }
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+}
+
+/// A line's ink in Type mode: handwriting not transcribed yet (smaller, as written), or a drawing in a box that
+/// can be selected (tap), sized (drag the corner), moved sideways (drag it) and deleted (×).
+final class InkPreviewView: UIView {
+    private var ink: Ink?
+    private var id = ""
+    private var kind: InkPreview.Kind = .writing
+    private var colorType: EntryType = .text
+    private weak var coordinator: PageEditorView.Coordinator?
+    /// The widest the drawing can be from where its box starts (the page's text column).
+    var maxWidth: CGFloat = 600
+    private let close = UIButton(type: .system)
+    private let handle = UIView()
+    private var start: CGRect = .zero
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        contentMode = .redraw
+        layer.cornerRadius = 6
+        close.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        close.tintColor = Theme.ui("muted")
+        close.addTarget(self, action: #selector(remove), for: .touchUpInside)
+        close.accessibilityLabel = S.deleteDrawing
+        handle.backgroundColor = Theme.ui("muted")
+        handle.layer.cornerRadius = 3
+        addSubview(close)
+        addSubview(handle)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
+        addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(move(_:))))
+        handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
+        isAccessibilityElement = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func configure(line: Line, kind: InkPreview.Kind, color: EntryType, selected: Bool, coordinator: PageEditorView.Coordinator) {
+        ink = line.ink
+        id = line.id
+        self.kind = kind
+        colorType = color
+        self.coordinator = coordinator
+        let editable = kind == .drawing
+        isUserInteractionEnabled = editable
+        close.isHidden = !(editable && selected)
+        handle.isHidden = !(editable && selected)
+        gestureRecognizers?.forEach { if $0 is UIPanGestureRecognizer { $0.isEnabled = editable && selected } }
+        layer.borderWidth = editable && selected ? 1 : 0
+        layer.borderColor = Theme.ui("muted").cgColor
+        accessibilityLabel = kind == .drawing ? S.drawing : S.handwritingPending
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        close.frame = CGRect(x: bounds.width - 14, y: -14, width: 28, height: 28)
+        handle.frame = CGRect(x: bounds.width - 10, y: bounds.height - 10, width: 14, height: 14)
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.insetBy(dx: -16, dy: -16).contains(point)
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let ink, let b = InkPreview.bounds(ink) else { return }
+        let s = bounds.width / CGFloat(max(1, b.x1 - b.x0))
+        for stroke in ink.strokes where stroke.p.count >= 3 {
+            let path = UIBezierPath()
+            var i = 0
+            while i + 1 < stroke.p.count {
+                let pt = CGPoint(x: CGFloat(stroke.p[i] - b.x0) * s, y: CGFloat(stroke.p[i + 1] - b.y0) * s)
+                if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+                i += 3
+            }
+            if stroke.p.count == 3 { path.addLine(to: path.currentPoint) }
+            path.lineWidth = max(0.6, CGFloat(stroke.s ?? storedDefaultSize) * s)
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            (stroke.b == true ? Theme.ui(colorType.rawValue) : Theme.ui(stroke.c)).setStroke()
+            path.stroke()
+        }
+    }
+
+    @objc private func tap() { coordinator?.tappedDrawing(id) }
+    @objc private func remove() { coordinator?.deleteDrawing(id) }
+
+    /// Sideways, within the text column.
+    @objc private func move(_ g: UIPanGestureRecognizer) {
+        switch g.state {
+        case .began: start = frame
+        case .changed: frame.origin.x = start.minX + g.translation(in: superview).x
+        case .ended, .cancelled:
+            let x = max(0, frame.minX - start.minX + offsetInColumn)
+            coordinator?.setDrawingView(id, width: Double(bounds.width), x: Double(x))
+        default: break
+        }
+    }
+
+    /// Its offset in the column when the drag began (the frame's x includes the line's start).
+    private var offsetInColumn: CGFloat { CGFloat(ink?.view?.x ?? 0) }
+
+    /// The corner: wider or narrower, keeping its proportions.
+    @objc private func resize(_ g: UIPanGestureRecognizer) {
+        switch g.state {
+        case .began: start = frame
+        case .changed:
+            let w = min(max(CGFloat(InkPreview.minDrawingWidth), start.width + g.translation(in: superview).x), maxWidth)
+            frame = CGRect(x: start.minX, y: start.minY, width: w, height: start.height * w / start.width)
+            setNeedsDisplay()
+        case .ended, .cancelled:
+            coordinator?.setDrawingView(id, width: Double(bounds.width), x: Double(offsetInColumn))
+        default: break
+        }
     }
 }
