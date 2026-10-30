@@ -93,7 +93,7 @@ struct PageEditorView: UIViewRepresentable {
             c.lines = lines
             if !samePage { c.erased = InkPage.erasedInType(lines) }
             c.undo.removeAllActions()
-            c.rebuild(caret: samePage ? c.currentCaret() : nil)
+            c.rebuild(caret: samePage ? c.currentCaret() : nil, keepScroll: samePage)
             if let picture, let host = view.superview {
                 picture.frame = view.frame
                 picture.isUserInteractionEnabled = false
@@ -164,8 +164,12 @@ struct PageEditorView: UIViewRepresentable {
         // MARK: Text from the model
 
         /// Lays the whole page out from the lines and puts the caret back.
-        func rebuild(caret: Caret?) {
+        /// Lays the page's text out again from the lines. `keepScroll`: a change that isn't typing (a bullet's
+        /// tap, a menu, a change from outside) leaves the page where it was scrolled; setting the text sends
+        /// it to the end otherwise.
+        func rebuild(caret: Caret?, keepScroll: Bool = false) {
             guard let view = textView else { return }
+            let offset = view.contentOffset
             if lines.isEmpty { lines = [Line()] }
             let hidden = Outline.hidden(lines)
             visible = lines.indices.filter { !hidden[$0] && !erased.contains(lines[$0].id) }
@@ -182,6 +186,12 @@ struct PageEditorView: UIViewRepresentable {
             if let caret { select(caret) }
             updateTyping()
             layoutDecor()
+            if (keepScroll || !view.isFirstResponder) && !parent.embedded {
+                view.layoutIfNeeded()
+                let top = -view.adjustedContentInset.top
+                let bottom = max(top, view.contentSize.height + view.adjustedContentInset.bottom - view.bounds.height)
+                view.setContentOffset(CGPoint(x: offset.x, y: min(max(top, offset.y), bottom)), animated: false)
+            }
         }
 
         func attributes(_ l: Line) -> [NSAttributedString.Key: Any] {
@@ -306,7 +316,7 @@ struct PageEditorView: UIViewRepresentable {
             guard let i = lines.firstIndex(where: { $0.id == id }), lines[i].ink != nil else { return }
             var next = lines
             next[i].ink?.view = Ink.View(w: width.rounded(), x: max(0, x).rounded(), y: y.map { max(0, $0).rounded() })
-            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
+            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)), keepScroll: true)
         }
 
         /// Deletes a drawing (the × of the selected one, Delete, or Backspace on its empty line). Handwriting is
@@ -316,7 +326,7 @@ struct PageEditorView: UIViewRepresentable {
             var next = lines
             next[i].ink = nil
             selectedDrawing = nil
-            apply(Edited(lines: next, caret: Caret(index: i, offset: 0)))
+            apply(Edited(lines: next, caret: Caret(index: i, offset: 0)), keepScroll: true)
         }
 
         private func inkView(_ n: Int) -> InkPreviewView {
@@ -369,10 +379,10 @@ struct PageEditorView: UIViewRepresentable {
         // MARK: Structural edits
 
         /// Applies an edit to the model: the page before it becomes an Undo step.
-        private func apply(_ edited: Edited) {
+        private func apply(_ edited: Edited, keepScroll: Bool = false) {
             remember()
             lines = edited.lines
-            rebuild(caret: edited.caret)
+            rebuild(caret: edited.caret, keepScroll: keepScroll)
             push()
         }
 
@@ -486,7 +496,7 @@ struct PageEditorView: UIViewRepresentable {
             guard let i = lines.firstIndex(where: { $0.id == id }) else { return }
             var next = lines
             next[i].state = state
-            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
+            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)), keepScroll: true)
         }
 
         func cycleState() {
@@ -979,7 +989,7 @@ struct PageEditorView: UIViewRepresentable {
             }
             var next = lines
             next[i].state = States.next(next[i].state)
-            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
+            apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)), keepScroll: true)
             celebrate(id)
         }
 
