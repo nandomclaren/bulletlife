@@ -149,10 +149,9 @@ struct PageEditorView: UIViewRepresentable {
             style.minimumLineHeight = l.type == .heading ? 32 : parent.embedded ? EditorLayout.font.lineHeight : 27
             style.paragraphSpacing = 5
             // Ink shown in the line (a drawing, or handwriting not transcribed yet) sits above its text.
-            // Handwriting not transcribed yet sits above its text, and so does a drawing until it is moved by hand;
-            // then it floats over the page, taking no room.
-            let floating = InkPreview.kind(l) == .drawing && l.ink?.view?.y != nil
-            if !floating, let f = previewFrame(l) { style.paragraphSpacingBefore = CGFloat(f.height) + 6 }
+            // Handwriting not transcribed yet sits above its text; a drawing floats over the page, taking no room
+            // (it starts at its line until it is moved).
+            if InkPreview.kind(l) == .writing, let f = previewFrame(l) { style.paragraphSpacingBefore = CGFloat(f.height) + 6 }
             var a: [NSAttributedString.Key: Any] = [
                 .font: l.type == .heading ? EditorLayout.headingFont : EditorLayout.font,
                 .foregroundColor: faded ? Theme.ui("muted") : Theme.ui("text"),
