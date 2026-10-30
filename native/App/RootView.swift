@@ -322,7 +322,7 @@ struct RootView: View {
                 PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
                 SecondPage(nav: second).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
-            .clipped()
+            .clipShape(SidesOnly())
             .environment(\.pageBeside, true)
         case .book:
             HStack(spacing: 0) {
@@ -330,7 +330,7 @@ struct RootView: View {
                 PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
                 FacingPage(nav: nav).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
-            .clipped()
+            .clipShape(SidesOnly())
             .environment(\.pageBeside, true)
         }
     }
@@ -489,5 +489,13 @@ struct PageDivider: View {
             .accessibilityLabel(S.pageDivider)
             .accessibilityAction(named: S.closeRightPage) { close(.right) }
             .accessibilityAction(named: S.closeLeftPage) { close(.left) }
+    }
+}
+
+/// Clips at the sides only: a page pushed away by the divider stays within the window's width, while the pages'
+/// paper still reaches up under the toolbar.
+struct SidesOnly: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path(rect.insetBy(dx: 0, dy: -10_000))
     }
 }
