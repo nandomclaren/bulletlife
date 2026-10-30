@@ -354,44 +354,36 @@ struct YearPage: View {
     @State private var marked: String?
     /// Scrolled past the first months: the header's title shrinks.
     @State private var scrolled = false
+    @State private var width: CGFloat = 0
+    /// Another page beside it (two pages, open book): one column.
+    @Environment(\.pageBeside) private var beside
+
+    /// On its own on a wide screen, the year opens like a notebook: January to June on the left, July to
+    /// December on the right (as the PWA's spread); with a page beside it, or narrower, one column.
+    private var spread: Bool { !beside && width >= 900 }
 
     var body: some View {
-        let currentMonth = Dates.monthOf(Dates.today())
         let logId = Period.year(year).logId
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ScrolledMarker(scrolled: $scrolled)
-                    ForEach(0..<12, id: \.self) { n in
-                        let ym = Dates.addMonths("\(year)-01", n)
-                        Section {
-                            SlotEditor(logId: logId, slot: ym, minHeight: 96, highlight: nav.highlight)
-                                .padding(.bottom, 20)
-                                .background(Theme.task.opacity(marked == ym ? 0.08 : 0).padding(.horizontal, -8))
-                                .id("\(logId)/\(ym)")
-                        } header: {
-                            Button {
-                                period = ActiveLogs(monthly: monthly, weekly: weekly, daily: daily).below(year: ym, firstDay: firstDay)
-                            } label: {
-                                Text(PageView.format("\(ym)-01", "MMMM"))
-                                    .font(Theme.body(17, weight: .semibold))
-                                    .foregroundStyle(ym == currentMonth ? Theme.task : Theme.text)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 8)
-                                    .background(Theme.paper)
-                            }
-                            .buttonStyle(.plain)
-                            .allowsHitTesting(role != .second)
-                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.rule).frame(height: 1) }
+                Group {
+                    if spread {
+                        HStack(alignment: .top, spacing: 48) {
+                            months(0..<6, logId: logId, marker: true).frame(maxWidth: .infinity, alignment: .leading)
+                            months(6..<12, logId: logId, marker: false).frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .frame(maxWidth: 1240)
+                    } else {
+                        months(0..<12, logId: logId, marker: true)
+                            .frame(maxWidth: 720, alignment: .leading)
                     }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 8)
                 .padding(.bottom, 240)
-                .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .scrollDismissesKeyboard(.interactively)
             .remembersScroll(nav, place: .time(.year(year)))
             .background(Theme.paper)
@@ -401,6 +393,37 @@ struct YearPage: View {
             }
             .onAppear { reveal(proxy, logId: logId) }
             .onChange(of: nav.focus) { reveal(proxy, logId: logId) }
+        }
+    }
+
+    /// A run of months, each with its name (sticky while its month scrolls by) and a place to write.
+    private func months(_ range: Range<Int>, logId: String, marker: Bool) -> some View {
+        let currentMonth = Dates.monthOf(Dates.today())
+        return LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+            if marker { ScrolledMarker(scrolled: $scrolled) }
+            ForEach(range, id: \.self) { n in
+                let ym = Dates.addMonths("\(year)-01", n)
+                Section {
+                    SlotEditor(logId: logId, slot: ym, minHeight: 96, highlight: nav.highlight)
+                        .padding(.bottom, 20)
+                        .background(Theme.task.opacity(marked == ym ? 0.08 : 0).padding(.horizontal, -8))
+                        .id("\(logId)/\(ym)")
+                } header: {
+                    Button {
+                        period = ActiveLogs(monthly: monthly, weekly: weekly, daily: daily).below(year: ym, firstDay: firstDay)
+                    } label: {
+                        Text(PageView.format("\(ym)-01", "MMMM"))
+                            .font(Theme.body(17, weight: .semibold))
+                            .foregroundStyle(ym == currentMonth ? Theme.task : Theme.text)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                            .background(Theme.paper)
+                    }
+                    .buttonStyle(.plain)
+                    .allowsHitTesting(role != .second)
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.rule).frame(height: 1) }
+                }
+            }
         }
     }
 
