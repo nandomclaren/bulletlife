@@ -160,26 +160,79 @@ struct HeaderBlur: View {
     @Environment(\.colorScheme) private var scheme
     @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
 
-    /// Graphite's grey shows the glass's tint more than Night's black.
+    /// How much of the system's blur is applied: a lighter blur, so the words passing under the header still
+    /// read as a soft smudge.
+    private let blur: CGFloat = 0.45
+    /// Paper over the blur, to hide what is left of its light tint (Graphite's grey shows it most).
     private var cover: Double {
-        guard scheme == .dark else { return 0.6 }
-        return theme == Theme.Look.night.rawValue ? 0.88 : 0.95
+        guard scheme == .dark else { return 0.3 }
+        return theme == Theme.Look.night.rawValue ? 0.45 : 0.55
     }
 
     var body: some View {
-        // The system's blur, covered with the theme's paper so its own light tint (a veil on dark pages) does
-        // not show: more paper on the dark themes, less on Paper, where the veil hardly shows. The page still
-        // scrolls under it, blurred, in its own tone; it dissolves at the lower edge.
         ZStack {
-            Rectangle().fill(.ultraThinMaterial)
+            PartialBlur(fraction: blur)
             Theme.paper.opacity(cover)
         }
-            .mask(
-                LinearGradient(
-                    stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
-                    startPoint: .top, endPoint: .bottom)
-            )
-            .ignoresSafeArea(edges: .top)
+        // Dissolves from a third of the way down, so the page fades in gradually under the title.
+        .mask(
+            LinearGradient(
+                stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.35), .init(color: .clear, location: 1)],
+                startPoint: .top, endPoint: .bottom)
+        )
+        .ignoresSafeArea(edges: .top)
+    }
+}
+
+/// The system's blur at a fraction of its strength (and of its tint): the effect is set inside a paused
+/// animator held at that fraction, the usual way to get a lighter UIVisualEffectView. It is set up again
+/// whenever the view enters a window, the app comes back to the foreground, or light/dark changes, as the
+/// system finishes or drops paused animations then.
+struct PartialBlur: UIViewRepresentable {
+    var fraction: CGFloat
+
+    func makeUIView(context: Context) -> PartialBlurView { PartialBlurView(fraction: fraction) }
+
+    func updateUIView(_ view: PartialBlurView, context: Context) { view.fraction = fraction }
+}
+
+final class PartialBlurView: UIVisualEffectView {
+    var fraction: CGFloat {
+        didSet { if fraction != oldValue { setUp() } }
+    }
+    private var animator: UIViewPropertyAnimator?
+    private var foreground: NSObjectProtocol?
+
+    init(fraction: CGFloat) {
+        self.fraction = fraction
+        super.init(effect: nil)
+        isUserInteractionEnabled = false
+        foreground = NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.setUp() }
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: PartialBlurView, _: UITraitCollection) in view.setUp() }
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { setUp() }
+    }
+
+    private func setUp() {
+        animator?.stopAnimation(true)
+        effect = nil
+        let a = UIViewPropertyAnimator(duration: 1, curve: .linear) { [weak self] in self?.effect = UIBlurEffect(style: .regular) }
+        a.pausesOnCompletion = true
+        a.fractionComplete = fraction
+        animator = a
+    }
+
+    deinit {
+        // A paused animator must be stopped before it is released.
+        animator?.stopAnimation(true)
+        if let foreground { NotificationCenter.default.removeObserver(foreground) }
     }
 }
 
