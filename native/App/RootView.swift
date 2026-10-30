@@ -10,6 +10,32 @@ enum Place: Hashable {
     case time(Period)
     case index
     case collection(String)
+
+    /// As kept on the device: "index", "c:<id>", "d:2026-10-30", "w:2026-W44", "m:2026-10", "y:2026".
+    var stored: String {
+        switch self {
+        case .index: return "index"
+        case .collection(let id): return "c:" + id
+        case .time(.day(let k)): return "d:" + k
+        case .time(.week(let k)): return "w:" + k
+        case .time(.month(let k)): return "m:" + k
+        case .time(.year(let k)): return "y:" + k
+        }
+    }
+
+    init?(stored s: String) {
+        let value = String(s.dropFirst(2))
+        switch s.prefix(2) {
+        case "c:": self = .collection(value)
+        case "d:": self = .time(.day(value))
+        case "w:": self = .time(.week(value))
+        case "m:": self = .time(.month(value))
+        case "y:": self = .time(.year(value))
+        default:
+            guard s == "index" else { return nil }
+            self = .index
+        }
+    }
 }
 
 /// The settings that decide which time logs exist (CLAUDE.md 3.2), read where navigation needs them.
@@ -36,10 +62,22 @@ final class Navigator: ObservableObject {
     /// Close the day opens the panel on what is still open today.
     @Published var openToday = false
 
+    /// Kept on the device under this key (the second of two pages), if set.
+    private let key: String?
+
     init() {
         let start = Prefs.active.finest(Dates.today(), firstDay: Prefs.firstDay)
         place = .time(start)
         lastPeriod = start
+        key = nil
+    }
+
+    /// A navigator that comes back where it was last time (the Index the first time).
+    init(rememberedAs key: String) {
+        self.key = key
+        let saved = UserDefaults.standard.string(forKey: key).flatMap(Place.init(stored:)) ?? .index
+        place = saved
+        if case .time(let p) = saved { lastPeriod = p } else { lastPeriod = Prefs.active.finest(Dates.today(), firstDay: Prefs.firstDay) }
     }
 
     func go(_ next: Place, highlight: String? = nil, focus: String? = nil) {
@@ -78,6 +116,7 @@ final class Navigator: ObservableObject {
         }
         if case .time(let p) = next { lastPeriod = p }
         place = next
+        if let key { UserDefaults.standard.set(next.stored, forKey: key) }
     }
 }
 
@@ -105,10 +144,6 @@ enum PageLayout: String, CaseIterable, Identifiable {
 /// Which page a view is part of: the main one, the second of two pages, or the open book's right page.
 enum PageRole { case main, second, facing }
 
-extension Notification.Name {
-    /// Typing began or the pen wrote on a page (its `PageRole` is the object).
-    static let writingOnPage = Notification.Name("writingOnPage")
-}
 
 private struct PageRoleKey: EnvironmentKey { static let defaultValue = PageRole.main }
 private struct PageStepKey: EnvironmentKey { static let defaultValue = 1 }
@@ -133,13 +168,11 @@ extension EnvironmentValues {
 
 struct RootView: View {
     @StateObject private var nav = Navigator()
-    /// The second of two pages: its own place and history (it keeps the last page it showed).
-    @StateObject private var second = Navigator()
+    /// The second of two pages: its own place and history; it keeps the last page it showed (else the Index).
+    @StateObject private var second = Navigator(rememberedAs: "secondPlace")
     @AppStorage("theme") private var theme = Theme.Look.auto.rawValue
     @AppStorage("palette") private var palette = Theme.Palette.classic.rawValue
     @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
-    /// The page last written on, with two pages open: Open items opens entries on the other one.
-    @State private var writingOn = PageRole.main
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Two pages need the room of an iPad's full width; narrower, the notebook is one page.
@@ -159,11 +192,9 @@ struct RootView: View {
                     OpenItemsPanel(onlyToday: nav.openToday) { item in
                         let target: Place = item.source.period.map { Place.time($0) } ?? .collection(item.source.logId)
                         let focus = item.entry.slot.isEmpty ? nil : item.entry.slot
-                        // With two pages, it opens on the one not being written on (CLAUDE.md 4.2), unless that
-                        // page is already where you write.
-                        let here = writingOn == .second ? second : nav
-                        let other = writingOn == .second ? nav : second
-                        let opener = layout == .two && target != here.place ? other : here
+                        // With two pages, it opens on the second, the page to consult, beside the page being
+                        // written (CLAUDE.md 4.2); an entry of the page being written is just marked there.
+                        let opener = layout == .two && target != nav.place ? second : nav
                         opener.go(target, highlight: item.entry.id, focus: focus)
                         if sizeClass == .compact { nav.showOpen = false }
                     }
@@ -205,9 +236,6 @@ struct RootView: View {
         .onAppear(perform: applyLook)
         .onChange(of: theme) { applyLook() }
         .onChange(of: palette) { applyLook() }
-        .onReceive(NotificationCenter.default.publisher(for: .writingOnPage)) { note in
-            if let role = note.object as? PageRole, role != .facing { writingOn = role }
-        }
     }
 
     /// One page, two pages, or the open book: a system menu with the current one checked.
@@ -235,7 +263,7 @@ struct RootView: View {
             HStack(spacing: 0) {
                 main
                 Divider()
-                SecondPage(nav: second, main: nav)
+                SecondPage(nav: second)
             }
             .environment(\.pageBeside, true)
         case .book:
@@ -294,45 +322,29 @@ struct NotebookPage: View {
     }
 }
 
-/// The second of two pages: a page of its own, with Back and the Index in a small glass bar at its corner (the
-/// window's toolbar belongs to the first page).
+/// The second of two pages: a page to consult, read only (a bullet still answers the finger). Its one control,
+/// an × at the corner, goes back to the Index; from there, or from Open items, it shows another page.
 struct SecondPage: View {
     @ObservedObject var nav: Navigator
-    @ObservedObject var main: Navigator
 
     var body: some View {
-        Group {
-            // The same page twice would have two editors writing over each other: it is written on the left.
-            if nav.place == main.place && nav.place != .index {
-                Text(S.openOnLeft)
-                    .font(Theme.body(15))
-                    .foregroundStyle(Theme.muted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Theme.paper)
-            } else {
-                NotebookPage(nav: nav, role: .second)
-            }
-        }
-            .overlay(alignment: .bottomLeading) {
-                HStack(spacing: 4) {
-                    if !nav.history.isEmpty {
-                        Button {
-                            nav.back()
-                        } label: {
-                            Image(systemName: "chevron.backward").frame(width: 40, height: 40)
-                        }
-                        .accessibilityLabel(S.back)
-                    }
+        NotebookPage(nav: nav, role: .second)
+            .overlay(alignment: .topTrailing) {
+                if nav.place != .index {
                     Button {
                         nav.go(.index)
                     } label: {
-                        Image(systemName: "book.closed").frame(width: 40, height: 40)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .frame(width: 36, height: 36)
                     }
-                    .accessibilityLabel(S.index)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.muted)
+                    .glassBackground(in: Circle(), interactive: true)
+                    .padding(.top, 8)
+                    .padding(.trailing, 16)
+                    .accessibilityLabel(S.closePage)
                 }
-                .padding(.horizontal, 6)
-                .glassBackground(in: Capsule(), interactive: true)
-                .padding(16)
             }
     }
 }

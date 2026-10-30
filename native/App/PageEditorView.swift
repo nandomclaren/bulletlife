@@ -22,11 +22,12 @@ struct PageEditorView: UIViewRepresentable {
     var highlight: String? = nil
     /// Room for a header floating over the page (the text scrolls under it).
     var topInset: CGFloat = 0
+    /// A page to consult (the second of two pages): the text can be selected, not edited; a bullet still
+    /// answers a tap and a hold, one entry at a time.
+    var readOnly = false
     /// The lines selected (with collapsed children), for the page menu's Export, Copy As and Share.
     var onSelection: ([Line]) -> Void = { _ in }
     var onAction: (LineAction, String) -> Void
-    /// Which page this is (two pages open): writing here is noted, so Open items opens on the other page.
-    @Environment(\.pageRole) var role
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -38,6 +39,7 @@ struct PageEditorView: UIViewRepresentable {
         view.backgroundColor = .clear
         // Offers the system's Format menu (Bold, Italic), which writes Markdown marks (EditorTextView).
         view.allowsEditingTextAttributes = true
+        view.isEditable = !readOnly
         if embedded {
             view.isScrollEnabled = false
             view.clipsToBounds = false  // a top-level chevron sits just left of the text
@@ -67,6 +69,7 @@ struct PageEditorView: UIViewRepresentable {
 
     func updateUIView(_ view: EditorTextView, context: Context) {
         let c = context.coordinator
+        view.isEditable = !readOnly
         let restyle = c.parent.eventStates != eventStates || c.parent.doneMark != doneMark
         c.parent = self
         if c.lines != lines {
@@ -202,6 +205,7 @@ struct PageEditorView: UIViewRepresentable {
 
         /// Sorts a list by date, only because the user asked (the app never reorders by itself).
         @objc private func sortTapped(_ sender: UIButton) {
+            guard !parent.readOnly else { return }
             guard let id = sender.accessibilityIdentifier, let i = lines.firstIndex(where: { $0.id == id }),
                 let run = Due.runs(lines).first(where: { $0.items.first == i })
             else { return }
@@ -210,6 +214,7 @@ struct PageEditorView: UIViewRepresentable {
 
         /// The pill was tapped: a calendar to choose another date, written back into the same token.
         func pickDate(lineId: String, tokenStart: Int, from source: UIView) {
+            guard !parent.readOnly else { return }
             guard let i = lines.firstIndex(where: { $0.id == lineId }),
                 let token = Due.tokens(lines[i].text).first(where: { $0.range.location == tokenStart }),
                 let presenter = textView?.window?.rootViewController.map(Self.topmost)
@@ -422,6 +427,7 @@ struct PageEditorView: UIViewRepresentable {
         /// Backspace with the caret at a line start (called by the text view, also at the very top, where UIKit
         /// has nothing to delete). Returns whether it was handled.
         func backspaceAtLineStart() -> Bool {
+            guard !parent.readOnly else { return true }
             if let id = selectedDrawing {
                 deleteDrawing(id)
                 return true
@@ -439,6 +445,7 @@ struct PageEditorView: UIViewRepresentable {
         }
 
         func shiftSelection(_ delta: Int) {
+            guard !parent.readOnly else { return }
             guard let view = textView else { return }
             let a = caret(at: view.selectedRange.location)
             let b = caret(at: view.selectedRange.location + view.selectedRange.length)
@@ -451,6 +458,7 @@ struct PageEditorView: UIViewRepresentable {
 
         /// ⌘↩: the line's state goes on to the next (open → done → cancelled → open).
         func cycleState() {
+            guard !parent.readOnly else { return }
             guard let at = currentCaret(), States.stateful(lines[at.index].type, eventStates: parent.eventStates) else { return }
             var next = lines
             next[at.index].state = States.next(next[at.index].state)
@@ -551,6 +559,7 @@ struct PageEditorView: UIViewRepresentable {
 
         /// Pastes entries (copied from the app, or its Markdown) as entries, at the selection.
         func paste(_ pasted: [Line]) {
+            guard !parent.readOnly else { return }
             guard let view = textView else { return }
             let a = caret(at: view.selectedRange.location)
             let b = caret(at: view.selectedRange.location + view.selectedRange.length)
@@ -573,10 +582,6 @@ struct PageEditorView: UIViewRepresentable {
                 guard let view, range.location + range.length <= view.textStorage.length else { return }
                 view.textStorage.removeAttribute(.backgroundColor, range: range)
             }
-        }
-
-        func textViewDidBeginEditing(_ textView: UITextView) {
-            NotificationCenter.default.post(name: .writingOnPage, object: parent.role)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
@@ -692,6 +697,7 @@ struct PageEditorView: UIViewRepresentable {
         /// ⌘B, ⌘I, ⌘⇧H and the system's Bold/Italic: Markdown marks around the selection (within one line), or
         /// taken off when they are already there. The selection stays on the same words.
         func toggleInline(_ mark: String) {
+            guard !parent.readOnly else { return }
             guard let view = textView, !lines.isEmpty else { return }
             let r = view.selectedRange
             let start = caret(at: r.location), end = caret(at: r.location + r.length)
@@ -916,6 +922,12 @@ struct PageEditorView: UIViewRepresentable {
         /// A tap on a bullet: the next state (tasks, and events when Event states is on; notes never).
         func tapped(_ id: String) {
             guard let i = lines.firstIndex(where: { $0.id == id }), States.stateful(lines[i].type, eventStates: parent.eventStates) else { return }
+            if parent.readOnly {
+                // Written by the page (one entry); the lines come back changed through the binding.
+                parent.onAction(.state(States.next(lines[i].state)), id)
+                DispatchQueue.main.async { [weak self] in self?.celebrate(id) }
+                return
+            }
             var next = lines
             next[i].state = States.next(next[i].state)
             apply(Edited(lines: next, caret: currentCaret() ?? Caret(index: i, offset: 0)))
@@ -965,14 +977,20 @@ struct PageEditorView: UIViewRepresentable {
                 ]
                 if l.state != .open { states.append(UIAction(title: S.reopen) { _ in act(.state(.open)) }) }
             }
-            let rest = UIMenu(options: .displayInline, children: [
+            var restItems: [UIMenuElement] = [
                 UIAction(title: S.priority, state: l.priority ? .on : .off) { _ in act(.togglePriority) },
                 UIAction(title: S.inspiration, state: l.inspiration ? .on : .off) { _ in act(.toggleInspiration) },
                 UIAction(title: S.explore, state: l.explore ? .on : .off) { _ in act(.toggleExplore) },
-                UIAction(title: S.indent) { _ in act(.indent) },
-                UIAction(title: S.outdent) { _ in act(.outdent) },
-                UIAction(title: S.delete, attributes: .destructive) { _ in act(.delete) },
-            ])
+            ]
+            // A page to consult changes one entry's marks, never the page's structure.
+            if !parent.readOnly {
+                restItems += [
+                    UIAction(title: S.indent) { _ in act(.indent) },
+                    UIAction(title: S.outdent) { _ in act(.outdent) },
+                    UIAction(title: S.delete, attributes: .destructive) { _ in act(.delete) },
+                ]
+            }
+            let rest = UIMenu(options: .displayInline, children: restItems)
             return UIMenu(children: [types] + (states.isEmpty ? [] : [UIMenu(options: .displayInline, children: states)]) + [rest])
         }
     }
@@ -1175,7 +1193,7 @@ final class InkPreviewView: UIView {
         self.kind = kind
         colorType = color
         self.coordinator = coordinator
-        let editable = kind == .drawing
+        let editable = kind == .drawing && !coordinator.parent.readOnly
         isUserInteractionEnabled = editable
         close.isHidden = !(editable && selected)
         handle.isHidden = !(editable && selected)

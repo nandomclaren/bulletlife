@@ -14,6 +14,9 @@ struct IndexPage: View {
     @State private var name = ""
     @State private var date = Date()
     @FocusState private var nameFocused: Bool
+    /// Consulted beside another page: its pages open there, nothing else changes from here.
+    @Environment(\.pageRole) private var role
+    private var consulting: Bool { role == .second }
 
     private var repo: Repository { Repository(context: context) }
 
@@ -39,8 +42,10 @@ struct IndexPage: View {
                     Text(S.noCollections).font(Theme.body(15)).foregroundStyle(Theme.muted).padding(.vertical, 8)
                 }
                 ForEach(others) { c in collectionRow(c) }
-                newCollection
-                    .padding(.top, 12)
+                if !consulting {
+                    newCollection
+                        .padding(.top, 12)
+                }
             }
             .padding(.horizontal, 24)
             .padding(.top, 8)
@@ -55,16 +60,20 @@ struct IndexPage: View {
     /// previous Index).
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Spacer()
-                DatePicker(S.goToDate, selection: $date, displayedComponents: .date)
-                    .labelsHidden()
-                    .onChange(of: date) { period = Prefs.active.finest(Dates.toIso(date), firstDay: Prefs.firstDay) }
-                Button(S.today) { period = Prefs.active.finest(Dates.today(), firstDay: Prefs.firstDay) }
-                    .buttonStyle(.bordered)
-                    .clipShape(Capsule())
+            if consulting {
+                Color.clear.frame(height: 34)
+            } else {
+                HStack(spacing: 12) {
+                    Spacer()
+                    DatePicker(S.goToDate, selection: $date, displayedComponents: .date)
+                        .labelsHidden()
+                        .onChange(of: date) { period = Prefs.active.finest(Dates.toIso(date), firstDay: Prefs.firstDay) }
+                    Button(S.today) { period = Prefs.active.finest(Dates.today(), firstDay: Prefs.firstDay) }
+                        .buttonStyle(.bordered)
+                        .clipShape(Capsule())
+                }
+                .font(Theme.body(15))
             }
-            .font(Theme.body(15))
             Text(S.index)
                 .font(Theme.body(30, weight: .bold))
                 .foregroundStyle(Theme.text)
@@ -96,17 +105,19 @@ struct IndexPage: View {
         let isPinned = c.pinned == true
         return HStack(spacing: 8) {
             row(kind: isPinned ? S.pinned : nil, title: title) { openCollection(c.id) }
-            Button {
-                repo.setPinned(id: c.id, !isPinned)
-            } label: {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 14))
-                    .foregroundStyle(isPinned ? Theme.task : Theme.muted)
-                    .frame(width: 36, height: 36)
-                    .contentShape(Rectangle())
+            if !consulting {
+                Button {
+                    repo.setPinned(id: c.id, !isPinned)
+                } label: {
+                    Image(systemName: isPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 14))
+                        .foregroundStyle(isPinned ? Theme.task : Theme.muted)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isPinned ? S.unpin(title) : S.pin(title))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isPinned ? S.unpin(title) : S.pin(title))
         }
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.rule).frame(height: 1) }
     }

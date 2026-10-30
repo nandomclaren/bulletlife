@@ -139,7 +139,38 @@ struct Repository {
             if let r = byId[id] { context.delete(r) }
         }
         try? context.save()
+        NotificationCenter.default.post(name: Self.saved, object: nil, userInfo: ["logId": logId, "slot": slot])
     }
+
+    /// A bullet's tap or menu on a page shown only to consult: written to that one entry, as Open items does
+    /// (the pages showing it take the change from `changedOutside`). Folding stays on the screen.
+    func consult(_ action: LineAction, id: String, eventStates: Bool) {
+        update(id: id) { e in
+            func toggle(_ s: Signifier) {
+                if let k = e.signifiers.firstIndex(of: s) { e.signifiers.remove(at: k) } else { e.signifiers.append(s) }
+            }
+            switch action {
+            case .type(let t):
+                e.type = t
+                if !States.stateful(t, eventStates: eventStates) { e.state = .open }
+            case .state(let s): e.state = s
+            case .togglePriority: toggle(.priority)
+            case .toggleInspiration: toggle(.inspiration)
+            case .toggleExplore: toggle(.explore)
+            case .indent, .outdent, .toggleCollapsed, .delete: return
+            }
+            // Marked > or <: pending until the user writes it at the destination; anything else clears the mark.
+            if e.state == .migrated || e.state == .scheduled {
+                if e.placement == nil { e.placement = Placement(status: .pending) }
+            } else {
+                e.placement = nil
+            }
+        }
+    }
+
+    /// Posted when a page is written: a page shown only to consult (the second of two pages) reads it again.
+    /// userInfo: "logId", "slot".
+    static let saved = Notification.Name("BulletLife.pageSaved")
 
     /// Posted when an entry changes from outside its page (Open items): the page showing it takes the new state,
     /// so it never writes back what it showed before. userInfo: "logId", "slot", "id", "state".
@@ -160,7 +191,11 @@ struct Repository {
         record.update(from: e)
         try? context.save()
         NotificationCenter.default.post(
-            name: Self.changedOutside, object: nil, userInfo: ["logId": e.logId, "slot": e.slot, "id": e.id, "state": e.state.rawValue])
+            name: Self.changedOutside, object: nil,
+            userInfo: [
+                "logId": e.logId, "slot": e.slot, "id": e.id, "state": e.state.rawValue, "type": e.type.rawValue,
+                "signifiers": e.signifiers.map(\.rawValue),
+            ])
     }
 
     func hasEntries(logId: String) -> Bool {
@@ -281,5 +316,24 @@ extension Notification {
             let state = (userInfo?["state"] as? String).flatMap(EntryState.init(rawValue:))
         else { return nil }
         return (i, state)
+    }
+
+    /// Takes an entry changed from outside its page (Open items, the page beside) into these lines: its state,
+    /// type and signifiers, so the page never writes back what it showed before. True if one was.
+    func patch(_ lines: inout [Line], logId: String, slot: String = "") -> Bool {
+        guard let (i, state) = outsideChange(in: lines, logId: logId, slot: slot) else { return false }
+        lines[i].state = state
+        if let type = (userInfo?["type"] as? String).flatMap(EntryType.init(rawValue:)) { lines[i].type = type }
+        if let marks = userInfo?["signifiers"] as? [String] {
+            lines[i].priority = marks.contains(Signifier.priority.rawValue)
+            lines[i].inspiration = marks.contains(Signifier.inspiration.rawValue)
+            lines[i].explore = marks.contains(Signifier.explore.rawValue)
+        }
+        return true
+    }
+
+    /// Whether this notice (a page saved) is about this page.
+    func isAbout(logId: String, slot: String = "") -> Bool {
+        userInfo?["logId"] as? String == logId && userInfo?["slot"] as? String == slot
     }
 }

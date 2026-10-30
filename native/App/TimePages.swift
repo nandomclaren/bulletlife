@@ -23,7 +23,8 @@ struct TimeHeader<Accessory: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if role != .facing { controls }
+            // The open book's right page and a page consulted beside: no controls of their own.
+            if role == .main { controls }
             if !label.isEmpty && !compact {
                 Text(label.uppercased())
                     .font(Theme.body(13, weight: .semibold))
@@ -35,8 +36,8 @@ struct TimeHeader<Accessory: View>: View {
                 .font(Theme.body(compact ? 19 : 30, weight: .bold))
                 .foregroundStyle(Theme.text)
         }
-        // The facing page's name sits level with the left page's (where the controls would be).
-        .padding(.top, role == .facing ? 44 : 0)
+        // The other page's name sits level with the left page's (where the controls would be).
+        .padding(.top, role == .main ? 0 : 44)
         .animation(.easeInOut(duration: 0.2), value: compact)
     }
 
@@ -144,22 +145,32 @@ struct SlotEditor: View {
     @State private var lines: [Line] = []
     @State private var saver = PageSaver()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.pageRole) private var role
 
     private var repo: Repository { Repository(context: context) }
+    /// The second of two pages: read, not written (only a bullet's tap or menu, one entry at a time).
+    private var consulting: Bool { role == .second }
 
     var body: some View {
         PageEditorView(
             lines: $lines, eventStates: eventStates, doneMark: doneMark, embedded: true, minHeight: minHeight, fitOneLine: fitOneLine,
-            highlight: lines.contains { $0.id == highlight } ? highlight : nil,
+            highlight: lines.contains { $0.id == highlight } ? highlight : nil, readOnly: consulting,
             onSelection: { PageSelection.set(logId: logId, $0) }
         ) { action, id in
-            action.apply(to: &lines, id: id, eventStates: eventStates)
+            if consulting, action != .toggleCollapsed {
+                repo.consult(action, id: id, eventStates: eventStates)
+            } else {
+                action.apply(to: &lines, id: id, eventStates: eventStates)
+            }
         }
         .onAppear { lines = repo.lines(logId: logId, slot: slot) }
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
-            if let change = note.outsideChange(in: lines, logId: logId, slot: slot) { lines[change.index].state = change.state }
+            _ = note.patch(&lines, logId: logId, slot: slot)
         }
-        .onChange(of: lines) { saver.schedule(lines, logId: logId, slot: slot, repo: repo) }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { note in
+            if consulting && note.isAbout(logId: logId, slot: slot) { lines = repo.lines(logId: logId, slot: slot) }
+        }
+        .onChange(of: lines) { if !consulting { saver.schedule(lines, logId: logId, slot: slot, repo: repo) } }
         .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }
         .onDisappear { saver.flush() }
     }
@@ -172,6 +183,8 @@ struct MonthPage: View {
     let ym: String
     @Binding var period: Period
     @EnvironmentObject private var nav: Navigator
+    /// Consulted beside another page: read only, its days and months don't navigate.
+    @Environment(\.pageRole) private var role
     @AppStorage("firstDay") private var firstDay = 1
     @AppStorage("logMonthly") private var monthly = true
     @AppStorage("logWeekly") private var weekly = true
@@ -284,6 +297,7 @@ struct MonthPage: View {
                     .font(Theme.body(11, weight: .medium))
                     .foregroundStyle(Theme.muted)
                     .buttonStyle(.plain)
+                    .allowsHitTesting(role != .second)
             }
         }
         .padding(.vertical, 2)
@@ -307,6 +321,7 @@ struct MonthPage: View {
                     .frame(width: 34, alignment: .leading)
                 }
                 .buttonStyle(.plain)
+                .allowsHitTesting(role != .second)
                 .accessibilityLabel(PageView.format(iso, "EEEE MMMM d"))
                 Text(PageView.format(iso, "EEEEE"))
                     .font(Theme.body(13, weight: .medium))
@@ -329,6 +344,8 @@ struct YearPage: View {
     let year: String
     @Binding var period: Period
     @EnvironmentObject private var nav: Navigator
+    /// Consulted beside another page: read only, its days and months don't navigate.
+    @Environment(\.pageRole) private var role
     @AppStorage("firstDay") private var firstDay = 1
     @AppStorage("logMonthly") private var monthly = true
     @AppStorage("logWeekly") private var weekly = true
@@ -363,6 +380,7 @@ struct YearPage: View {
                                     .background(Theme.paper)
                             }
                             .buttonStyle(.plain)
+                            .allowsHitTesting(role != .second)
                             .overlay(alignment: .bottom) { Rectangle().fill(Theme.rule).frame(height: 1) }
                         }
                     }

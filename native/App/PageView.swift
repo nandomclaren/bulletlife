@@ -17,6 +17,7 @@ struct PageView: View {
     @State private var confirmDelete = false
     @State private var confirmDeleteAgain = false
     @EnvironmentObject private var nav: Navigator
+    @Environment(\.pageRole) private var role
     @Environment(\.scenePhase) private var scenePhase
     @State private var saver = PageSaver()
     @Environment(\.modelContext) private var context
@@ -37,10 +38,12 @@ struct PageView: View {
     private var repo: Repository { Repository(context: context) }
     private var logId: String { collection?.id ?? period.logId }
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    /// The second of two pages: read, not written (only a bullet's tap or menu, one entry at a time).
+    private var consulting: Bool { role == .second }
 
     var body: some View {
         Group {
-            if penOn && isPad { penPage } else { typePage }
+            if penOn && isPad && !consulting { penPage } else { typePage }
         }
         .background(Theme.paper)
         .onAppear(perform: load)
@@ -48,9 +51,13 @@ struct PageView: View {
         .onChange(of: collection?.id) { load() }
         // A state changed from Open items: taken into the page, so what it writes next agrees.
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { note in
-            if let change = note.outsideChange(in: lines, logId: logId) { lines[change.index].state = change.state }
+            _ = note.patch(&lines, logId: logId)
         }
-        .onChange(of: lines) { saver.schedule(lines, logId: logId, repo: repo) }
+        // Read again when the page is written elsewhere (the page beside, while it is consulted here).
+        .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { note in
+            if consulting && note.isAbout(logId: logId) { lines = repo.lines(logId: logId) }
+        }
+        .onChange(of: lines) { if !consulting { saver.schedule(lines, logId: logId, repo: repo) } }
         .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }
         .onDisappear { saver.flush() }
         // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
@@ -66,7 +73,7 @@ struct PageView: View {
     /// Reads the handwriting the last pass didn't, after a pause in writing (at once in Type mode). The ink is
     /// already saved; the text is its transcription, and a correction typed in Type mode is never overwritten.
     private func transcribe() async {
-        guard !Transcription.jobs(lines).isEmpty else { return }
+        guard !consulting, !Transcription.jobs(lines).isEmpty else { return }
         if penOn && isPad { try? await Task.sleep(for: .seconds(2.5)) }
         let lang = HandwritingLang(rawValue: handwritingLang) ?? .ptBR
         for job in Transcription.jobs(lines) {
@@ -96,7 +103,7 @@ struct PageView: View {
             PageEditorView(
                 lines: $lines, eventStates: eventStates, doneMark: doneMark,
                 highlight: lines.contains { $0.id == nav.highlight } ? nav.highlight : nil, topInset: headerHeight,
-                onSelection: { PageSelection.set(logId: logId, $0) }
+                readOnly: consulting, onSelection: { PageSelection.set(logId: logId, $0) }
             ) { act($0, on: $1) }
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
@@ -114,7 +121,20 @@ struct PageView: View {
     // MARK: Header
 
     @ViewBuilder private var header: some View {
-        if collection != nil {
+        if consulting, collection != nil {
+            // Consulted: only its name.
+            VStack(alignment: .leading, spacing: 10) {
+                Text(S.collections.uppercased())
+                    .font(Theme.body(13, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.muted)
+                Text(collectionTitle.isEmpty ? S.untitled : collectionTitle)
+                    .font(Theme.body(30, weight: .bold))
+                    .foregroundStyle(Theme.text)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 44)
+        } else if collection != nil {
             collectionHeader
         } else {
             TimeHeader(period: $period, label: label, title: title) { penPicker }
@@ -225,11 +245,15 @@ struct PageView: View {
     }
 
     private func act(_ action: LineAction, on id: String) {
-        action.apply(to: &lines, id: id, eventStates: eventStates)
+        if consulting, action != .toggleCollapsed {
+            repo.consult(action, id: id, eventStates: eventStates)
+        } else {
+            action.apply(to: &lines, id: id, eventStates: eventStates)
+        }
     }
 }
 
-enum LineAction {
+enum LineAction: Equatable {
     case type(EntryType)
     case state(EntryState)
     case togglePriority, toggleInspiration, toggleExplore, indent, outdent, toggleCollapsed, delete
