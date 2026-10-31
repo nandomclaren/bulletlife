@@ -280,6 +280,12 @@ struct RootView: View {
                         let opener = layout == .two && target != nav.place ? second : nav
                         opener.go(target, highlight: item.entry.id, focus: focus)
                         if sizeClass == .compact { nav.showOpen = false }
+                    } openHabits: { logId, day in
+                        // The habits still to fill: that collection, on the latest day to fill.
+                        let target = Place.collection(logId)
+                        let opener = layout == .two && target != nav.place ? second : nav
+                        opener.go(target, highlight: "habits:\(day)", focus: day)
+                        if sizeClass == .compact { nav.showOpen = false }
                     }
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
@@ -492,7 +498,11 @@ struct NotebookPage: View {
             IndexPage(period: period) { nav.go(.collection($0)) }
         case .collection(let id):
             if let log = Repository(context: context).collection(id) {
-                PageView(period: period, collection: log) { nav.go(.index) }
+                if log.template == Habits.template {
+                    HabitsPage(collection: log) { nav.go(.index) }
+                } else {
+                    PageView(period: period, collection: log) { nav.go(.index) }
+                }
             } else {
                 IndexPage(period: period) { nav.go(.collection($0)) }
             }

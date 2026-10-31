@@ -54,6 +54,8 @@ struct PenSheetView: UIViewRepresentable {
     var restore: ScrollRestore? = nil
     var onScroll: (CGFloat) -> Void = { _ in }
     var onCanUndo: (Bool) -> Void
+    /// A double tap on the Apple Pencil (as the system's Settings say: eraser, or the previous tool).
+    var onPencilTap: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -76,6 +78,9 @@ struct PenSheetView: UIViewRepresentable {
         coordinator.sheet = sheet
         coordinator.bullets = bullets
         canvas.onWidthChange = { [weak coordinator] in coordinator?.render() }
+        let pencil = UIPencilInteraction()
+        pencil.delegate = coordinator
+        canvas.addInteraction(pencil)
         return canvas
     }
 
@@ -731,5 +736,16 @@ final class PenBulletView: UIView, UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
         guard let menu = menuProvider?() else { return nil }
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+}
+
+extension PenSheetView.Coordinator: UIPencilInteractionDelegate {
+    func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+        parent.onPencilTap()
+    }
+
+    @available(iOS 17.5, *)
+    func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
+        parent.onPencilTap()
     }
 }

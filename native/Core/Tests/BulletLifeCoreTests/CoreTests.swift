@@ -1095,3 +1095,35 @@ final class SimilarTests: XCTestCase {
         XCTAssertNil(Similar.bestMatch("Water the plants", c) { $0 })
     }
 }
+
+final class HabitsTests: XCTestCase {
+    func row(_ slot: String, _ text: String, marks: String? = nil, created: String = "2026-10-01T08:00:00.000Z") -> Entry {
+        Entry(id: UUID().uuidString, logId: "collection:h", slot: slot, order: "a0", text: text, marks: marks, createdAt: created, updatedAt: created)
+    }
+
+    func testMarks() {
+        XCTAssertEqual(Habits.mark(nil, day: 3), .empty)
+        let m = Habits.setting(nil, day: 3, to: .done)
+        XCTAssertEqual(m, "  x")
+        XCTAssertEqual(Habits.mark(m, day: 3), .done)
+        XCTAssertEqual(Habits.setting(m, day: 3, to: .empty), "")
+        XCTAssertEqual(HabitMark.empty.next, .done)
+        XCTAssertEqual(HabitMark.done.next, .missed)
+        XCTAssertEqual(HabitMark.missed.next, .skipped)
+        XCTAssertEqual(HabitMark.skipped.next, .empty)
+    }
+
+    func testDaysToFill() {
+        // Written on Oct 1; today Oct 4: days 1–4 are owed; 1 and 2 are marked (done, skipped), 3 and 4 are not.
+        let water = row("2026-10", "Water", marks: "x-")
+        XCTAssertEqual(Habits.toFill([water], today: "2026-10-04"), ["2026-10-03", "2026-10-04"])
+        // A habit added on Oct 3 owes nothing before it; a row with no name owes nothing.
+        let books = row("2026-10", "Books", created: "2026-10-04T09:00:00.000Z")
+        XCTAssertEqual(Habits.toFill([books, row("2026-10", " ")], today: "2026-10-04"), ["2026-10-04"])
+        // Next month's habits owe nothing yet.
+        XCTAssertEqual(Habits.toFill([row("2026-11", "Run")], today: "2026-10-04"), [])
+        let p = Habits.pending([water, books], habitLogIds: ["collection:h"], today: "2026-10-04")
+        XCTAssertEqual(p, [Habits.Pending(logId: "collection:h", days: 2, latest: "2026-10-04")])
+        XCTAssertEqual(Habits.pending([water], habitLogIds: [], today: "2026-10-04"), [])
+    }
+}

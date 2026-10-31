@@ -33,6 +33,8 @@ struct PageView: View {
     @AppStorage("penColor") private var penColor = "ink"
     @AppStorage("penSize") private var penSize = defaultPenSize
     @State private var penTool: PenTool = .write
+    /// The tool before the last change (the Apple Pencil's double tap goes back to it).
+    @State private var previousTool: PenTool = .write
     @State private var undoRequests = 0
     @State private var canUndo = false
     @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
@@ -55,6 +57,7 @@ struct PageView: View {
             if penOn && isPad && role != .second { penPage } else { typePage }
         }
         .background(Theme.paper)
+        .onChange(of: penTool) { old, _ in previousTool = old }
         .onAppear(perform: load)
         .onChange(of: period) { load() }
         .onChange(of: collection?.id) { load() }
@@ -93,6 +96,19 @@ struct PageView: View {
         }
     }
 
+    /// The Apple Pencil's double tap, as in Notes: what the system's Settings › Apple Pencil chose (the eraser
+    /// and back, or the previous tool and back).
+    private func pencilTap() {
+        switch UIPencilInteraction.preferredTapAction {
+        case .switchEraser:
+            penTool = penTool == .erase ? (previousTool == .erase ? .write : previousTool) : .erase
+        case .switchPrevious:
+            penTool = previousTool
+        default:
+            return
+        }
+    }
+
     private var penPage: some View {
         ZStack(alignment: .top) {
             PenSheetView(
@@ -100,7 +116,8 @@ struct PageView: View {
                 undoRequests: undoRequests, topInset: headerHeight,
                 restore: loadedFor == logId && nav.restore?.place == place ? nav.restore : nil,
                 onScroll: { [place] in nav.remember($0, for: place) },
-                onCanUndo: { canUndo = $0 }
+                onCanUndo: { canUndo = $0 },
+                onPencilTap: pencilTap
             )
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)

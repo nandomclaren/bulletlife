@@ -44,13 +44,16 @@ public struct Entry: Codable, Equatable, Identifiable, Sendable {
     /// Written or drawn with the pen: vector strokes.
     public var ink: Ink?
     public var placement: Placement?
+    /// A habit row (a Habits collection): one mark per day of its month (see Habits).
+    public var marks: String?
     public var createdAt: String
     public var updatedAt: String
 
     public init(
         id: String, logId: String, slot: String = "", parentId: String? = nil, order: String, type: EntryType = .text,
         state: EntryState = .open, text: String = "", signifiers: [Signifier] = [], collapsed: Bool = false,
-        dueDate: String? = nil, ink: Ink? = nil, placement: Placement? = nil, createdAt: String, updatedAt: String
+        dueDate: String? = nil, ink: Ink? = nil, placement: Placement? = nil, marks: String? = nil, createdAt: String,
+        updatedAt: String
     ) {
         self.id = id
         self.logId = logId
@@ -65,6 +68,7 @@ public struct Entry: Codable, Equatable, Identifiable, Sendable {
         self.dueDate = dueDate
         self.ink = ink
         self.placement = placement
+        self.marks = marks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -109,12 +113,14 @@ public struct Log: Codable, Equatable, Identifiable, Sendable {
     public var periodLogId: String?
     /// A collection pinned to the top of the Index.
     public var pinned: Bool?
+    /// What a collection's page is: nil, a free page; "habits", a month of habits (see Habits).
+    public var template: String?
     public var createdAt: String
     public var updatedAt: String
 
     public init(
         id: String, kind: LogKind, title: String, periodStart: String? = nil, periodEnd: String? = nil,
-        periodLogId: String? = nil, pinned: Bool? = nil, createdAt: String, updatedAt: String
+        periodLogId: String? = nil, pinned: Bool? = nil, template: String? = nil, createdAt: String, updatedAt: String
     ) {
         self.id = id
         self.kind = kind
@@ -123,6 +129,7 @@ public struct Log: Codable, Equatable, Identifiable, Sendable {
         self.periodEnd = periodEnd
         self.periodLogId = periodLogId
         self.pinned = pinned
+        self.template = template
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

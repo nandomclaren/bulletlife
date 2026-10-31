@@ -15,8 +15,13 @@ struct OpenItemsButton: View {
     /// Settings: the count can be hidden.
     @AppStorage("openCount") private var showCount = true
 
+    @Environment(\.modelContext) private var context
+
     var body: some View {
-        let count = OpenItems.items(records.map(\.light), eventStates: eventStates, firstDay: firstDay, today: Dates.today()).count
+        let entries = records.map(\.light)
+        let today = Dates.today()
+        let habits = Habits.pending(entries, habitLogIds: Repository(context: context).habitLogIds(), today: today).count
+        let count = OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today).count + habits
         Button {
             isOpen.toggle()
         } label: {
@@ -35,6 +40,8 @@ struct OpenItemsPanel: View {
     var onlyToday = false
     /// Opens the page an item is on (a time page or a collection), with the item marked.
     var open: (OpenItem) -> Void
+    /// Opens a Habits collection on a day still to fill.
+    var openHabits: (String, String) -> Void = { _, _ in }
     @Environment(\.modelContext) private var context
     @Query private var records: [EntryRecord]
     @AppStorage("eventStates") private var eventStates = true
@@ -56,8 +63,38 @@ struct OpenItemsPanel: View {
         let items = OpenItems.withKept(found, kept: kept, byId: byId)
         let groups = OpenItems.groups(items)
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
+        let habits = onlyToday ? [] : Habits.pending(entries, habitLogIds: repo.habitLogIds(), today: today)
         List {
-            if groups.isEmpty {
+            if !habits.isEmpty {
+                Section {
+                    ForEach(habits, id: \.logId) { h in
+                        Button {
+                            openHabits(h.logId, h.latest)
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Image(systemName: "square.grid.3x3")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Theme.task)
+                                    .frame(width: 22)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(titles[h.logId] ?? S.habits).font(Theme.body(16)).foregroundStyle(Theme.text)
+                                    Text("\(S.daysToFill(h.days)) · \(PageView.format(h.latest, "EEE, MMM d"))")
+                                        .font(Theme.body(13))
+                                        .foregroundStyle(Theme.muted)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text(S.habits)
+                        .font(Theme.body(12, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .textCase(nil)
+                }
+            }
+            if groups.isEmpty && habits.isEmpty {
                 Text(S.nothingOpen)
                     .font(Theme.body(15))
                     .foregroundStyle(Theme.muted)

@@ -22,6 +22,8 @@ final class EntryRecord {
     /// Ink as the PWA's JSON (strokes, tx, n, view).
     @Attribute(.externalStorage) var inkData: Data?
     var placementData: Data?
+    /// A habit row's marks, one per day (Habits).
+    var marks: String = ""
     var createdAt: String = ""
     var updatedAt: String = ""
 
@@ -43,6 +45,7 @@ final class EntryRecord {
         dueDate = e.dueDate
         inkData = e.ink.flatMap { try? JSONEncoder().encode($0) }
         placementData = e.placement.flatMap { try? JSONEncoder().encode($0) }
+        marks = e.marks ?? ""
         createdAt = e.createdAt
         updatedAt = e.updatedAt
     }
@@ -55,7 +58,7 @@ final class EntryRecord {
             type: EntryType(rawValue: kind) ?? .text, state: EntryState(rawValue: state) ?? .open, text: text,
             signifiers: signifiers.split(separator: ",").compactMap { Signifier(rawValue: String($0)) }, collapsed: collapsed,
             dueDate: dueDate, placement: placementData.flatMap { try? JSONDecoder().decode(Placement.self, from: $0) },
-            createdAt: createdAt, updatedAt: updatedAt
+            marks: marks.isEmpty ? nil : marks, createdAt: createdAt, updatedAt: updatedAt
         )
     }
 
@@ -66,7 +69,7 @@ final class EntryRecord {
             signifiers: signifiers.split(separator: ",").compactMap { Signifier(rawValue: String($0)) }, collapsed: collapsed,
             dueDate: dueDate, ink: inkData.flatMap { try? JSONDecoder().decode(Ink.self, from: $0) },
             placement: placementData.flatMap { try? JSONDecoder().decode(Placement.self, from: $0) },
-            createdAt: createdAt, updatedAt: updatedAt
+            marks: marks.isEmpty ? nil : marks, createdAt: createdAt, updatedAt: updatedAt
         )
     }
 }
@@ -80,6 +83,8 @@ final class LogRecord {
     var periodEnd: String?
     var periodLogId: String?
     var pinned: Bool = false
+    /// A collection's kind of page ("" a free page, "habits").
+    var template: String = ""
     var createdAt: String = ""
     var updatedAt: String = ""
 
@@ -91,6 +96,7 @@ final class LogRecord {
         periodEnd = l.periodEnd
         periodLogId = l.periodLogId
         pinned = l.pinned ?? false
+        template = l.template ?? ""
         createdAt = l.createdAt
         updatedAt = l.updatedAt
     }
@@ -98,7 +104,8 @@ final class LogRecord {
     var log: Log {
         Log(
             id: uid, kind: LogKind(rawValue: kind) ?? .collection, title: title, periodStart: periodStart, periodEnd: periodEnd,
-            periodLogId: periodLogId, pinned: pinned, createdAt: createdAt, updatedAt: updatedAt
+            periodLogId: periodLogId, pinned: pinned, template: template.isEmpty ? nil : template, createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
 }
@@ -237,9 +244,9 @@ struct Repository {
     }
 
     /// A collection is created only by an explicit user action (CLAUDE.md principle 7).
-    func createCollection(title: String) -> Log {
+    func createCollection(title: String, template: String? = nil) -> Log {
         let now = Self.now()
-        let log = Log(id: "collection:\(ULID.make())", kind: .collection, title: title, createdAt: now, updatedAt: now)
+        let log = Log(id: "collection:\(ULID.make())", kind: .collection, title: title, template: template, createdAt: now, updatedAt: now)
         context.insert(LogRecord(log))
         try? context.save()
         return log
@@ -277,6 +284,38 @@ struct Repository {
         r.pinned = pinned
         r.updatedAt = Self.now()
         try? context.save()
+    }
+
+    // MARK: Habits
+
+    /// The habits of one month of a Habits collection, in their order.
+    func habits(logId: String, month: String) -> [Entry] {
+        records(logId: logId, slot: month).map(\.entry).sorted { $0.order < $1.order }
+    }
+
+    /// Writes one habit row (its name or a day's mark), or adds it.
+    func saveHabit(_ e: Entry) {
+        var e = e
+        e.updatedAt = Self.now()
+        let id = e.id
+        if let r = try? context.fetch(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.uid == id })).first {
+            r.update(from: e)
+        } else {
+            context.insert(EntryRecord(e))
+        }
+        try? context.save()
+        NotificationCenter.default.post(name: Self.saved, object: nil, userInfo: ["logId": e.logId, "slot": e.slot])
+    }
+
+    func deleteHabit(id: String) {
+        for r in (try? context.fetch(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.uid == id }))) ?? [] { context.delete(r) }
+        try? context.save()
+    }
+
+    /// The Habits collections' ids (for Open items).
+    func habitLogIds() -> Set<String> {
+        let descriptor = FetchDescriptor<LogRecord>(predicate: #Predicate { $0.template == "habits" })
+        return Set(((try? context.fetch(descriptor)) ?? []).map(\.uid))
     }
 
     func collections() -> [Log] {

@@ -12,6 +12,8 @@ struct IndexPage: View {
     @Query(filter: #Predicate<LogRecord> { $0.kind == "collection" }) private var records: [LogRecord]
     @State private var naming = false
     @State private var name = ""
+    /// The new collection's kind: a free page, or a month of habits.
+    @State private var kind = ""
     @State private var date = Date()
     @FocusState private var nameFocused: Bool
     @EnvironmentObject private var nav: Navigator
@@ -134,6 +136,12 @@ struct IndexPage: View {
                     .focused($nameFocused)
                     .submitLabel(.done)
                     .onSubmit(create)
+                Picker(S.newCollection, selection: $kind) {
+                    Text(S.page).tag("")
+                    Text(S.habits).tag(Habits.template)
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
                 Button(S.create, action: create)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button(S.cancel) {
@@ -158,9 +166,10 @@ struct IndexPage: View {
     private func create() {
         let title = name.trimmingCharacters(in: .whitespaces)
         guard !title.isEmpty else { return }
-        let log = repo.createCollection(title: title)
+        let log = repo.createCollection(title: title, template: kind.isEmpty ? nil : kind)
         naming = false
         name = ""
+        kind = ""
         openCollection(log.id)
     }
 }
