@@ -21,11 +21,12 @@ struct TimeHeader<Accessory: View>: View {
     @Environment(\.pageRole) private var role
     @Environment(\.pageStep) private var step
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.focusMode) private var focus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // The open book's right page and a page consulted beside: no controls of their own.
-            if role == .main { controls }
+            if role == .main && !focus { controls }
             if !label.isEmpty && !compact {
                 Text(label.uppercased())
                     .font(Theme.body(13, weight: .semibold))

@@ -255,6 +255,8 @@ enum S {
     static let prefixesHint =
         "Typed at the start of a line, then a space. Up to three characters each, all different; an empty or repeated one keeps its default."
     static let levelUp = "Level up"
+    static let focus = "Focus"
+    static let leaveFocus = "Leave focus"
     static let closeDayNotify = "Remind me"
     static let notificationsOff = "Notifications are off for Bullet Life. Turn them on in the Settings app."
     static let complete = "Complete"

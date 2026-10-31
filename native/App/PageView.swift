@@ -18,6 +18,7 @@ struct PageView: View {
     @State private var confirmDeleteAgain = false
     @EnvironmentObject private var nav: Navigator
     @Environment(\.pageRole) private var role
+    @Environment(\.focusMode) private var focus
     @Environment(\.scenePhase) private var scenePhase
     @State private var saver = PageSaver()
     @Environment(\.modelContext) private var context
@@ -100,8 +101,11 @@ struct PageView: View {
             floatingHeader(width: 760)
         }
         .overlay(alignment: .bottom) {
-            PenToolbar(tool: $penTool, color: $penColor, size: $penSize, canUndo: canUndo) { undoRequests += 1 }
-                .padding(.bottom, 16)
+            // Focus mode: the pen keeps the last tool; the bar comes back with the controls.
+            if !focus {
+                PenToolbar(tool: $penTool, color: $penColor, size: $penSize, canUndo: canUndo) { undoRequests += 1 }
+                    .padding(.bottom, 16)
+            }
         }
     }
 
@@ -132,7 +136,7 @@ struct PageView: View {
     // MARK: Header
 
     @ViewBuilder private var header: some View {
-        if consulting, collection != nil {
+        if consulting || focus, collection != nil {
             // Consulted: only its name.
             VStack(alignment: .leading, spacing: 10) {
                 Text(S.collections.uppercased())
@@ -144,7 +148,7 @@ struct PageView: View {
                     .foregroundStyle(Theme.text)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 44)
+            .padding(.top, consulting ? 44 : 0)
         } else if collection != nil {
             collectionHeader
         } else {

@@ -18,6 +18,7 @@ struct IndexPage: View {
     /// Consulted beside another page: its pages open there, nothing else changes from here.
     @Environment(\.pageRole) private var role
     private var consulting: Bool { role == .second }
+    @Environment(\.focusMode) private var focus
 
     private var repo: Repository { Repository(context: context) }
 
@@ -62,7 +63,7 @@ struct IndexPage: View {
     /// previous Index).
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if consulting {
+            if consulting || focus {
                 Color.clear.frame(height: 34)
             } else {
                 HStack(spacing: 12) {

@@ -78,6 +78,12 @@ final class Navigator: ObservableObject {
     @Published var showOpen = false
     /// The search sheet is open.
     @Published var searching = false
+    /// Focus mode (the window's controls hidden).
+    @Published var focus = false
+
+    func toggleFocus() {
+        withAnimation(.easeInOut(duration: 0.25)) { focus.toggle() }
+    }
     /// Close the day opens the panel on what is still open today.
     @Published var openToday = false
 
@@ -189,6 +195,7 @@ enum PageRole { case main, second, facing }
 private struct PageRoleKey: EnvironmentKey { static let defaultValue = PageRole.main }
 private struct PageStepKey: EnvironmentKey { static let defaultValue = 1 }
 private struct PageBesideKey: EnvironmentKey { static let defaultValue = false }
+private struct FocusModeKey: EnvironmentKey { static let defaultValue = false }
 
 extension EnvironmentValues {
     var pageRole: PageRole {
@@ -199,6 +206,11 @@ extension EnvironmentValues {
     var pageStep: Int {
         get { self[PageStepKey.self] }
         set { self[PageStepKey.self] = newValue }
+    }
+    /// Focus mode: every control is hidden, only the page is left (and one button to come back).
+    var focusMode: Bool {
+        get { self[FocusModeKey.self] }
+        set { self[FocusModeKey.self] = newValue }
     }
     /// Another page is open beside this one.
     var pageBeside: Bool {
@@ -253,6 +265,7 @@ struct RootView: View {
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
                 .onChange(of: nav.showOpen) { if !nav.showOpen { nav.openToday = false } }
+                .toolbar(nav.focus ? .hidden : .visible, for: .navigationBar)
                 .sheet(isPresented: $nav.searching, onDismiss: openFound) {
                     SearchView { place, highlight, focus in found = (place, highlight, focus) }
                 }
@@ -274,6 +287,10 @@ struct RootView: View {
                         .accessibilityLabel(S.index)
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button(action: nav.toggleFocus) {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        }
+                        .accessibilityLabel(S.focus)
                         // ⌘K / ⌘F come from the app's Go menu (NotebookCommands).
                         Button {
                             nav.searching = true
@@ -296,6 +313,25 @@ struct RootView: View {
         // "Migrated" / "Scheduled" with Undo, above the pen toolbar.
         // (On iPhone, where there is no pen toolbar, it sits lower.)
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, sizeClass == .compact ? 24 : 84) }
+        // Focus mode: the bar goes (inside the stack), and the one control left is the way back, where the
+        // bar's buttons were.
+        .overlay(alignment: .topTrailing) {
+            if nav.focus {
+                Button(action: nav.toggleFocus) {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.plain)
+                .glassBackground(in: Circle(), interactive: true)
+                .padding(.top, 4)
+                .padding(.trailing, 16)
+                .accessibilityLabel(S.leaveFocus)
+                .transition(.opacity)
+            }
+        }
+        .environment(\.focusMode, nav.focus)
         .environmentObject(nav)
         // The app's menu commands (Go: search, Today, levels, pages) act on this window's notebook.
         .focusedSceneObject(nav)
@@ -368,7 +404,7 @@ struct RootView: View {
 
     @ViewBuilder private var pages: some View {
         let main = NotebookPage(nav: nav)
-            .safeAreaInset(edge: .top, spacing: 0) { Banners() }
+            .safeAreaInset(edge: .top, spacing: 0) { if !nav.focus { Banners() } }
             .environment(\.pageStep, layout == .book ? 2 : 1)
         switch layout {
         case .single:
@@ -435,11 +471,12 @@ struct NotebookPage: View {
 /// an × at the corner, goes back to the Index; from there, or from Open items, it shows another page.
 struct SecondPage: View {
     @ObservedObject var nav: Navigator
+    @Environment(\.focusMode) private var focus
 
     var body: some View {
         NotebookPage(nav: nav, role: .second)
             .overlay(alignment: .topTrailing) {
-                if nav.place != .index {
+                if nav.place != .index && !focus {
                     Button {
                         nav.go(.index)
                     } label: {
@@ -558,6 +595,8 @@ struct NotebookCommands: Commands {
         CommandMenu(S.goMenu) {
             Button(S.search) { nav?.searching = true }.keyboardShortcut("k", modifiers: .command)
             Button(S.find) { nav?.searching = true }.keyboardShortcut("f", modifiers: .command)
+            Divider()
+            Button(S.focus) { nav?.toggleFocus() }.keyboardShortcut("f", modifiers: [.control, .command])
             Divider()
             Button(S.today) { nav?.goToday() }.keyboardShortcut("t", modifiers: .command)
             Button(S.levelUp) { nav?.level(-1) }.keyboardShortcut(.upArrow, modifiers: [.control, .command])
