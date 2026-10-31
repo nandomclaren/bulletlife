@@ -44,11 +44,15 @@ struct PageView: View {
     /// Where this page is in the notebook (to remember and restore its scroll).
     private var place: Place { collection.map { .collection($0.id) } ?? .time(period) }
     /// The second of two pages: read, not written (only a bullet's tap or menu, one entry at a time).
-    private var consulting: Bool { role == .second }
+    /// The second page writes like any page, except when it shows the main page's own page: then it is only
+    /// consulted (a bullet's tap or menu, one entry at a time).
+    @Environment(\.sameAsMain) private var sameAsMain
+    private var consulting: Bool { role == .second && sameAsMain }
 
     var body: some View {
         Group {
-            if penOn && isPad && !consulting { penPage } else { typePage }
+            // The pen writes on the main page; the page beside is typed.
+            if penOn && isPad && role != .second { penPage } else { typePage }
         }
         .background(Theme.paper)
         .onAppear(perform: load)
@@ -63,6 +67,8 @@ struct PageView: View {
             if consulting && note.isAbout(logId: logId) { lines = repo.lines(logId: logId) }
         }
         .onChange(of: lines) { if !consulting { saver.schedule(lines, logId: logId, repo: repo) } }
+        // Becoming only consulted (the main page came here): what was written goes to the page now.
+        .onChange(of: consulting) { if consulting { saver.flush() } }
         .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }
         .onDisappear { saver.flush() }
         // Starts again (and so waits again) with every stroke written or erased: a pause in writing.
@@ -136,7 +142,7 @@ struct PageView: View {
     // MARK: Header
 
     @ViewBuilder private var header: some View {
-        if consulting || focus, collection != nil {
+        if role == .second || focus, collection != nil {
             // Consulted: only its name.
             VStack(alignment: .leading, spacing: 10) {
                 Text(S.collections.uppercased())
@@ -148,7 +154,7 @@ struct PageView: View {
                     .foregroundStyle(Theme.text)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, consulting ? 44 : 0)
+            .padding(.top, role == .second ? 44 : 0)
         } else if collection != nil {
             collectionHeader
         } else {

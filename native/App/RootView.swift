@@ -196,6 +196,7 @@ private struct PageRoleKey: EnvironmentKey { static let defaultValue = PageRole.
 private struct PageStepKey: EnvironmentKey { static let defaultValue = 1 }
 private struct PageBesideKey: EnvironmentKey { static let defaultValue = false }
 private struct FocusModeKey: EnvironmentKey { static let defaultValue = false }
+private struct BesideMainKey: EnvironmentKey { static let defaultValue = false }
 
 extension EnvironmentValues {
     var pageRole: PageRole {
@@ -206,6 +207,12 @@ extension EnvironmentValues {
     var pageStep: Int {
         get { self[PageStepKey.self] }
         set { self[PageStepKey.self] = newValue }
+    }
+    /// The second page shows the same page as the main one: it is only consulted there (two editors on one
+    /// page would save over each other).
+    var sameAsMain: Bool {
+        get { self[BesideMainKey.self] }
+        set { self[BesideMainKey.self] = newValue }
     }
     /// Focus mode: every control is hidden, only the page is left (and one button to come back).
     var focusMode: Bool {
@@ -416,7 +423,7 @@ struct RootView: View {
             HStack(spacing: 0) {
                 main.opacity(fading(.left)).offset(x: min(0, dividerDrag))
                 PageDivider(drag: $dividerDrag, close: closePage).offset(x: dividerDrag)
-                SecondPage(nav: second).opacity(fading(.right)).offset(x: max(0, dividerDrag))
+                SecondPage(nav: second, main: nav).opacity(fading(.right)).offset(x: max(0, dividerDrag))
             }
             .clipShape(SidesOnly())
             .environment(\.pageBeside, true)
@@ -474,10 +481,12 @@ struct NotebookPage: View {
 /// an × at the corner, goes back to the Index; from there, or from Open items, it shows another page.
 struct SecondPage: View {
     @ObservedObject var nav: Navigator
+    @ObservedObject var main: Navigator
     @Environment(\.focusMode) private var focus
 
     var body: some View {
         NotebookPage(nav: nav, role: .second)
+            .environment(\.sameAsMain, nav.place == main.place)
             .overlay(alignment: .topTrailing) {
                 if nav.place != .index && !focus {
                     Button {

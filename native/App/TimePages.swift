@@ -181,7 +181,10 @@ struct SlotEditor: View {
 
     private var repo: Repository { Repository(context: context) }
     /// The second of two pages: read, not written (only a bullet's tap or menu, one entry at a time).
-    private var consulting: Bool { role == .second }
+    /// The second page writes like any page, except when it shows the main page's own page: then it is only
+    /// consulted (a bullet's tap or menu, one entry at a time).
+    @Environment(\.sameAsMain) private var sameAsMain
+    private var consulting: Bool { role == .second && sameAsMain }
 
     var body: some View {
         PageEditorView(
@@ -218,6 +221,7 @@ struct SlotEditor: View {
             if consulting && note.isAbout(logId: logId, slot: slot) { lines = repo.lines(logId: logId, slot: slot) }
         }
         .onChange(of: lines) { if !consulting { saver.schedule(lines, logId: logId, slot: slot, repo: repo) } }
+        .onChange(of: consulting) { if consulting { saver.flush() } }
         .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }
         .onDisappear { saver.flush() }
     }
