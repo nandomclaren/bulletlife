@@ -123,7 +123,8 @@ struct Repository {
     func lines(logId: String, slot: String = "") -> [Line] {
         // What a page wrote and hasn't saved yet goes in first: a page drawn again (or another view of it)
         // never reads it from before the last edits.
-        PageSaver.flushPending(logId: logId, slot: slot)
+        // The repository is used from the views only, on the main thread.
+        MainActor.assumeIsolated { PageSaver.flushPending(logId: logId, slot: slot) }
         return Outline.lines(from: records(logId: logId, slot: slot).map(\.entry))
     }
 
