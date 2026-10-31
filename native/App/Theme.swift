@@ -322,7 +322,6 @@ enum S {
     static let deleteHabit = "Delete habit"
     static let previousMonth = "Previous month"
     static let nextMonth = "Next month"
-    static let thisMonth = "This month"
     static let habitMarks: [HabitMark: String] = [.empty: "Not marked", .done: "Done", .missed: "Not done", .skipped: "Skipped"]
     static func daysToFill(_ n: Int) -> String { n == 1 ? "1 day to fill" : "\(n) days to fill" }
     static let name = "Name"
