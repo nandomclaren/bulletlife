@@ -180,6 +180,18 @@ final class PenRulesTests: XCTestCase {
         XCTAssertEqual(PenRules.readLineShape([s([(78, 20), (80, 21)]), word(98)]).indent, 1)
         XCTAssertEqual(PenRules.readLineShape([word(132)]).indent, 2)
         XCTAssertEqual(PenRules.readLineShape([word(70)]).indent, 0)
+        // A small written "o" is not a dot (a task): a loop that size reads as a circle.
+        XCTAssertNotEqual(PenRules.shapeOf(circle(42, 20, 4), circle(42, 20, 4).box), .task)
+    }
+
+    func testALetterAtTheStartOfAParagraphLineIsNoBullet() {
+        // The line above starts at x 60; "o suficiente": a small "o" in line with it continues the paragraph.
+        let above = hand("a", 0, 1, startX: 60)
+        let o = circle(64, 60, 4)
+        XCTAssertEqual(PenRules.place([above], contentEnd: 40, stroke: o, row: 1), .join(id: "a", r: 1, top: 0, absorb: nil))
+        // In the margin, left of where the line above starts, a dot or a circle opens a new item.
+        XCTAssertEqual(PenRules.place([above], contentEnd: 40, stroke: s([(42, 60), (43, 61)]), row: 1), .new(after: nil, blanks: 0, top: 40))
+        XCTAssertEqual(PenRules.place([above], contentEnd: 40, stroke: circle(44, 60, 5), row: 1), .new(after: nil, blanks: 0, top: 40))
     }
 
     func testStrokeRows() {
@@ -558,6 +570,25 @@ final class EditingTests: XCTestCase {
         let out = PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 1), to: Caret(index: 2, offset: 1))
         XCTAssertEqual(out.lines.map(\.text), ["ayz", ""])
         XCTAssertEqual(out.lines[1].ink, ink)
+        // A handwritten line joins the handwritten line above, ink and all: one paragraph, read again.
+        let above = Ink(strokes: [Stroke(k: .writing, r: 0, p: [60, 20, 0.5]), Stroke(k: .writing, r: 1, p: [60, 60, 0.5])], tx: "vinha fazendo", n: 2)
+        let o = Ink(strokes: [Stroke(k: .writing, r: 0, p: [44, 20, 0.5], b: true), Stroke(k: .writing, r: 0, p: [70, 20, 0.5])], tx: "suficiente", n: 2)
+        let pair = [Line(text: "vinha fazendo", ink: above), Line(text: "suficiente", ink: o)]
+        let joined = try! XCTUnwrap(PageEdit.backspaceAtStart(pair, at: Caret(index: 1, offset: 0)))
+        XCTAssertEqual(joined.lines.count, 1)
+        XCTAssertEqual(joined.lines[0].text, "vinha fazendo suficiente")
+        XCTAssertEqual(joined.caret, Caret(index: 0, offset: 13))
+        let strokes = joined.lines[0].ink!.strokes
+        XCTAssertEqual(strokes.map(\.r), [0, 1, 2, 2])
+        XCTAssertEqual(strokes[2].p[1], 100)
+        XCTAssertNil(strokes[2].b)
+        XCTAssertTrue(joined.lines[0].ink!.needsTranscription)
+        XCTAssertEqual(joined.lines[0].ink!.tx, "vinha fazendo suficiente")
+        // Corrected by hand: the correction stays when it is read again.
+        var corrected = pair
+        corrected[1].text = "suficiente!"
+        let kept = try! XCTUnwrap(PageEdit.backspaceAtStart(corrected, at: Caret(index: 1, offset: 0)))
+        XCTAssertNotEqual(kept.lines[0].ink!.tx, kept.lines[0].text)
         // A selection ending inside a handwritten line keeps that line, with its remaining text.
         let end = PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 1), to: Caret(index: 1, offset: 2))
         XCTAssertEqual(end.lines.map(\.text), ["a", "nd", "xyz"])

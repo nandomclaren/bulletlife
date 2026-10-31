@@ -65,9 +65,11 @@ public struct LastStroke: Sendable {
 public enum PenRules {
     static func shapeOf(_ s: Stroke, _ b: Box) -> EntryType? {
         let size = max(b.width, b.height)
-        if size <= 9 { return .task }
         let n = s.p.count / 3
         let closed = hypot(s.p[0] - s.p[(n - 1) * 3], s.p[1] - s.p[(n - 1) * 3 + 1]) < max(6, size * 0.45)
+        // A dot is a dot: a small loop (a written "o", an "a") is not one (Fernando's test).
+        let loop = closed && b.width > 6 && b.height > 6
+        if size <= 9 && !loop { return .task }
         if size <= 26 && closed && b.width > 5 && b.height > 5 && b.width / b.height < 2.2 && b.height / b.width < 2.2 { return .event }
         if b.width >= 6 && b.width <= 34 && b.height <= max(5, b.width / 3) { return .note }
         return nil
@@ -97,11 +99,14 @@ public enum PenRules {
         return LineShape(type: type, bullet: bullet, indent: indent)
     }
 
+    /// Whether a stroke right below a handwritten line opens a new item instead of continuing the paragraph:
+    /// it looks like a bullet and sits in the margin, left of where the line above starts (as on paper). A
+    /// letter at the start of the line, in line with the words above, continues the paragraph.
     static func bulletish(_ s: Stroke, _ b: Box, lineStart: Double?) -> Bool {
-        let kind = shapeOf(s, b)
-        if kind == .task || kind == .note { return true }
-        guard kind == .event, let lineStart else { return false }
-        return max(b.width, b.height) <= 16 && b.x1 <= lineStart + 4
+        guard let kind = shapeOf(s, b) else { return false }
+        if kind == .event && max(b.width, b.height) > 16 { return false }
+        guard let lineStart else { return true }
+        return b.x1 <= lineStart + 4
     }
 
     /// Where the last ruled line of a handwritten block starts (its leftmost writing stroke).

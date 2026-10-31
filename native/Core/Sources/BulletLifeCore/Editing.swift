@@ -235,10 +235,45 @@ public enum PageEdit {
             clearSignifiers(&lines[i])
             return commit(lines, before: before, caret: at)
         }
-        if i == 0 || handwritten(line) { return nil }
+        if i == 0 { return nil }
+        if handwritten(line) {
+            // Handwriting is never deleted from Type mode; it can only join the handwritten line above, ink
+            // and all, as one paragraph (a letter read as a bullet, a line split by mistake).
+            guard let joined = joinHandwritten(lines, i) else { return nil }
+            return commit(joined.lines, before: before, caret: joined.caret)
+        }
         let offset = lines[i - 1].text.u16
         let joined = deleteRange(lines, from: Caret(index: i - 1, offset: offset), to: Caret(index: i, offset: 0))
         return commit(joined.lines, before: before, caret: joined.caret)
+    }
+
+    /// Line `i` (handwritten) joins the handwritten line above: its strokes go below that line's, as more
+    /// rows of the same paragraph, its text after a space; read again (a mark that was a bullet becomes a
+    /// letter) unless one of the two texts was corrected by hand. Nil when the line above has no writing.
+    static func joinHandwritten(_ lines: [Line], _ i: Int) -> (lines: [Line], caret: Caret)? {
+        guard i > 0, var above = lines[i - 1].ink, above.hasWriting, let below = lines[i].ink else { return nil }
+        let rows = max(1, above.rows)
+        let dy = Double(rows) * inkRow
+        let moved = below.strokes.map { s -> Stroke in
+            var s = s
+            if s.k == .writing { s.r += rows }
+            s.b = nil
+            s.p = s.p.enumerated().map { j, v in j % 3 == 1 ? v + dy : v }
+            return s
+        }
+        let a = lines[i - 1].text, b = lines[i].text
+        let read = above.tx != nil && a == above.tx && below.tx != nil && b == below.tx
+        let text = a.isEmpty ? b : b.isEmpty ? a : a + " " + b
+        above.strokes += moved
+        // Read: the new reading replaces the text. Corrected: the joined readings, which the text no longer
+        // equals, so the correction stays (and the line's type and indent are not read again either).
+        above.tx = read ? text : [above.tx, below.tx].compactMap { $0 }.joined(separator: " ")
+        above.n = nil
+        var out = lines
+        out[i - 1].ink = above
+        out[i - 1].text = text
+        out.remove(at: i)
+        return (out, Caret(index: i - 1, offset: a.u16))
     }
 
     /// Indents (+1) or outdents (-1) lines from...to with the subtree of the last; an item that now opens a

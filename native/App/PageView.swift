@@ -78,7 +78,7 @@ struct PageView: View {
     // MARK: Transcription (N3)
 
     private var transcriptionKey: String {
-        "\(logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(handwritingLang)|\(handwriting.status == .ready)"
+        "\(logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(Transcription.pending(lines).count)|\(handwritingLang)|\(handwriting.status == .ready)"
     }
 
     /// Reads the handwriting the last pass didn't, after a pause in writing (at once in Type mode). The ink is
