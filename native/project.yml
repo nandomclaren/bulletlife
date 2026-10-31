@@ -20,6 +20,16 @@ settings:
 packages:
   BulletLifeCore:
     path: Core
+# The app's scheme, shared and always generated (Xcode didn't always create it on its own after xcodegen).
+schemes:
+  BulletLife:
+    build:
+      targets:
+        BulletLife: all
+    run:
+      config: Debug
+    archive:
+      config: Release
 targets:
   BulletLife:
     type: application
