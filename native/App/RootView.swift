@@ -79,10 +79,10 @@ final class Navigator: ObservableObject {
     /// The search sheet is open.
     @Published var searching = false
     /// Focus mode (the window's controls hidden).
-    @Published var focus = false
+    @Published var focusMode = false
 
     func toggleFocus() {
-        withAnimation(.easeInOut(duration: 0.25)) { focus.toggle() }
+        withAnimation(.easeInOut(duration: 0.25)) { focusMode.toggle() }
     }
     /// Close the day opens the panel on what is still open today.
     @Published var openToday = false
@@ -265,7 +265,7 @@ struct RootView: View {
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }
                 .onChange(of: nav.showOpen) { if !nav.showOpen { nav.openToday = false } }
-                .toolbar(nav.focus ? .hidden : .visible, for: .navigationBar)
+                .toolbar(nav.focusMode ? .hidden : .visible, for: .navigationBar)
                 .sheet(isPresented: $nav.searching, onDismiss: openFound) {
                     SearchView { place, highlight, focus in found = (place, highlight, focus) }
                 }
@@ -316,7 +316,7 @@ struct RootView: View {
         // Focus mode: the bar goes (inside the stack), and the one control left is the way back, where the
         // bar's buttons were.
         .overlay(alignment: .topTrailing) {
-            if nav.focus {
+            if nav.focusMode {
                 Button(action: nav.toggleFocus) {
                     Image(systemName: "arrow.down.right.and.arrow.up.left")
                         .font(.system(size: 15, weight: .semibold))
@@ -331,7 +331,7 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .environment(\.focusMode, nav.focus)
+        .environment(\.focusMode, nav.focusMode)
         .environmentObject(nav)
         // The app's menu commands (Go: search, Today, levels, pages) act on this window's notebook.
         .focusedSceneObject(nav)
@@ -404,7 +404,7 @@ struct RootView: View {
 
     @ViewBuilder private var pages: some View {
         let main = NotebookPage(nav: nav)
-            .safeAreaInset(edge: .top, spacing: 0) { if !nav.focus { Banners() } }
+            .safeAreaInset(edge: .top, spacing: 0) { if !nav.focusMode { Banners() } }
             .environment(\.pageStep, layout == .book ? 2 : 1)
         switch layout {
         case .single:

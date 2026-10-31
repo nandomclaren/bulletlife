@@ -1,7 +1,7 @@
 // The notebook in the system's search (CLAUDE.md 14): every written entry is indexed on the device
 // (Core Spotlight), with where it is. A result opens its page with the entry marked. Nothing leaves the device.
 import BulletLifeCore
-import CoreSpotlight
+@preconcurrency import CoreSpotlight
 import SwiftUI
 
 @MainActor
@@ -11,18 +11,17 @@ enum Spotlight {
         let entries = repo.lightEntries()
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
         let items = entries.compactMap { item($0, titles: titles) }
-        let index = CSSearchableIndex.default()
-        index.deleteAllSearchableItems { _ in index.indexSearchableItems(items) }
+        CSSearchableIndex.default().deleteAllSearchableItems { _ in CSSearchableIndex.default().indexSearchableItems(items) }
     }
 
     /// One page again, after it was written.
     static func index(logId: String, slot: String, repo: Repository) {
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
         let entries = repo.lightEntries().filter { $0.logId == logId && $0.slot == slot }
-        let index = CSSearchableIndex.default()
-        let domain = Self.domain(logId, slot)
-        index.deleteSearchableItems(withDomainIdentifiers: [domain]) { _ in
-            index.indexSearchableItems(entries.compactMap { item($0, titles: titles) })
+        // Built here, on the main actor; the index's callback only hands them over.
+        let items = entries.compactMap { item($0, titles: titles) }
+        CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain(logId, slot)]) { _ in
+            CSSearchableIndex.default().indexSearchableItems(items)
         }
     }
 
