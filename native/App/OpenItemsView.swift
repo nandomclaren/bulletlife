@@ -20,7 +20,7 @@ struct OpenItemsButton: View {
     var body: some View {
         let entries = records.map(\.light)
         let today = Dates.today()
-        let habits = Habits.pending(entries, habitLogIds: Repository(context: context).habitLogIds(), today: today).count
+        let habits = Habits.pending(entries, habitLogIds: Repository(context: context).habitLogIds(), today: today, todayDue: Habits.todayDue).count
         let count = OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today).count + habits
         Button {
             isOpen.toggle()
@@ -63,7 +63,7 @@ struct OpenItemsPanel: View {
         let items = OpenItems.withKept(found, kept: kept, byId: byId)
         let groups = OpenItems.groups(items)
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
-        let habits = onlyToday ? [] : Habits.pending(entries, habitLogIds: repo.habitLogIds(), today: today)
+        let habits = onlyToday ? [] : Habits.pending(entries, habitLogIds: repo.habitLogIds(), today: today, todayDue: Habits.todayDue)
         List {
             if !habits.isEmpty {
                 Section {

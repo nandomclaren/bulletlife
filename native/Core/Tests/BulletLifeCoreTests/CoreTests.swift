@@ -1125,5 +1125,15 @@ final class HabitsTests: XCTestCase {
         let p = Habits.pending([water, books], habitLogIds: ["collection:h"], today: "2026-10-04")
         XCTAssertEqual(p, [Habits.Pending(logId: "collection:h", days: 2, latest: "2026-10-04")])
         XCTAssertEqual(Habits.pending([water], habitLogIds: [], today: "2026-10-04"), [])
+        // Before the evening check-in, today is not owed yet.
+        XCTAssertEqual(Habits.toFill([water], today: "2026-10-04", todayDue: false), ["2026-10-03"])
+    }
+
+    func testMarksWrittenWithThePen() {
+        func s(_ pts: [(Double, Double)]) -> Stroke { Stroke(k: .writing, p: pts.flatMap { [$0.0, $0.1, 0.5] }) }
+        XCTAssertEqual(Habits.mark(written: s([(10, 10), (12, 11)])), .missed)
+        XCTAssertEqual(Habits.mark(written: s([(4, 20), (18, 21)])), .skipped)
+        XCTAssertEqual(Habits.mark(written: s([(4, 12), (8, 20), (20, 2)])), .done)
+        XCTAssertEqual(Habits.mark(written: s([(4, 4), (18, 20)])), .done)
     }
 }

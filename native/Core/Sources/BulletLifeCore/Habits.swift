@@ -41,15 +41,16 @@ public enum Habits {
         return String(chars)
     }
 
-    /// Days still to fill: for each habit row, each day of its month up to today, from the day the habit was
-    /// written (a habit added mid-month does not owe the days before it), without a mark.
-    public static func toFill(_ rows: [Entry], today: String) -> [String] {
+    /// Days still to fill: for each habit row, each day of its month before today (and today too once
+    /// `todayDue`: from the evening check-in, Close the day), from the day the habit was written (a habit added
+    /// mid-month does not owe the days before it), without a mark.
+    public static func toFill(_ rows: [Entry], today: String, todayDue: Bool = true) -> [String] {
         var days = Set<String>()
         for row in rows where !row.slot.isEmpty && !row.text.trimmingCharacters(in: .whitespaces).isEmpty {
             let ym = row.slot
             guard ym.count == 7, ym <= Dates.monthOf(today) else { continue }
             let since = String(row.createdAt.prefix(10))
-            for (i, iso) in Dates.monthDays(ym).enumerated() where iso <= today && iso >= since {
+            for (i, iso) in Dates.monthDays(ym).enumerated() where (iso < today || (todayDue && iso == today)) && iso >= since {
                 if mark(row.marks, day: i + 1) == .empty { days.insert(iso) }
             }
         }
@@ -64,12 +65,21 @@ public enum Habits {
         public var latest: String
     }
 
-    public static func pending(_ entries: [Entry], habitLogIds: Set<String>, today: String) -> [Pending] {
+    public static func pending(_ entries: [Entry], habitLogIds: Set<String>, today: String, todayDue: Bool = true) -> [Pending] {
         let byLog = Dictionary(grouping: entries.filter { habitLogIds.contains($0.logId) }, by: \.logId)
         return byLog.compactMap { logId, rows in
-            let days = toFill(rows, today: today)
+            let days = toFill(rows, today: today, todayDue: todayDue)
             guard let latest = days.last else { return nil }
             return Pending(logId: logId, days: days.count, latest: latest)
         }.sorted { $0.latest > $1.latest }
+    }
+
+    /// A mark written with the pen on a day: a dot is not done, a short flat line is skipped, anything else (a
+    /// check, a cross or one of its strokes) is done.
+    public static func mark(written s: Stroke) -> HabitMark {
+        let b = s.box
+        if max(b.width, b.height) <= 8 { return .missed }
+        if b.width >= 6 && b.height <= max(4, b.width / 3) { return .skipped }
+        return .done
     }
 }
