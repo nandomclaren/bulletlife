@@ -249,9 +249,11 @@ struct MonthPage: View {
 
     private var active: ActiveLogs { ActiveLogs(monthly: monthly, weekly: weekly, daily: daily) }
 
-    /// On its own on a wide screen, the days and Month tasks sit side by side, like an open notebook (as in
-    /// the PWA); with a page beside it, or narrower, Month tasks follow the days.
-    private var sideBySide: Bool { !beside && width >= 900 }
+    @Environment(\.monthSpread) private var spread
+
+    /// In the open book the days and Month tasks sit side by side, like an open notebook (as in the PWA); in
+    /// one page (or with another page beside it) Month tasks follow the days, in one column.
+    private var sideBySide: Bool { spread && !beside && width >= 700 }
 
     var body: some View {
         let today = Dates.today()
@@ -409,9 +411,10 @@ struct YearPage: View {
     /// Another page beside it (two pages, open book): one column.
     @Environment(\.pageBeside) private var beside
 
-    /// On its own on a wide screen, the year opens like a notebook: January to June on the left, July to
-    /// December on the right (as the PWA's spread); with a page beside it, or narrower, one column.
-    private var spread: Bool { !beside && width >= 900 }
+    /// In the open book the year opens like a notebook: January to June on the left, July to December on
+    /// the right (as the PWA's spread); in one page, one column.
+    @Environment(\.monthSpread) private var bookSpread
+    private var spread: Bool { bookSpread && !beside && width >= 700 }
 
     var body: some View {
         let logId = Period.year(year).logId

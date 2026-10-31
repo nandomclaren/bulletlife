@@ -195,6 +195,7 @@ enum PageRole { case main, second, facing }
 private struct PageRoleKey: EnvironmentKey { static let defaultValue = PageRole.main }
 private struct PageStepKey: EnvironmentKey { static let defaultValue = 1 }
 private struct PageBesideKey: EnvironmentKey { static let defaultValue = false }
+private struct MonthSpreadKey: EnvironmentKey { static let defaultValue = false }
 private struct FocusModeKey: EnvironmentKey { static let defaultValue = false }
 private struct BesideMainKey: EnvironmentKey { static let defaultValue = false }
 
@@ -223,6 +224,13 @@ extension EnvironmentValues {
     var pageBeside: Bool {
         get { self[PageBesideKey.self] }
         set { self[PageBesideKey.self] = newValue }
+    }
+    /// The open book on a Month or a Year: the page spread over both sides (the Month's days on the left,
+    /// Month tasks on the right; the Year's January–June and July–December). Fernando: they are pages of
+    /// their own kind; in one page they are one column.
+    var monthSpread: Bool {
+        get { self[MonthSpreadKey.self] }
+        set { self[MonthSpreadKey.self] = newValue }
     }
 }
 
@@ -422,13 +430,24 @@ struct RootView: View {
         .accessibilityLabel(S.pageLayout)
     }
 
+    /// The open book on a Month or a Year spreads that page over both sides instead of showing the next one.
+    private var monthBook: Bool {
+        guard layout == .book, case .time(let p) = nav.place else { return false }
+        switch p {
+        case .month, .year: return true
+        default: return false
+        }
+    }
+
     @ViewBuilder private var pages: some View {
         let main = NotebookPage(nav: nav)
             .safeAreaInset(edge: .top, spacing: 0) { if !nav.focusMode { Banners() } }
-            .environment(\.pageStep, layout == .book ? 2 : 1)
+            .environment(\.pageStep, layout == .book && !monthBook ? 2 : 1)
         switch layout {
         case .single:
             main
+        case .book where monthBook:
+            main.environment(\.monthSpread, true)
         case .two:
             HStack(spacing: 0) {
                 main.opacity(fading(.left)).offset(x: min(0, dividerDrag))
