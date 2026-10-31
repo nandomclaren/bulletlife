@@ -173,7 +173,9 @@ struct PageEditorView: UIViewRepresentable {
             let offset = view.contentOffset
             if lines.isEmpty { lines = [Line()] }
             let hidden = Outline.hidden(lines)
-            visible = lines.indices.filter { !hidden[$0] && !erased.contains(lines[$0].id) }
+            // A handwritten line left out of Type mode comes back once it has text again (typed text joined
+            // into it with Backspace becomes its correction).
+            visible = lines.indices.filter { !hidden[$0] && !(erased.contains(lines[$0].id) && lines[$0].text.isEmpty) }
             if visible.isEmpty {
                 lines.append(Line())
                 visible = [lines.count - 1]
