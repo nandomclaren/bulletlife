@@ -235,6 +235,14 @@ struct PageEditorView: UIViewRepresentable {
 
         // MARK: Due dates (CLAUDE.md 3.7)
 
+        /// Every stored due date on the page, as ranges of the text view's text.
+        func dueTokenRanges() -> [NSRange] {
+            let s = starts()
+            return visible.enumerated().flatMap { k, i in
+                Due.tokens(lines[i].text).map { NSRange(location: s[k] + $0.range.location, length: $0.range.length) }
+            }
+        }
+
         private var dateOrder: DateOrder { DateOrder(rawValue: UserDefaults.standard.string(forKey: "dateOrder") ?? "") ?? .dmy }
 
         func resolveDue(in text: String, upTo: Int) -> (text: String, shift: Int)? {
@@ -405,6 +413,15 @@ struct PageEditorView: UIViewRepresentable {
         }
 
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            // A due date is one piece, like its pill: Backspace into it takes the whole date.
+            if text.isEmpty, range.length == 1, let token = dueTokenRanges().first(where: { NSIntersectionRange($0, range).length > 0 }),
+                token != range,
+                let a = textView.position(from: textView.beginningOfDocument, offset: token.location),
+                let b = textView.position(from: a, offset: token.length), let whole = textView.textRange(from: a, to: b)
+            {
+                textView.replace(whole, withText: "")
+                return false
+            }
             let start = caret(at: range.location)
             let end = caret(at: range.location + range.length)
             let multi = start.index != end.index
@@ -671,6 +688,12 @@ struct PageEditorView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            // The caret never stops inside a due date (its letters are hidden under the pill): it goes to its end.
+            let sel = textView.selectedRange
+            if sel.length == 0, let token = dueTokenRanges().first(where: { sel.location > $0.location && sel.location < NSMaxRange($0) }) {
+                textView.selectedRange = NSRange(location: NSMaxRange(token), length: 0)
+                return
+            }
             parent.onSelection(selectedLines())
             if selectedDrawing != nil {
                 selectedDrawing = nil
@@ -876,9 +899,15 @@ struct PageEditorView: UIViewRepresentable {
                     let color = colors[i] == .text || colors[i] == .heading ? Theme.ui("task") : Theme.ui(colors[i].rawValue)
                     storage.addAttributes([.font: EditorLayout.bulletFont, .foregroundColor: color], range: r)
                 }
-                // A stored due date: its text makes room for the pill drawn over it (the text stays as written).
-                for t in tokens {
+                // A stored due date: its text makes room for the pill drawn over it (the text stays as written),
+                // exactly as wide as the pill, so no gap is left between the pill and what follows it.
+                for (t, token) in zip(tokens, Due.tokens(l.text)) {
                     storage.addAttributes([.foregroundColor: UIColor.clear, .font: EditorLayout.pillRoomFont], range: t)
+                    guard t.length > 1 else { continue }
+                    let label = Due.label(token.iso, today: Dates.today(), order: dateOrder)
+                    let natural = (storage.attributedSubstring(from: t).string as NSString).size(withAttributes: [.font: EditorLayout.pillRoomFont]).width
+                    let extra = DuePillView.width(label) + 2 - natural
+                    storage.addAttribute(.kern, value: extra, range: NSRange(location: NSMaxRange(t) - 1, length: 1))
                 }
             }
             storage.endEditing()
@@ -1416,6 +1445,18 @@ final class InkPreviewView: UIView, UIEditMenuInteractionDelegate {
 /// A due date as a pill: a calendar and "Today" / "Tomorrow" / "23 Oct", colored by how near it is.
 final class DuePillView: UIButton {
     private var onTap: () -> Void = {}
+
+    /// How wide the pill for this label is (the text under it is made exactly this wide).
+    static func width(_ label: String) -> CGFloat {
+        if let w = widths[label] { return w }
+        let p = DuePillView()
+        p.configure(label: label, status: .future) {}
+        let w = p.sizeThatFits(.zero).width
+        widths[label] = w
+        return w
+    }
+
+    private static var widths: [String: CGFloat] = [:]
 
     override init(frame: CGRect) {
         super.init(frame: frame)
