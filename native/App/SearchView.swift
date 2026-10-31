@@ -72,6 +72,10 @@ struct SearchView: View {
                         .font(Theme.body(17))
                         .foregroundStyle(Theme.text)
                         .lineLimit(3)
+                    let dates = Due.tokens(e.text).map(\.iso)
+                    if !dates.isEmpty {
+                        HStack(spacing: 6) { ForEach(dates, id: \.self) { DueBadge(iso: $0) } }
+                    }
                     Text(OpenItems.sourceLabel(source, slot: e.slot, collectionTitle: titles[e.logId]))
                         .font(Theme.body(13))
                         .foregroundStyle(Theme.muted)
@@ -85,6 +89,13 @@ struct SearchView: View {
         var a = AttributedString(text)
         for r in ranges {
             if let range = Range(r, in: a) { a[range].font = Theme.body(17, weight: .bold) }
+        }
+        // Due dates show as pills below, not as "due:2026-10-30" (with the space before them).
+        let ns = text as NSString
+        for token in Due.tokens(text).reversed() {
+            var r = token.range
+            if r.location > 0, ns.character(at: r.location - 1) == 32 { r = NSRange(location: r.location - 1, length: r.length + 1) }
+            if let range = Range(r, in: a) { a.removeSubrange(range) }
         }
         return a
     }

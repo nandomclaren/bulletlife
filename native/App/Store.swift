@@ -121,7 +121,10 @@ struct Repository {
 
     /// The lines of one page (a log, or one fixed row of a Month or Year).
     func lines(logId: String, slot: String = "") -> [Line] {
-        Outline.lines(from: records(logId: logId, slot: slot).map(\.entry))
+        // What a page wrote and hasn't saved yet goes in first: a page drawn again (or another view of it)
+        // never reads it from before the last edits.
+        PageSaver.flushPending(logId: logId, slot: slot)
+        return Outline.lines(from: records(logId: logId, slot: slot).map(\.entry))
     }
 
     /// Writes what changed on a page. A page that is still blank is not created (CLAUDE.md principle 7).
@@ -302,6 +305,14 @@ struct Repository {
 final class PageSaver {
     private var pending: (lines: [Line], logId: String, slot: String, repo: Repository)?
     private var task: Task<Void, Never>?
+    /// Every saver alive, so a read of a page can first take what any of them still holds for it.
+    private static let all = NSHashTable<PageSaver>.weakObjects()
+
+    init() { Self.all.add(self) }
+
+    static func flushPending(logId: String, slot: String) {
+        for saver in all.allObjects where saver.pending?.logId == logId && saver.pending?.slot == slot { saver.flush() }
+    }
 
     func schedule(_ lines: [Line], logId: String, slot: String = "", repo: Repository) {
         pending = (lines, logId, slot, repo)

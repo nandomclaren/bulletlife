@@ -902,12 +902,12 @@ struct PageEditorView: UIViewRepresentable {
                 // A stored due date: its text makes room for the pill drawn over it (the text stays as written),
                 // exactly as wide as the pill, so no gap is left between the pill and what follows it.
                 for (t, token) in zip(tokens, Due.tokens(l.text)) {
-                    storage.addAttributes([.foregroundColor: UIColor.clear, .font: EditorLayout.pillRoomFont], range: t)
-                    guard t.length > 1 else { continue }
+                    // The hidden letters are sized so that, together, they are as wide as the pill.
                     let label = Due.label(token.iso, today: Dates.today(), order: dateOrder)
-                    let natural = (storage.attributedSubstring(from: t).string as NSString).size(withAttributes: [.font: EditorLayout.pillRoomFont]).width
-                    let extra = DuePillView.width(label) + 2 - natural
-                    storage.addAttribute(.kern, value: extra, range: NSRange(location: NSMaxRange(t) - 1, length: 1))
+                    let base = EditorLayout.pillRoomFont
+                    let natural = (storage.attributedSubstring(from: t).string as NSString).size(withAttributes: [.font: base]).width
+                    let size = natural > 0 ? max(1, base.pointSize * (DuePillView.width(label) + 2) / natural) : base.pointSize
+                    storage.addAttributes([.foregroundColor: UIColor.clear, .font: base.withSize(size)], range: t)
                 }
             }
             storage.endEditing()
@@ -1001,7 +1001,9 @@ struct PageEditorView: UIViewRepresentable {
                         self.pickDate(lineId: lineId, tokenStart: t.range.location, from: p)
                     }
                     let size = p.sizeThatFits(.zero)
-                    p.frame = CGRect(x: r.minX, y: r.midY - size.height / 2, width: size.width, height: size.height)
+                    // The pill fills exactly the room its hidden date takes, so nothing is left between it and the next word.
+                    let width = max(size.width * 0.85, r.width - 2)
+                    p.frame = CGRect(x: r.minX, y: r.midY - size.height / 2, width: width, height: size.height)
                 }
             }
             for (n, p) in pills.enumerated() { p.isHidden = n >= usedPills }
@@ -1451,7 +1453,7 @@ final class DuePillView: UIButton {
         if let w = widths[label] { return w }
         let p = DuePillView()
         p.configure(label: label, status: .future) {}
-        let w = p.sizeThatFits(.zero).width
+        let w = p.intrinsicContentSize.width
         widths[label] = w
         return w
     }

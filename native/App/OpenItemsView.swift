@@ -109,10 +109,11 @@ struct OpenItemsPanel: View {
             .disabled(!stateful)
             VStack(alignment: .leading, spacing: 6) {
                 // Tap the text: its page.
+                let shown = DueText.split(e.text)
                 Button {
                     open(item)
                 } label: {
-                    Text(e.text.isEmpty ? "—" : e.text)
+                    Text(shown.text.isEmpty ? "—" : shown.text)
                         .font(Theme.body(16))
                         .foregroundStyle(stateful && e.state != .open ? Theme.muted : Theme.text)
                         .strikethrough(e.state == .cancelled)
@@ -120,6 +121,9 @@ struct OpenItemsPanel: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
+                if !shown.dates.isEmpty {
+                    HStack(spacing: 6) { ForEach(shown.dates, id: \.self) { DueBadge(iso: $0) } }
+                }
                 if item.category == .unplaced && e.placement?.status == .pending {
                     Button(S.wroteItThere) {
                         act(item) { $0.placement = Placement(status: .placed, confirmedAt: Repository.now()) }
@@ -198,5 +202,42 @@ struct DoneGlyph: UIViewRepresentable {
 
     final class Coordinator {
         var state: EntryState = .open
+    }
+}
+
+/// A due date in a list (Open items, search): the same pill as on the page, beside the text.
+struct DueBadge: View {
+    let iso: String
+    @AppStorage("dateOrder") private var dateOrder = DateOrder.dmy.rawValue
+
+    var body: some View {
+        let today = Dates.today()
+        let color: Color = {
+            switch Due.status(iso, today: today) {
+            case .overdue: return Theme.task
+            case .today: return Theme.event
+            case .future: return Theme.muted
+            }
+        }()
+        HStack(spacing: 4) {
+            Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
+            Text(Due.label(iso, today: today, order: DateOrder(rawValue: dateOrder) ?? .dmy)).font(Theme.body(12, weight: .semibold))
+        }
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.13), in: Capsule())
+    }
+}
+
+enum DueText {
+    /// The text without its stored due dates (they show as pills), and the dates.
+    static func split(_ text: String) -> (text: String, dates: [String]) {
+        let tokens = Due.tokens(text)
+        var t = text as NSString
+        for token in tokens.reversed() { t = t.replacingCharacters(in: token.range, with: "") as NSString }
+        let plain = (t as String).replacingOccurrences(of: "  ", with: " ").replacingOccurrences(of: " )", with: ")")
+            .trimmingCharacters(in: .whitespaces)
+        return (plain, tokens.map(\.iso))
     }
 }
