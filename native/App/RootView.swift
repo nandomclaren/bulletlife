@@ -317,14 +317,17 @@ struct RootView: View {
         // bar's buttons were.
         .overlay(alignment: .topTrailing) {
             if nav.focusMode {
+                // The glass is inside the button's label: interactive glass over a button kept the tap.
                 Button(action: nav.toggleFocus) {
                     Image(systemName: "arrow.down.right.and.arrow.up.left")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .frame(width: 40, height: 40)
+                        .glassBackground(in: Circle())
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .glassBackground(in: Circle(), interactive: true)
+                .keyboardShortcut(.escape, modifiers: [])
                 .padding(.top, 4)
                 .padding(.trailing, 16)
                 .accessibilityLabel(S.leaveFocus)
@@ -483,10 +486,11 @@ struct SecondPage: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 15, weight: .semibold))
                             .frame(width: 36, height: 36)
+                            .glassBackground(in: Circle())
+                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.muted)
-                    .glassBackground(in: Circle(), interactive: true)
                     .padding(.top, 8)
                     .padding(.trailing, 16)
                     .accessibilityLabel(S.closePage)
