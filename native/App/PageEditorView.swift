@@ -685,6 +685,12 @@ struct PageEditorView: UIViewRepresentable {
 
         func textViewDidEndEditing(_ textView: UITextView) {
             if !parent.readOnly, let at = currentCaret() { parent.onLineDone(lines[at.index]) }
+            // The caret left: the markers it showed hide again.
+            if !activeSpans.isEmpty {
+                activeSpans = []
+                restyle()
+                fitFonts()
+            }
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
@@ -783,7 +789,9 @@ struct PageEditorView: UIViewRepresentable {
 
         func inlineLooks(_ l: Line, at: Int, base: UIFont, color: UIColor) -> [InlineLook] {
             guard l.text.contains("*") || l.text.contains("==") else { return [] }
-            let sel = textView?.selectedRange ?? NSRange(location: -1, length: 0)
+            // Only where the caret is: an editor not being written in (another Month day, the page beside)
+            // still has a selection, which would keep its markers showing.
+            let sel = textView?.isFirstResponder == true ? textView!.selectedRange : NSRange(location: -1, length: 0)
             return InlineText.runs(l.text).map { run in
                 let range = NSRange(location: at + run.location, length: run.length)
                 if let span = run.span {
@@ -829,7 +837,7 @@ struct PageEditorView: UIViewRepresentable {
             let l = lines[at.index]
             guard l.text.contains("*") || l.text.contains("==") || !activeSpans.isEmpty else { return }
             let lineStart = location(of: Caret(index: at.index, offset: 0))
-            let sel = view.selectedRange
+            let sel = view.isFirstResponder ? view.selectedRange : NSRange(location: -1, length: 0)
             let now = InlineText.runs(l.text).compactMap { run -> Int? in
                 guard let span = run.span else { return nil }
                 let start = lineStart + span.location, end = start + span.length
