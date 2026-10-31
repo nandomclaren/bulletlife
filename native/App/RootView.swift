@@ -244,9 +244,13 @@ struct RootView: View {
     /// A search result to open once the search sheet is gone (so the page scrolls and marks it in view).
     @State private var found: (place: Place, highlight: String?, focus: String?)?
 
-    /// Two pages need the room of an iPad's full width; narrower, the notebook is one page.
+    /// Whether the window is wider than tall (an iPad held in landscape).
+    @State private var landscape = true
+
+    /// Two pages need the room of an iPad's full width, in landscape; narrower or upright, the notebook is one
+    /// page (the choice is kept for when it turns back).
     private var layout: PageLayout {
-        sizeClass == .regular ? PageLayout(rawValue: layoutChoice) ?? .single : .single
+        sizeClass == .regular && landscape ? PageLayout(rawValue: layoutChoice) ?? .single : .single
     }
 
     var body: some View {
@@ -306,7 +310,7 @@ struct RootView: View {
                         }
                         .accessibilityLabel(S.search)
                         OpenItemsButton(isOpen: $nav.showOpen)
-                        if sizeClass == .regular { layoutMenu }
+                        if sizeClass == .regular && landscape { layoutMenu }
                         PageMenu(place: nav.place)
                         NavigationLink {
                             SettingsView()
@@ -341,6 +345,12 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
+        // The whole window (not the page, which Open items narrows): landscape or upright.
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { landscape = g.size.width > g.size.height }
+                .onChange(of: g.size) { landscape = g.size.width > g.size.height }
+        }.ignoresSafeArea())
         .environment(\.focusMode, nav.focusMode)
         .environmentObject(nav)
         // The app's menu commands (Go: search, Today, levels, pages) act on this window's notebook.
