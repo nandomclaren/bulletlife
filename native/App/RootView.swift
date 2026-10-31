@@ -483,14 +483,20 @@ struct SecondPage: View {
     @ObservedObject var nav: Navigator
     @ObservedObject var main: Navigator
     @Environment(\.focusMode) private var focus
+    @AppStorage("pageLayout") private var layoutChoice = PageLayout.single.rawValue
 
     var body: some View {
         NotebookPage(nav: nav, role: .second)
             .environment(\.sameAsMain, nav.place == main.place)
             .overlay(alignment: .topTrailing) {
-                if nav.place != .index && !focus {
+                if !focus {
+                    // On a page: back to the Index. On the Index: the page beside closes (One page).
                     Button {
-                        nav.go(.index)
+                        if nav.place == .index {
+                            withAnimation(.easeInOut(duration: 0.2)) { layoutChoice = PageLayout.single.rawValue }
+                        } else {
+                            nav.go(.index)
+                        }
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 15, weight: .semibold))
