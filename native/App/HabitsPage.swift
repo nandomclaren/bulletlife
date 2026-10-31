@@ -28,7 +28,9 @@ struct HabitsPage: View {
     @FocusState private var addingFocused: Bool
 
     private var repo: Repository { Repository(context: context) }
-    private let nameWidth: CGFloat = 150
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Narrower on the iPhone, so a week of days still fits beside the names.
+    private var nameWidth: CGFloat { sizeClass == .compact ? 112 : 160 }
     private let cell: CGFloat = 30
     private let rowHeight: CGFloat = 38
 
@@ -36,11 +38,22 @@ struct HabitsPage: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        grid.padding(.trailing, 24)
+                // The names stay put (iPad upright, iPhone); only the days scroll sideways.
+                HStack(alignment: .top, spacing: 0) {
+                    names
+                        .frame(width: nameWidth, alignment: .leading)
+                        .overlay(alignment: .trailing) { Theme.rule.frame(width: 1) }
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            grid.padding(.trailing, 24)
+                        }
+                        .onChange(of: marked) { if let marked { withAnimation { proxy.scrollTo(marked, anchor: .center) } } }
+                        .onAppear {
+                            // Opens on today's week, when today is in this month.
+                            let today = Dates.today()
+                            if Dates.monthOf(today) == month { DispatchQueue.main.async { proxy.scrollTo(today, anchor: .center) } }
+                        }
                     }
-                    .onChange(of: marked) { if let marked { withAnimation { proxy.scrollTo(marked, anchor: .center) } } }
                 }
             }
             .padding(.horizontal, 24)
@@ -135,11 +148,41 @@ struct HabitsPage: View {
         iso != days.first && Dates.weekday(iso) == firstDay
     }
 
+    /// The fixed column: the habits' names, and the line to write a new one.
+    private var names: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(height: headerHeight)
+            ForEach(rows) { row in
+                TextField(S.newHabit, text: name(row))
+                    .font(Theme.body(16))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(1)
+                    .padding(.trailing, 8)
+                    .frame(height: rowHeight)
+                    .overlay(alignment: .bottom) { Theme.rule.opacity(0.5).frame(height: 1) }
+                    .contextMenu {
+                        Button(S.deleteHabit, systemImage: "trash", role: .destructive) { removing = row }
+                    }
+            }
+            if role != .second {
+                TextField(S.newHabit, text: $newName)
+                    .font(Theme.body(16))
+                    .focused($addingFocused)
+                    .submitLabel(.done)
+                    .onSubmit(add)
+                    .padding(.trailing, 8)
+                    .frame(height: rowHeight)
+            }
+        }
+    }
+
+    private let headerHeight: CGFloat = 40
+
+    /// The days: a header of numbers and initials, then one row of marks per habit.
     private var grid: some View {
         let today = Dates.today()
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
-                Color.clear.frame(width: nameWidth, height: 1)
                 ForEach(days, id: \.self) { iso in
                     VStack(spacing: 2) {
                         Text(String(Int(iso.suffix(2)) ?? 0))
@@ -148,49 +191,30 @@ struct HabitsPage: View {
                             .font(Theme.body(11, weight: .medium))
                     }
                     .foregroundStyle(iso == today ? Theme.task : [0, 6].contains(Dates.weekday(iso)) ? Theme.muted : Theme.text)
-                    .frame(width: cell, height: 40)
+                    .frame(width: cell, height: headerHeight)
                     .overlay(alignment: .leading) { if weekStarts(iso) { Theme.rule.frame(width: 1) } }
                     .accessibilityLabel(PageView.format(iso, "EEEE MMMM d"))
                     .id(iso)
                 }
             }
-            ForEach(rows) { row in habitRow(row, today: today) }
+            ForEach(rows) { row in
+                HStack(spacing: 0) {
+                    ForEach(Array(days.enumerated()), id: \.element) { i, iso in
+                        dayCell(row, day: i + 1, iso: iso, today: today)
+                    }
+                }
+                .frame(height: rowHeight)
+                .overlay(alignment: .bottom) { Theme.rule.opacity(0.5).frame(height: 1) }
+            }
             if role != .second {
                 HStack(spacing: 0) {
-                    TextField(S.newHabit, text: $newName)
-                        .font(Theme.body(16))
-                        .focused($addingFocused)
-                        .submitLabel(.done)
-                        .onSubmit(add)
-                        .frame(width: nameWidth - 8, alignment: .leading)
-                        .padding(.trailing, 8)
                     ForEach(days, id: \.self) { iso in
                         Color.clear.frame(width: cell, height: rowHeight)
                             .overlay(alignment: .leading) { if weekStarts(iso) { Theme.rule.frame(width: 1) } }
                     }
                 }
-                .frame(height: rowHeight)
             }
         }
-    }
-
-    private func habitRow(_ row: Entry, today: String) -> some View {
-        HStack(spacing: 0) {
-            TextField(S.newHabit, text: name(row))
-                .font(Theme.body(16))
-                .foregroundStyle(Theme.text)
-                .lineLimit(1)
-                .frame(width: nameWidth - 8, alignment: .leading)
-                .padding(.trailing, 8)
-                .contextMenu {
-                    Button(S.deleteHabit, systemImage: "trash", role: .destructive) { removing = row }
-                }
-            ForEach(Array(days.enumerated()), id: \.element) { i, iso in
-                dayCell(row, day: i + 1, iso: iso, today: today)
-            }
-        }
-        .frame(height: rowHeight)
-        .overlay(alignment: .bottom) { Theme.rule.opacity(0.5).frame(height: 1) }
     }
 
     private func dayCell(_ row: Entry, day: Int, iso: String, today: String) -> some View {
