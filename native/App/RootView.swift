@@ -296,20 +296,24 @@ struct RootView: View {
                 }
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarLeading) {
+                        // Drawn again in the new colors when the theme or palette changes (the bar keeps the
+                        // buttons it made, in the old tint, otherwise).
                         if !nav.history.isEmpty {
                             Button {
                                 nav.back()
                             } label: {
-                                Image(systemName: "chevron.backward")
+                                Image(systemName: "chevron.backward").foregroundStyle(Theme.task)
                             }
                             .accessibilityLabel(S.back)
+                            .id("back/\(currentLook)")
                         }
                         Button {
                             nav.go(.index)
                         } label: {
-                            Image(systemName: "book.closed")
+                            Image(systemName: "book.closed").foregroundStyle(Theme.task)
                         }
                         .accessibilityLabel(S.index)
+                        .id("index/\(currentLook)")
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         Button(action: nav.toggleFocus) {
