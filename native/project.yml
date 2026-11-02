@@ -28,6 +28,8 @@ schemes:
         BulletLife: all
     run:
       config: Debug
+      # Run without the debugger: with it attached, typing sometimes didn't reach the app until it was reopened.
+      debugEnabled: false
     archive:
       config: Release
   # The Mac app (Mac Catalyst, optimized for Mac): the same code, without the pen's handwriting recognition
@@ -38,6 +40,8 @@ schemes:
         BulletLife Mac: all
     run:
       config: Debug
+      # Run without the debugger: with it attached, typing sometimes didn't reach the app until it was reopened.
+      debugEnabled: false
     archive:
       config: Release
 targets:
