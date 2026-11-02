@@ -324,8 +324,6 @@ enum S {
     static let nextMonth = "Next month"
     static let habitMarks: [HabitMark: String] = [.empty: "Not marked", .done: "Done", .missed: "Not done", .skipped: "Skipped"]
     static let notes = "Notes"
-    static let ballpoint = "Ballpoint"
-    static let fountainPen = "Fountain pen"
     static let addNote = "Add note"
     static let editNote = "Note"
     static let noteFrom = "From"

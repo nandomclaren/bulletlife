@@ -50,9 +50,6 @@ enum PenCalibration {
 /// the line, the writing and the stroke all look smaller together, as the writing already on the page does).
 func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) }
 
-/// The fountain pen's tool width for a size: a little bolder than the ballpoint (its median width matches the
-/// size asked for, and its thick parts go beyond it, with the pressure).
-func fountainWidth(_ size: Double) -> CGFloat { CGFloat(size * 1.1 / PenCalibration.fountainRatio) }
 
 /// The pen page is shown at 75% (Fernando, after comparing with a notebook app): a line looks 30 pt tall and the
 /// hand writes smaller and looser. What is stored keeps its scale (40-unit lines), so nothing written before
@@ -102,8 +99,6 @@ struct PenSheetView: UIViewRepresentable {
     var restore: ScrollRestore? = nil
     var onScroll: (CGFloat) -> Void = { _ in }
     var onCanUndo: (Bool) -> Void
-    /// Write with the fountain pen (its width follows the hand) instead of the ballpoint.
-    var fountain = false
     /// A double tap on the Apple Pencil (as the system's Settings say: eraser, or the previous tool).
     var onPencilTap: () -> Void = {}
 
@@ -141,7 +136,7 @@ struct PenSheetView: UIViewRepresentable {
         c.parent = self
         setTopInset(canvas, topInset / penZoom)
         // Only when it changes: a new tool would drop the lasso's selection.
-        let toolKey = "\(tool.rawValue)/\(color)/\(size)/\(fountain)"
+        let toolKey = "\(tool.rawValue)/\(color)/\(size)"
         if toolKey != c.toolKey {
             c.toolKey = toolKey
             canvas.tool = c.pkTool()
@@ -382,11 +377,6 @@ struct PenSheetView: UIViewRepresentable {
             case .erase: return PKEraserTool(.vector)
             case .lasso: return PKLassoTool()
             // Sizes are what the eye sees: the page is drawn at penZoom, so the tool is wider by as much.
-            // The "fountain pen" is a round tip whose width follows the pressure (as the notebook app Fernando
-            // compared with does by default); PencilKit's own fountain pen is a flat nib that thins with the stroke's
-            // direction, too faint and too uneven. A little bolder than the ballpoint at the same size.
-            case .write where parent.fountain:
-                return PKInkingTool(.pen, color: Theme.ui(parent.color), width: fountainWidth(parent.size))
             // Measured on Fernando's iPad: on the 75% page a size drew about a third heavier than the same size
             // written before it (Fine looked like Medium); scaled by the page's zoom, new writing matches the old.
             case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size) * penZoom)
@@ -744,8 +734,6 @@ struct PenToolbar: View {
     let onUndo: () -> Void
     /// Write or Draw, whichever was last: a size or color picked under the eraser or lasso goes back to it.
     @State private var lastInking: PenTool = .write
-    /// The pen Write uses: the ballpoint (even width) or the fountain pen.
-    @AppStorage("penFountain") private var fountain = false
 
     /// Sizes and colors belong to Write and Draw; under the eraser or lasso none is shown as chosen (they
     /// come back as they were).
@@ -753,7 +741,7 @@ struct PenToolbar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            toolButton(.write, icon: fountain ? "signature" : "pencil.tip", label: fountain ? S.fountainPen : S.ballpoint)
+            toolButton(.write, icon: "pencil.tip", label: S.write)
             toolButton(.draw, icon: "scribble", label: S.draw)
             toolButton(.erase, icon: "eraser", label: S.eraser)
             toolButton(.lasso, icon: "lasso", label: S.lasso)
@@ -808,11 +796,6 @@ struct PenToolbar: View {
 
     private func toolButton(_ t: PenTool, icon: String, label: String) -> some View {
         Button {
-            // Write, tapped when already chosen: the other pen (ballpoint, fountain pen).
-            if t == .write && tool == .write {
-                fountain.toggle()
-                Toasts.shared.tell(fountain ? S.fountainPen : S.ballpoint)
-            }
             tool = t
         } label: {
             Image(systemName: icon)
