@@ -34,8 +34,8 @@ Mac build): handwriting written on the iPad shows as it was written, with the te
 1. As above: `xcodegen`, `pod install`, open **BulletLife.xcworkspace**.
 2. Pick the **BulletLife Mac** scheme and **My Mac** as the destination; in target **BulletLife Mac** ›
    Signing & Capabilities choose your team (or "Sign to Run Locally").
-3. ⌘R. The app lands in Xcode's build folder; to keep it in Applications: Product › Archive is not needed —
-   Product › Show Build Folder in Finder › Products › Debug-maccatalyst › drag **Bullet Life** to Applications.
+3. ⌘R. To keep the app in Applications: Product › Show Build Folder in Finder › Products ›
+   Debug-maccatalyst, and drag **Bullet Life** to Applications.
 
 Until iCloud sync (phase N5) the Mac app keeps its own notebook. To move the notebook between devices: on the
 one you were writing in, Settings › **Export everything** (on the Mac it asks where to save: iCloud Drive is
