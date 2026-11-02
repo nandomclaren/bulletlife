@@ -367,8 +367,11 @@ struct PenSheetView: UIViewRepresentable {
             case .erase: return PKEraserTool(.vector)
             case .lasso: return PKLassoTool()
             // Sizes are what the eye sees: the page is drawn at penZoom, so the tool is wider by as much.
+            // The "fountain pen" is a round tip whose width follows the pressure (as the notebook app Fernando
+            // compared with does by default); PencilKit's own fountain pen is a flat nib that thins with the stroke's
+            // direction, too faint and too uneven. A little bolder than the ballpoint at the same size.
             case .write where parent.fountain:
-                return PKInkingTool(.fountainPen, color: Theme.ui(parent.color), width: penWidth(parent.size) / penZoom)
+                return PKInkingTool(.pen, color: Theme.ui(parent.color), width: penWidth(parent.size) * 1.3 / penZoom)
             case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size) / penZoom)
             }
         }
@@ -455,12 +458,12 @@ struct PenSheetView: UIViewRepresentable {
             let sizes = pk.path.map { Double($0.size.width) }.sorted()
             let median = sizes.isEmpty ? parent.size : sizes[sizes.count / 2]
             let drawn = (median * 10).rounded() / 10
-            let fountain = pk.ink.inkType == .fountainPen
+            let fountain = pk.ink.inkType == .pen || pk.ink.inkType == .fountainPen
             if !fountain, !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
                 // The next strokes come out at the size asked for (this one is stored as it was drawn).
                 PenCalibration.ratio = median / Double(tool.width)
             }
-            // The fountain pen's nib at each point (width, height, angle), so it is drawn again just as written.
+            // The fountain pen's tip at each point (width, height, angle), so it is drawn again just as written.
             var nib: [Double]?
             if fountain {
                 var values: [Double] = []
@@ -556,7 +559,7 @@ struct PenSheetView: UIViewRepresentable {
                 i += 3
                 t += 0.008
             }
-            return PKStroke(ink: PKInk(nib != nil ? .fountainPen : penInk, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
+            return PKStroke(ink: PKInk(nib != nil ? .pen : penInk, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
         }
     }
 }
