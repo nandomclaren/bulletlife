@@ -184,6 +184,18 @@ final class PenRulesTests: XCTestCase {
         XCTAssertNotEqual(PenRules.shapeOf(circle(42, 20, 4), circle(42, 20, 4).box), .task)
     }
 
+    func testACommaBelowTheRuleStaysOnItsLine() {
+        // "cochilos ," : the comma dips into the next ruled line, far from its start: it stays on the line above,
+        // so the next line ("parte da…") still continues the paragraph.
+        let above = hand("a", 0, 1, startX: 60)
+        XCTAssertEqual(PenRules.place([above], contentEnd: 40, stroke: s([(300, 42), (297, 52)]), row: 1), .join(id: "a", r: 0, top: 0, absorb: nil))
+        let blank = PlacedBlock(id: "b", top: 40, height: 40, typed: false, strokes: [])
+        XCTAssertEqual(
+            PenRules.place([above, blank], contentEnd: 80, stroke: s([(300, 42), (297, 52)]), row: 1), .join(id: "a", r: 0, top: 0, absorb: nil))
+        // A word written far right on the next line is still a new entry.
+        XCTAssertEqual(PenRules.place([above], contentEnd: 40, stroke: s([(300, 50), (360, 66)]), row: 1), .new(after: nil, blanks: 0, top: 40))
+    }
+
     func testALetterAtTheStartOfAParagraphLineIsNoBullet() {
         // The line above starts at x 60; "o suficiente": a small "o" in line with it continues the paragraph.
         let above = hand("a", 0, 1, startX: 60)

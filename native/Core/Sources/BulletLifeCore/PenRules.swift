@@ -153,6 +153,13 @@ public enum PenRules {
         if let i = blocks.firstIndex(where: { y >= $0.top && y < $0.top + $0.height }) {
             let b = blocks[i]
             let blank = !b.typed && b.strokes.isEmpty
+            // A comma or a tail dipping onto a blank line below handwriting stays on the line above (see below).
+            if blank, s.k == .writing, i > 0, !blocks[i - 1].typed, !drawingOnly(blocks[i - 1]),
+                let start = lastLineStart(blocks[i - 1]), y == blocks[i - 1].top + Double(start.row + 1) * inkRow,
+                box.height < inkRow * 0.4, box.width < inkRow * 0.6, box.y0 < y + inkRow * 0.4, box.x0 > start.x + penStep * 0.8
+            {
+                return .join(id: blocks[i - 1].id, r: start.row, top: blocks[i - 1].top, absorb: nil)
+            }
             if blank, s.k == .writing, i > 0, !blocks[i - 1].typed, !drawingOnly(blocks[i - 1]),
                 let start = lastLineStart(blocks[i - 1]),
                 y == blocks[i - 1].top + Double(start.row + 1) * inkRow,
@@ -172,6 +179,15 @@ public enum PenRules {
             return .join(id: b.id, r: Int(((y - b.top) / inkRow).rounded()), top: b.top, absorb: nil)
         }
         let blanks = max(0, Int(((y - contentEnd) / inkRow).rounded()))
+        // A comma, a cedilla or a letter's tail that dips just below the rule, past the start of the line: it
+        // belongs to the line above (alone on the next line it would start a new entry, and the paragraph
+        // would break where the next line begins).
+        if s.k == .writing, blanks == 0, let last = blocks.last, !last.typed, !drawingOnly(last),
+            let start = lastLineStart(last), y == last.top + Double(start.row + 1) * inkRow,
+            box.height < inkRow * 0.4, box.width < inkRow * 0.6, box.y0 < y + inkRow * 0.4, box.x0 > start.x + penStep * 0.8
+        {
+            return .join(id: last.id, r: start.row, top: last.top, absorb: nil)
+        }
         if s.k == .writing, blanks == 0, let last = blocks.last, !last.typed, !drawingOnly(last),
             let start = lastLineStart(last), !bulletish(s, box, lineStart: start.x), box.x0 <= start.x + penStep * 0.8
         {
