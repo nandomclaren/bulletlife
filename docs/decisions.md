@@ -453,3 +453,9 @@ Short log of technical decisions. Newest last.
 - **Native pen: the fountain pen is withdrawn (02/11/2026).** Neither of PencilKit's pressure inks gave what Fernando wanted: its fountain pen thins with the stroke's direction (faint and uneven), and its round `.pen` varies so little that it read as a thicker ballpoint. PencilKit has no pressure-response setting. The toggle is gone; strokes written with it keep their recorded widths and are still drawn and printed as written. A pen stroke of our own (PencilKit taking the Pencil, our drawing of the stroke with a tunable pressure curve) is the next step, prototyped and measured on the iPad over Remote Control.
 
 - **Native pen: the canvas at the screen's resolution (02/11/2026).** Raising the pen canvas's `contentScaleFactor` (to keep the 75% page sharp) made PencilKit draw the ink a third heavier (2.67 / 2: Fine looked like Medium). Thinning the tool to compensate pushed the small sizes into PencilKit's minimum width (Fine and Medium alike, Bold like Medium). Both are undone: the canvas keeps the screen's scale and the sizes are as before.
+
+## Pen: drawings over written lines take no line (native, 2026-11-02)
+In Draw mode, a stroke over a handwritten or typed line became a new entry inserted after it, with a full row:
+everything below jumped down and the page re-rendered (strokes vanished and came back). Now a drawing-only entry
+whose strokes sit above its own top takes no rows in `InkPage.blocks` (it stays where it was drawn), and the next
+drawing stroke joins the recent drawing (`lastId`) in `PenRules.place`, so one drawing stays one entry.

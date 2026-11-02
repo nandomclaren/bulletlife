@@ -43,7 +43,12 @@ public enum InkPage {
         var out: [PlacedBlock] = []
         for (i, l) in lines.enumerated() where !hidden[i] {
             let typed = isTyped(l)
-            let rows = max(1, typed ? typedRows(l) : 0, l.ink?.rows ?? 0)
+            var rows = max(1, typed ? typedRows(l) : 0, l.ink?.rows ?? 0)
+            // A drawing made over lines already there (its strokes above its own top) takes no line of its own:
+            // it stays where it was drawn and pushes nothing down (Fernando saw the page jump while drawing).
+            if !typed, l.text.isEmpty, let ink = l.ink, !ink.strokes.isEmpty, ink.strokes.allSatisfy({ $0.k == .drawing }) {
+                rows = ink.rows
+            }
             out.append(PlacedBlock(id: l.id, top: top, height: Double(rows) * inkRow, typed: typed, strokes: l.ink?.strokes ?? []))
             top += Double(rows) * inkRow
         }

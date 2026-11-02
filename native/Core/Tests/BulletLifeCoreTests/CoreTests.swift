@@ -184,6 +184,27 @@ final class PenRulesTests: XCTestCase {
         XCTAssertNotEqual(PenRules.shapeOf(circle(42, 20, 4), circle(42, 20, 4).box), .task)
     }
 
+    func testADrawingOverWritingPushesNothingDown() {
+        // A paragraph of two lines, then "Pirulito que" on the next line.
+        let para = Line(ink: Ink(strokes: [s([(60, 20), (200, 24)], r: 0), s([(60, 60), (200, 64)], r: 1)], tx: "a", n: 2))
+        let next = Line(ink: Ink(strokes: [s([(60, 20), (200, 24)], r: 0)], tx: "b", n: 1))
+        var lines = [Line(text: "x"), para, next].dropFirst().map { $0 }
+        let before = InkPage.blocks(lines) { _ in 1 }
+        // A drawing stroke over the paragraph's second line becomes a drawing right after it…
+        let d1 = s([(300, 52), (320, 70)], k: .drawing)
+        let p1 = PenRules.place(before, contentEnd: InkPage.contentEnd(before), stroke: d1, row: 1)
+        let added = InkPage.add(d1, placement: p1, to: lines)
+        lines = added.lines
+        let after = InkPage.blocks(lines) { _ in 1 }
+        // …and "Pirulito que" does not move.
+        XCTAssertEqual(after.first { $0.id == next.id }?.top, before.first { $0.id == next.id }?.top)
+        // The next stroke of the same drawing joins it.
+        let d2 = s([(330, 52), (350, 70)], k: .drawing)
+        XCTAssertEqual(
+            PenRules.place(after, contentEnd: InkPage.contentEnd(after), stroke: d2, row: 1, lastId: added.entryId),
+            .join(id: added.entryId, r: 0, top: after.first { $0.id == added.entryId }!.top, absorb: nil))
+    }
+
     func testACommaBelowTheRuleStaysOnItsLine() {
         // "cochilos ," : the comma dips into the next ruled line, far from its start: it stays on the line above,
         // so the next line ("parte da…") still continues the paragraph.

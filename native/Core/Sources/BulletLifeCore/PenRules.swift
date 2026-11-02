@@ -150,6 +150,10 @@ public enum PenRules {
         let box = s.box
         let y = Double(row) * inkRow
         let drawingOnly = { (b: PlacedBlock) in !b.strokes.isEmpty && b.strokes.allSatisfy { $0.k == .drawing } }
+        // The strokes of one drawing, drawn one after the other, stay one drawing.
+        if s.k == .drawing, let lastId, let b = blocks.first(where: { $0.id == lastId }), drawingOnly(b) {
+            return .join(id: b.id, r: 0, top: b.top, absorb: nil)
+        }
         if let i = blocks.firstIndex(where: { y >= $0.top && y < $0.top + $0.height }) {
             let b = blocks[i]
             let blank = !b.typed && b.strokes.isEmpty
