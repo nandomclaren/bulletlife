@@ -461,10 +461,17 @@ struct PenSheetView: UIViewRepresentable {
                 PenCalibration.ratio = median / Double(tool.width)
             }
             // The fountain pen's nib at each point (width, height, angle), so it is drawn again just as written.
-            let nib: [Double]? =
-                fountain
-                ? pk.path.flatMap { [(Double($0.size.width) * 100).rounded() / 100, (Double($0.size.height) * 100).rounded() / 100, (Double($0.azimuth) * 100).rounded() / 100] }
-                : nil
+            var nib: [Double]?
+            if fountain {
+                var values: [Double] = []
+                for point in pk.path {
+                    let w = Double(point.size.width), h = Double(point.size.height), a = Double(point.azimuth)
+                    values.append((w * 100).rounded() / 100)
+                    values.append((h * 100).rounded() / 100)
+                    values.append((a * 100).rounded() / 100)
+                }
+                nib = values
+            }
             let stroke = Stroke(
                 k: kind, c: parent.color, p: p, pen: true, s: drawn == storedDefaultSize ? nil : drawn, i: fountain ? "f" : nil, w: nib)
             let box = stroke.box
