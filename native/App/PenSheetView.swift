@@ -509,7 +509,7 @@ final class SheetCanvas: PKCanvasView {
     }
 }
 
-/// What sits under the ink: the rules (1 pt, every 40) and the typed lines, each on whole ruled rows.
+/// What sits under the ink: the dot grid (a dot every 40 pt, on each ruled line) and the typed lines, each on whole ruled rows.
 final class SheetBackground: UIView {
     var showsRules = true {
         didSet { updateRules() }
@@ -537,12 +537,14 @@ final class SheetBackground: UIView {
             backgroundColor = .clear
             return
         }
+        // A dot grid, as in a paper notebook (Fernando): one dot per ruled line every line's height, so the
+        // squares are as wide as the lines are tall; in the color of the habits' week rules.
         let row = CGFloat(inkRow)
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: row))
-        let rule = Theme.ui("rule").resolvedColor(with: traitCollection)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: row, height: row))
+        let dot = Theme.ui("rule").resolvedColor(with: traitCollection)
         let image = renderer.image { ctx in
-            rule.setFill()
-            ctx.fill(CGRect(x: 0, y: row - 1, width: 8, height: 1))
+            dot.setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: row / 2 - 1.3, y: row - 2.6, width: 2.6, height: 2.6))
         }
         backgroundColor = UIColor(patternImage: image)
     }
