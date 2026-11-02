@@ -27,6 +27,11 @@ struct HabitsPage: View {
     /// The day opened from Open items: its column is marked for a moment.
     @State private var marked: String?
     @State private var removing: Entry?
+    /// A day held: the four marks to choose from (one dialog for the page, not a menu per day).
+    @State private var choosing: (id: String, day: Int)?
+    /// Rows changed and not yet written: a tap answers at once, and the writing waits for a short pause.
+    @State private var dirty: Set<String> = []
+    @State private var saveTask: Task<Void, Never>?
     @State private var confirmDelete = false
     @State private var confirmDeleteAgain = false
     @FocusState private var addingFocused: Bool
@@ -87,7 +92,10 @@ struct HabitsPage: View {
             title = collection.title
             load()
         }
-        .onDisappear(perform: rename)
+        .onDisappear {
+            flush()
+            rename()
+        }
         .task(id: transcriptionKey) { await transcribe() }
     }
 
@@ -152,6 +160,17 @@ struct HabitsPage: View {
         } message: {
             Text(S.deleteAgainMessage)
         }
+        .confirmationDialog(
+            choosing.map { c in "\(rows.first { $0.id == c.id }?.text ?? ""), \(Self.label("\(month)-\(String(format: "%02d", c.day))").short)" } ?? "",
+            isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }), titleVisibility: .visible
+        ) {
+            ForEach([HabitMark.done, .missed, .skipped, .empty], id: \.self) { m in
+                Button(S.habitMarks[m] ?? "") {
+                    if let c = choosing, let row = rows.first(where: { $0.id == c.id }) { set(row, day: c.day, m) }
+                    choosing = nil
+                }
+            }
+        }
         .confirmationDialog(removing?.text ?? "", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
             Button(S.deleteHabit, role: .destructive) {
                 if let r = removing { repo.deleteHabit(id: r.id) }
@@ -166,6 +185,15 @@ struct HabitsPage: View {
     private var days: [String] { Dates.monthDays(month) }
 
     /// A quiet rule before each new week (as between the Month's weeks).
+    /// Formatted day labels, made once per day (a formatter per cell made every tap slow).
+    private static var labels: [String: (initial: String, full: String, short: String)] = [:]
+    private static func label(_ iso: String) -> (initial: String, full: String, short: String) {
+        if let l = labels[iso] { return l }
+        let l = (PageView.format(iso, "EEEEE"), PageView.format(iso, "EEEE MMMM d"), PageView.format(iso, "MMMM d"))
+        labels[iso] = l
+        return l
+    }
+
     private func weekStarts(_ iso: String) -> Bool {
         iso != days.first && Dates.weekday(iso) == firstDay
     }
@@ -239,13 +267,13 @@ struct HabitsPage: View {
                     VStack(spacing: 2) {
                         Text(String(Int(iso.suffix(2)) ?? 0))
                             .font(Theme.body(12, weight: iso == today ? .bold : .medium).monospacedDigit())
-                        Text(PageView.format(iso, "EEEEE"))
+                        Text(Self.label(iso).initial)
                             .font(Theme.body(11, weight: .medium))
                     }
                     .foregroundStyle(iso == today ? Theme.task : [0, 6].contains(Dates.weekday(iso)) ? Theme.muted : Theme.text)
                     .frame(width: cell, height: headerHeight)
                     .overlay(alignment: .leading) { if weekStarts(iso) { Theme.rule.frame(width: 1) } }
-                    .accessibilityLabel(PageView.format(iso, "EEEE MMMM d"))
+                    .accessibilityLabel(Self.label(iso).full)
                     .id(iso)
                 }
             }
@@ -284,22 +312,16 @@ struct HabitsPage: View {
 
     private func dayCell(_ row: Entry, day: Int, iso: String, today: String) -> some View {
         let mark = Habits.mark(row.marks, day: day)
-        return Button {
-            set(row, day: day, mark.next)
-        } label: {
-            glyph(mark)
-                .frame(width: cell, height: rowHeight)
-                .background(columnTint(iso, today: today))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .leading) { if weekStarts(iso) { Theme.rule.frame(width: 1) } }
-        .contextMenu {
-            ForEach([HabitMark.done, .missed, .skipped, .empty], id: \.self) { m in
-                Button(S.habitMarks[m] ?? "") { set(row, day: day, m) }
-            }
-        }
-        .accessibilityLabel("\(row.text), \(PageView.format(iso, "MMMM d")): \(S.habitMarks[mark] ?? "")")
+        return glyph(mark)
+            .frame(width: cell, height: rowHeight)
+            .background(columnTint(iso, today: today))
+            .contentShape(Rectangle())
+            .onTapGesture { set(row, day: day, mark.next) }
+            .onLongPressGesture(minimumDuration: 0.45) { choosing = (row.id, day) }
+            .overlay(alignment: .leading) { if weekStarts(iso) { Theme.rule.frame(width: 1) } }
+            .accessibilityElement()
+            .accessibilityLabel("\(row.text), \(Self.label(iso).short): \(S.habitMarks[mark] ?? "")")
+            .accessibilityAddTraits(.isButton)
     }
 
     @ViewBuilder private func glyph(_ mark: HabitMark) -> some View {
@@ -330,14 +352,34 @@ struct HabitsPage: View {
             set: { text in
                 guard let i = rows.firstIndex(where: { $0.id == row.id }) else { return }
                 rows[i].text = text
-                repo.saveHabit(rows[i])
+                persist(row.id)
             })
     }
 
     private func set(_ row: Entry, day: Int, _ mark: HabitMark) {
         guard let i = rows.firstIndex(where: { $0.id == row.id }) else { return }
         rows[i].marks = Habits.setting(rows[i].marks, day: day, to: mark)
-        repo.saveHabit(rows[i])
+        persist(row.id)
+    }
+
+    /// Written after a short pause (each save refreshes the whole notebook's queries, Open items among them).
+    private func persist(_ id: String) {
+        dirty.insert(id)
+        saveTask?.cancel()
+        saveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            flush()
+        }
+    }
+
+    private func flush() {
+        saveTask?.cancel()
+        saveTask = nil
+        for id in dirty {
+            if let row = rows.first(where: { $0.id == id }) { repo.saveHabit(row) }
+        }
+        dirty = []
     }
 
     /// A habit is added only by writing it (one row; nothing is copied from another month).
@@ -414,6 +456,7 @@ struct HabitsPage: View {
     }
 
     private func load() {
+        flush()
         rows = repo.habits(logId: collection.id, month: month)
     }
 
