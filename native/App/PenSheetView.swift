@@ -34,10 +34,25 @@ enum PenCalibration {
         }
         set { if newValue > 0.5 && newValue < 10 { UserDefaults.standard.set(newValue, forKey: key) } }
     }
+
+    /// The same for the fountain pen (a round, pressure-following tip draws much thinner for the same width).
+    private static let fountainKey = "penDrawRatioFountain"
+    static var fountainRatio: Double {
+        get {
+            let r = UserDefaults.standard.double(forKey: fountainKey)
+            return r > 0 ? r : 1.0
+        }
+        set { if newValue > 0.1 && newValue < 10 { UserDefaults.standard.set(newValue, forKey: fountainKey) } }
+    }
 }
 
-/// The tool's width for a pen size (a drawn diameter).
+/// The tool's width for a pen size (a drawn diameter, in the page's own units: the page is shown at penZoom, so
+/// the line, the writing and the stroke all look smaller together, as the writing already on the page does).
 func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) }
+
+/// The fountain pen's tool width for a size: a little bolder than the ballpoint (its median width matches the
+/// size asked for, and its thick parts go beyond it, with the pressure).
+func fountainWidth(_ size: Double) -> CGFloat { CGFloat(size * 1.1 / PenCalibration.fountainRatio) }
 
 /// The pen page is shown at 75% (Fernando, after comparing with a notebook app): a line looks 30 pt tall and the
 /// hand writes smaller and looser. What is stored keeps its scale (40-unit lines), so nothing written before
@@ -371,8 +386,8 @@ struct PenSheetView: UIViewRepresentable {
             // compared with does by default); PencilKit's own fountain pen is a flat nib that thins with the stroke's
             // direction, too faint and too uneven. A little bolder than the ballpoint at the same size.
             case .write where parent.fountain:
-                return PKInkingTool(.pen, color: Theme.ui(parent.color), width: penWidth(parent.size) * 1.3 / penZoom)
-            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size) / penZoom)
+                return PKInkingTool(.pen, color: Theme.ui(parent.color), width: fountainWidth(parent.size))
+            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
             }
         }
 
@@ -459,9 +474,14 @@ struct PenSheetView: UIViewRepresentable {
             let median = sizes.isEmpty ? parent.size : sizes[sizes.count / 2]
             let drawn = (median * 10).rounded() / 10
             let fountain = pk.ink.inkType == .pen || pk.ink.inkType == .fountainPen
-            if !fountain, !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
-                // The next strokes come out at the size asked for (this one is stored as it was drawn).
-                PenCalibration.ratio = median / Double(tool.width)
+            if !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
+                // The next strokes come out at the size asked for (this one is stored as it was drawn); each pen has
+                // its own measure.
+                if fountain {
+                    PenCalibration.fountainRatio = median / Double(tool.width)
+                } else {
+                    PenCalibration.ratio = median / Double(tool.width)
+                }
             }
             // The fountain pen's tip at each point (width, height, angle), so it is drawn again just as written.
             var nib: [Double]?
