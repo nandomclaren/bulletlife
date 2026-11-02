@@ -272,7 +272,10 @@ struct PenSheetView: UIViewRepresentable {
             // Below the last line, almost a screen of paper: the end of the page can be scrolled up to the top, so
             // the hand rests comfortably when writing at the end of the day's entry (Fernando).
             let room = max(12 * CGFloat(inkRow), canvas.bounds.height - canvas.adjustedContentInset.top - 2 * CGFloat(inkRow))
-            let height = max(CGFloat(InkPage.contentEnd(blocks)) + room, canvas.bounds.height + CGFloat(inkRow))
+            // Paint takes no line, so the page also reaches past the lowest stroke.
+            let inkEnd = InkPage.strokes(blocks.filter { $0.height == 0 }).map { $0.stroke.box.y1 }.max() ?? 0
+            let end = max(InkPage.contentEnd(blocks), inkEnd)
+            let height = max(CGFloat(end) + room, canvas.bounds.height + CGFloat(inkRow))
             canvas.contentSize = CGSize(width: width, height: height)
             sheet.frame = CGRect(x: 0, y: 0, width: width, height: height)
             sheet.show(lines: lines, blocks: blocks, eventStates: parent.eventStates, doneMark: parent.doneMark)

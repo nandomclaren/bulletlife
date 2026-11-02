@@ -43,12 +43,8 @@ public enum InkPage {
         var out: [PlacedBlock] = []
         for (i, l) in lines.enumerated() where !hidden[i] {
             let typed = isTyped(l)
-            var rows = max(1, typed ? typedRows(l) : 0, l.ink?.rows ?? 0)
-            // A drawing made over lines already there (its strokes above its own top) takes no line of its own:
-            // it stays where it was drawn and pushes nothing down (Fernando saw the page jump while drawing).
-            if !typed, l.text.isEmpty, let ink = l.ink, !ink.strokes.isEmpty, ink.strokes.allSatisfy({ $0.k == .drawing }) {
-                rows = ink.rows
-            }
+            // Paint takes no line: drawing never moves anything on the page.
+            let rows = !typed && isPaint(l) ? 0 : max(1, typed ? typedRows(l) : 0, l.ink?.rows ?? 0)
             out.append(PlacedBlock(id: l.id, top: top, height: Double(rows) * inkRow, typed: typed, strokes: l.ink?.strokes ?? []))
             top += Double(rows) * inkRow
         }
@@ -72,6 +68,19 @@ public enum InkPage {
 
     /// Files a new stroke (page coordinates) the way `placement` says: on an entry's ruled line, or in a new
     /// entry (after blank lines for ruled lines skipped, as on paper). Returns the lines and the entry written.
+    static func isPaint(_ l: Line) -> Bool {
+        l.text.isEmpty && l.ink?.isPaint == true
+    }
+
+    /// Where a new line goes after `after`: past its collapsed children and past the paint lying there
+    /// (paint takes no line, and stays where it was drawn).
+    static func insertIndex(after: String?, in lines: [Line]) -> Int {
+        guard let a = after, let i = lines.firstIndex(where: { $0.id == a }) else { return lines.count }
+        var at = lines[i].collapsed ? Outline.subtreeEnd(lines, i) : i + 1
+        while at < lines.count, isPaint(lines[at]) { at += 1 }
+        return at
+    }
+
     public static func add(_ stroke: Stroke, placement: InkPlacement, to lines: [Line]) -> (lines: [Line], entryId: String) {
         var local = stroke
         local.p = stroke.p.enumerated().map { i, v in i % 3 == 1 ? v - placement.top : v }
@@ -94,10 +103,13 @@ public enum InkPage {
             return (lines, id)
         case .new(let after, let blanks, _):
             local.r = 0
-            let fresh = Line(ink: Ink(strokes: [local]))
-            let added = (0..<blanks).map { _ in Line() } + [fresh]
-            let at = after.flatMap { a in lines.firstIndex { $0.id == a } }.map { $0 + 1 } ?? lines.count
-            lines.insert(contentsOf: added, at: at)
+            let paint = stroke.k == .drawing
+            var fresh = Line(ink: Ink(strokes: [local], free: paint ? true : nil))
+            let added = (paint ? [] : (0..<blanks).map { _ in Line() })
+            let at = insertIndex(after: after, in: lines)
+            // Paint keeps the outline as it is: at the depth of the line after it, it is nobody's parent.
+            if paint, at < lines.count { fresh.indent = lines[at].indent }
+            lines.insert(contentsOf: added + [fresh], at: at)
             return (lines, fresh.id)
         }
     }
@@ -107,8 +119,10 @@ public enum InkPage {
     /// moves up, except the last line of the page, which goes.
     public static func erase(_ hits: [String: Set<Int>], from lines: [Line]) -> [Line] {
         var lines = lines
+        var gonePaint: Set<String> = []
         for (id, gone) in hits {
             guard let i = lines.firstIndex(where: { $0.id == id }), var ink = lines[i].ink else { continue }
+            if isPaint(lines[i]), ink.strokes.indices.allSatisfy(gone.contains) { gonePaint.insert(id) }
             let transcribed = ink.tx != nil && lines[i].text == ink.tx
             ink.strokes = ink.strokes.enumerated().filter { !gone.contains($0.offset) }.map(\.element)
             if !ink.hasWriting && transcribed {
@@ -118,6 +132,8 @@ public enum InkPage {
             }
             lines[i].ink = ink.strokes.isEmpty ? nil : ink
         }
+        // Erased paint goes with its line: it took no room, so nothing moves.
+        lines.removeAll { gonePaint.contains($0.id) }
         while let last = lines.last, last.ink == nil, last.type == .text, last.text.trimmingCharacters(in: .whitespaces).isEmpty,
             hits[last.id] != nil
         {
@@ -142,7 +158,7 @@ extension InkPage {
         var top = 0.0
         let after = blocks(lines, typedRows: typedRows).map { b -> PlacedBlock in
             let strokes = b.strokes.enumerated().filter { !(picked[b.id]?.contains($0.offset) ?? false) }.map(\.element)
-            let height = b.typed ? b.height : max(inkRow, Double(Ink(strokes: strokes).rows) * inkRow)
+            let height = b.typed ? b.height : b.height == 0 ? 0 : max(inkRow, Double(Ink(strokes: strokes).rows) * inkRow)
             defer { top += height }
             return PlacedBlock(id: b.id, top: top, height: height, typed: b.typed, strokes: strokes)
         }
@@ -156,8 +172,10 @@ extension InkPage {
             return s
         }
         var lines = lines
+        var gonePaint: Set<String> = []
         for (id, gone) in picked {
             guard let i = lines.firstIndex(where: { $0.id == id }), var ink = lines[i].ink else { continue }
+            if isPaint(lines[i]), ink.strokes.indices.allSatisfy(gone.contains) { gonePaint.insert(id) }
             let transcribed = ink.tx != nil && lines[i].text == ink.tx
             ink.strokes = ink.strokes.enumerated().filter { !gone.contains($0.offset) }.map(\.element)
             if !ink.hasWriting && transcribed {
@@ -176,12 +194,16 @@ extension InkPage {
                 ink.n = nil
                 lines[i].ink = ink
             }
+            // Moved paint left nothing behind: it took no line.
+            lines.removeAll { gonePaint.contains($0.id) && $0.id != id }
             return (lines, id)
         case .new(let afterId, let blanks, _):
-            let fresh = Line(ink: Ink(strokes: strokes))
-            let added = (0..<blanks).map { _ in Line() } + [fresh]
-            let at = afterId.flatMap { a in lines.firstIndex { $0.id == a } }.map { $0 + 1 } ?? lines.count
-            lines.insert(contentsOf: added, at: at)
+            let paint = anchor.k == .drawing && strokes.allSatisfy { $0.k == .drawing }
+            var fresh = Line(ink: Ink(strokes: strokes, free: paint ? true : nil))
+            let at = insertIndex(after: afterId, in: lines)
+            if paint, at < lines.count { fresh.indent = lines[at].indent }
+            lines.insert(contentsOf: (paint ? [] : (0..<blanks).map { _ in Line() }) + [fresh], at: at)
+            lines.removeAll { gonePaint.contains($0.id) }
             return (lines, fresh.id)
         }
     }

@@ -454,8 +454,13 @@ Short log of technical decisions. Newest last.
 
 - **Native pen: the canvas at the screen's resolution (02/11/2026).** Raising the pen canvas's `contentScaleFactor` (to keep the 75% page sharp) made PencilKit draw the ink a third heavier (2.67 / 2: Fine looked like Medium). Thinning the tool to compensate pushed the small sizes into PencilKit's minimum width (Fine and Medium alike, Bold like Medium). Both are undone: the canvas keeps the screen's scale and the sizes are as before.
 
-## Pen: drawings over written lines take no line (native, 2026-11-02)
-In Draw mode, a stroke over a handwritten or typed line became a new entry inserted after it, with a full row:
-everything below jumped down and the page re-rendered (strokes vanished and came back). Now a drawing-only entry
-whose strokes sit above its own top takes no rows in `InkPage.blocks` (it stays where it was drawn), and the next
-drawing stroke joins the recent drawing (`lastId`) in `PenRules.place`, so one drawing stays one entry.
+## Pen: Draw mode is paint (native, 2026-11-02)
+Fernando: "Draw mode is draw. It has to work like painting. Nothing may ever just move or vanish." A drawing made
+in Draw mode is stored with `Ink.free = true` and takes zero rows in `InkPage.blocks`: it never pushes anything,
+wherever it is drawn (over lines or at the page end). `PenRules.place` handles drawing strokes first: the next
+stroke within the burst joins the recent paint (`lastId`); otherwise a new paint entry goes after the line its
+stroke starts on (past collapsed children and other paint, at the depth of the next line so the outline is
+unchanged), with no blank lines. The writing rules ignore paint (zero-height blocks are filtered out). Erasing
+or lassoing all of a paint's strokes removes its entry (it held no line). The Pen page height and the PDF reach
+past the lowest paint stroke; the PDF draws paint without advancing. Drawings made before keep their rows, so
+nothing jumps on update.

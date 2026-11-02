@@ -224,13 +224,20 @@ public struct Ink: Codable, Equatable, Sendable {
     public var n: Int?
     /// A drawing's size and place in Type mode.
     public var view: View?
+    /// A drawing done in Draw mode lies on the page like paint: it takes no ruled line, so nothing moves
+    /// when it is drawn, grows or goes (drawings made before this was set keep the lines they took).
+    public var free: Bool?
 
-    public init(strokes: [Stroke], tx: String? = nil, n: Int? = nil, view: View? = nil) {
+    public init(strokes: [Stroke], tx: String? = nil, n: Int? = nil, view: View? = nil, free: Bool? = nil) {
         self.strokes = strokes
         self.tx = tx
         self.n = n
         self.view = view
+        self.free = free
     }
+
+    /// Paint: a free drawing with nothing but drawing strokes.
+    public var isPaint: Bool { free == true && !strokes.isEmpty && strokes.allSatisfy { $0.k == .drawing } }
 
     public var writingCount: Int { strokes.filter { $0.k == .writing }.count }
     public var hasWriting: Bool { writingCount > 0 }

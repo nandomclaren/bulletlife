@@ -222,6 +222,11 @@ enum PdfExport {
             // Handwriting and drawings print as they were written.
             if let ink = l.ink, !ink.strokes.isEmpty {
                 let s = w / sheetWidth
+                // Paint lies where it was drawn and takes no line: nothing after it moves down.
+                if ink.isPaint && l.text.isEmpty {
+                    for stroke in ink.strokes { drawStroke(stroke, type: color, x: x, y: y, scale: s) }
+                    return
+                }
                 let h = CGFloat(max(1, ink.rows)) * CGFloat(inkRow) * s
                 need(h)
                 for stroke in ink.strokes { drawStroke(stroke, type: color, x: x, y: y, scale: s) }

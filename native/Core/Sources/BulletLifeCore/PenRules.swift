@@ -150,10 +150,20 @@ public enum PenRules {
         let box = s.box
         let y = Double(row) * inkRow
         let drawingOnly = { (b: PlacedBlock) in !b.strokes.isEmpty && b.strokes.allSatisfy { $0.k == .drawing } }
-        // The strokes of one drawing, drawn one after the other, stay one drawing.
-        if s.k == .drawing, let lastId, let b = blocks.first(where: { $0.id == lastId }), drawingOnly(b) {
-            return .join(id: b.id, r: 0, top: b.top, absorb: nil)
+        // Draw mode is paint: a drawing takes no line and nothing on the page moves. The strokes of one
+        // drawing, drawn one after the other, stay one drawing; a new drawing lies after the line it starts
+        // on (or at the end of the page).
+        if s.k == .drawing {
+            if let lastId, let b = blocks.first(where: { $0.id == lastId }), b.height == 0, drawingOnly(b) {
+                return .join(id: b.id, r: 0, top: b.top, absorb: nil)
+            }
+            if y < contentEnd, let b = blocks.last(where: { $0.height > 0 && $0.top <= y }) {
+                return .new(after: b.id, blanks: 0, top: b.top + b.height)
+            }
+            return .new(after: nil, blanks: 0, top: contentEnd)
         }
+        // Paint lies on the page without lines: the rules below only see the lines.
+        let blocks = blocks.filter { $0.height > 0 }
         if let i = blocks.firstIndex(where: { y >= $0.top && y < $0.top + $0.height }) {
             let b = blocks[i]
             let blank = !b.typed && b.strokes.isEmpty
@@ -176,9 +186,6 @@ public enum PenRules {
                     return .join(id: blocks[i + 1].id, r: 0, top: blocks[i + 1].top, absorb: nil)
                 }
                 return .new(after: b.id, blanks: 0, top: b.top + b.height)
-            }
-            if s.k == .drawing {
-                return drawingOnly(b) || blank ? .join(id: b.id, r: 0, top: b.top, absorb: nil) : .new(after: b.id, blanks: 0, top: b.top + b.height)
             }
             return .join(id: b.id, r: Int(((y - b.top) / inkRow).rounded()), top: b.top, absorb: nil)
         }
