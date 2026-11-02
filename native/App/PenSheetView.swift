@@ -39,10 +39,10 @@ enum PenCalibration {
 /// The tool's width for a pen size (a drawn diameter).
 func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) }
 
-/// The pen page is shown at 70% (Fernando, after comparing with a notebook app): a line looks 28 pt tall and the
+/// The pen page is shown at 75% (Fernando, after comparing with a notebook app): a line looks 30 pt tall and the
 /// hand writes smaller and looser. What is stored keeps its scale (40-unit lines), so nothing written before
 /// changes, and the line rules hold as they are; only the view is scaled.
-let penZoom: CGFloat = 0.7
+let penZoom: CGFloat = 0.75
 
 /// Holds the pen canvas, scaled to `penZoom` and filling it.
 final class PenSheetContainer: UIView {
@@ -603,15 +603,21 @@ final class SheetBackground: UIView {
             backgroundColor = .clear
             return
         }
-        // A dot grid, as in a paper notebook (Fernando): square, two squares to a written line (a dot on each
-        // line and one halfway); in the color of the habits' week rules.
-        let step = CGFloat(inkRow) / 2
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: step, height: step))
+        // A dot grid, as in a paper notebook (Fernando): square, three squares to two written lines (about 20 pt
+        // on the screen, as in the notebook app he compared with); in the color of the habits' week rules. One
+        // tile holds 3 × 3 dots, two lines tall, so the dots never drift.
+        let tile = 2 * CGFloat(inkRow)
+        let step = tile / 3
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: tile, height: tile))
         let dot = Theme.ui("rule").resolvedColor(with: traitCollection)
         let d = 2.4 / penZoom
         let image = renderer.image { ctx in
             dot.setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: step / 2 - d / 2, y: step - d, width: d, height: d))
+            for row in 1...3 {
+                for col in 0..<3 {
+                    ctx.cgContext.fillEllipse(in: CGRect(x: step * (CGFloat(col) + 0.5) - d / 2, y: step * CGFloat(row) - d, width: d, height: d))
+                }
+            }
         }
         backgroundColor = UIColor(patternImage: image)
     }
