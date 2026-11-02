@@ -30,12 +30,24 @@ schemes:
       config: Debug
     archive:
       config: Release
+  # The Mac app (Mac Catalyst, optimized for Mac): the same code, without the pen's handwriting recognition
+  # (ML Kit has no Mac build, and the Mac has no pen). Run it with this scheme on "My Mac".
+  BulletLife Mac:
+    build:
+      targets:
+        BulletLife Mac: all
+    run:
+      config: Debug
+    archive:
+      config: Release
 targets:
   BulletLife:
     type: application
     platform: iOS
     sources:
       - path: App
+        excludes:
+          - Info.plist
     dependencies:
       - package: BulletLifeCore
     info:
@@ -59,6 +71,38 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bulletlife.notebook
         TARGETED_DEVICE_FAMILY: "1,2"
+        # The iPad and iPhone app (with ML Kit's pods): the Mac has its own target below.
+        SUPPORTS_MACCATALYST: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+  BulletLife Mac:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+    dependencies:
+      - package: BulletLifeCore
+    info:
+      path: Mac/Info.plist
+      properties:
+        CFBundleDisplayName: Bullet Life
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSApplicationCategoryType: public.app-category.productivity
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+    settings:
+      base:
+        PRODUCT_NAME: Bullet Life
+        PRODUCT_BUNDLE_IDENTIFIER: com.bulletlife.notebook
+        # Mac Catalyst, optimized for Mac (6): Mac-sized controls and text, the Mac's menus and windows.
+        SUPPORTS_MACCATALYST: YES
+        TARGETED_DEVICE_FAMILY: "2,6"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic

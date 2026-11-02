@@ -25,6 +25,23 @@ The plan and the decisions are in `CLAUDE.md`, section 17. This folder holds:
 With a free Apple account the app stops opening after 7 days; running it from Xcode again renews it.
 iCloud sync needs the paid Apple Developer Program (phase N5).
 
+## Build and run on your Mac
+
+The Mac app is the same code as a Mac Catalyst app, optimized for Mac (Mac-sized text and controls, the Mac's
+menus, ⌘, for Settings). It has no Pen mode (the Mac has no pen) and doesn't read handwriting (ML Kit has no
+Mac build): handwriting written on the iPad shows as it was written, with the text the iPad transcribed.
+
+1. As above: `xcodegen`, `pod install`, open **BulletLife.xcworkspace**.
+2. Pick the **BulletLife Mac** scheme and **My Mac** as the destination; in target **BulletLife Mac** ›
+   Signing & Capabilities choose your team (or "Sign to Run Locally").
+3. ⌘R. The app lands in Xcode's build folder; to keep it in Applications: Product › Archive is not needed —
+   Product › Show Build Folder in Finder › Products › Debug-maccatalyst › drag **Bullet Life** to Applications.
+
+Until iCloud sync (phase N5) the Mac app keeps its own notebook. To move the notebook between devices: on the
+one you were writing in, Settings › **Export everything** (on the Mac it asks where to save: iCloud Drive is
+easiest); on the other, Settings › **Import a backup file…**. Importing replaces everything on that device,
+so write on one device at a time.
+
 ## Handwriting recognition (ML Kit)
 
 Handwriting becomes text with Google ML Kit, which is only distributed through CocoaPods. Once:

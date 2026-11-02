@@ -205,9 +205,17 @@ struct SettingsView: View {
             }
         }
         .navigationTitle(S.settings)
-        .sheet(isPresented: Binding(get: { printing != nil }, set: { if !$0 { printing = nil } })) {
-            ActivityView(items: printing ?? [])
-        }
+        #if targetEnvironment(macCatalyst)
+            // On the Mac, the files are saved where the user picks (iCloud Drive, a folder), as a Mac app does.
+            .fileMover(
+                isPresented: Binding(get: { printing != nil }, set: { if !$0 { printing = nil } }),
+                files: (printing ?? []).compactMap { $0 as? URL }
+            ) { _ in printing = nil }
+        #else
+            .sheet(isPresented: Binding(get: { printing != nil }, set: { if !$0 { printing = nil } })) {
+                ActivityView(items: printing ?? [])
+            }
+        #endif
         .onAppear {
             count = Repository(context: context).entryCount()
             handwriting.prepare(HandwritingLang(rawValue: handwritingLang) ?? .ptBR)

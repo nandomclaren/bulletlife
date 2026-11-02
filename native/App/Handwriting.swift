@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-#if canImport(MLKit)
+#if canImport(MLKit) && !targetEnvironment(macCatalyst)
     import MLKit
 #endif
 
@@ -32,7 +32,7 @@ final class Handwriting: ObservableObject {
 
     @Published private(set) var status: Status = .unavailable
 
-    #if canImport(MLKit)
+    #if canImport(MLKit) && !targetEnvironment(macCatalyst)
         private var lang: HandwritingLang?
         private var model: DigitalInkRecognitionModel?
         private var recognizer: DigitalInkRecognizer?

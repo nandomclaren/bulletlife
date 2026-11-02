@@ -78,6 +78,8 @@ final class Navigator: ObservableObject {
     @Published var showOpen = false
     /// The search sheet is open.
     @Published var searching = false
+    /// Settings, pushed over the page (the gear, or ⌘, on a keyboard and on the Mac).
+    @Published var showSettings = false
     /// Focus mode (the window's controls hidden).
     @Published var focusMode = false
 
@@ -291,6 +293,7 @@ struct RootView: View {
                 }
                 .onChange(of: nav.showOpen) { if !nav.showOpen { nav.openToday = false } }
                 .toolbar(nav.focusMode ? .hidden : .visible, for: .navigationBar)
+                .navigationDestination(isPresented: $nav.showSettings) { SettingsView() }
                 .sheet(isPresented: $nav.searching, onDismiss: openFound) {
                     SearchView { place, highlight, focus in found = (place, highlight, focus) }
                 }
@@ -330,8 +333,8 @@ struct RootView: View {
                         OpenItemsButton(isOpen: $nav.showOpen)
                         if sizeClass == .regular && landscape { layoutMenu }
                         PageMenu(place: nav.place)
-                        NavigationLink {
-                            SettingsView()
+                        Button {
+                            nav.showSettings = true
                         } label: {
                             Image(systemName: "gearshape")
                         }
@@ -654,6 +657,10 @@ struct NotebookCommands: Commands {
     @FocusedObject private var nav: Navigator?
 
     var body: some Commands {
+        // The app's Settings, where the Mac (and a keyboard) looks for them: ⌘,
+        CommandGroup(replacing: .appSettings) {
+            Button("\(S.settings)…") { nav?.showSettings = true }.keyboardShortcut(",", modifiers: .command)
+        }
         CommandMenu(S.goMenu) {
             Button(S.search) { nav?.searching = true }.keyboardShortcut("k", modifiers: .command)
             Button(S.find) { nav?.searching = true }.keyboardShortcut("f", modifiers: .command)
