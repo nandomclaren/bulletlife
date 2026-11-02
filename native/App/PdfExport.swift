@@ -12,6 +12,8 @@ struct PrintPage {
         case free([Line])
         case month(ym: String, days: [(String, [Line])], tasks: [Line])
         case year(months: [(String, [Line])])
+        /// A month of habits: the rows with their marks, and the notes under their days (one landscape sheet).
+        case habits(ym: String, rows: [Entry], notes: [Entry])
     }
     var label: String
     var title: String
@@ -38,8 +40,24 @@ enum PrintPages {
         case .index: return nil
         case .collection(let id):
             guard let log = repo.collection(id) else { return nil }
+            if log.template == Habits.template { return [habits(log, month: Dates.monthOf(Dates.today()), repo: repo)] }
             return [PrintPage(label: S.collections, title: log.title, body: .free(repo.lines(logId: id)), fileName: log.title)]
         case .time(let p): return [page(p, repo: repo, firstDay: firstDay)]
+        }
+    }
+
+    /// A month of a Habits collection.
+    static func habits(_ log: Log, month ym: String, repo: Repository) -> PrintPage {
+        PrintPage(
+            label: PageView.format("\(ym)-01", "MMMM yyyy"), title: log.title,
+            body: .habits(ym: ym, rows: repo.habits(logId: log.id, month: ym), notes: repo.habitNotes(logId: log.id, month: ym)),
+            fileName: "\(log.title) \(ym)")
+    }
+
+    /// The Habits collections' months within `months` (nil: all) that have something written.
+    static func habitPages(_ repo: Repository, months: Set<String>?) -> [PrintPage] {
+        repo.collections().filter { $0.template == Habits.template }.flatMap { log in
+            repo.habitMonths(logId: log.id).filter { months?.contains($0) ?? true }.map { habits(log, month: $0, repo: repo) }
         }
     }
 
@@ -101,9 +119,10 @@ enum PrintPages {
         }
         switch range {
         case .thisMonth:
-            return month(Dates.monthOf(today))
+            return month(Dates.monthOf(today)) + habitPages(repo, months: [Dates.monthOf(today)])
         case .thisYear:
-            return year(Dates.yearOf(today), everyMonth: false)
+            let y = Dates.yearOf(today)
+            return year(y, everyMonth: false) + habitPages(repo, months: Set((0..<12).map { Dates.addMonths("\(y)-01", $0) }))
         case .everything:
             let years = Set(written.compactMap { id -> String? in
                 guard let key = id.split(separator: ":", maxSplits: 1).last, !id.hasPrefix("collection:") else { return nil }
@@ -111,7 +130,11 @@ enum PrintPages {
             }).sorted()
             var out = years.flatMap { year($0, everyMonth: false) }
             for c in repo.collections() where written.contains(c.id) {
-                out.append(PrintPage(label: S.collections, title: c.title, body: .free(repo.lines(logId: c.id)), fileName: c.title))
+                if c.template == Habits.template {
+                    out += repo.habitMonths(logId: c.id).map { habits(c, month: $0, repo: repo) }
+                } else {
+                    out.append(PrintPage(label: S.collections, title: c.title, body: .free(repo.lines(logId: c.id)), fileName: c.title))
+                }
             }
             return out
         }
@@ -130,6 +153,10 @@ enum PdfExport {
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: size))
         return renderer.pdfData { ctx in
             for page in pages {
+                if case .habits(let ym, let rows, let notes) = page.body {
+                    HabitsSheet(ctx: ctx, firstDay: firstDay).draw(page, ym: ym, rows: rows, notes: notes)
+                    continue
+                }
                 var writer = Writer(ctx: ctx, firstDay: firstDay)
                 writer.newSheet()
                 writer.header(page)
@@ -137,6 +164,7 @@ enum PdfExport {
                 case .free(let lines): writer.lines(lines)
                 case .month(let ym, let days, let tasks): writer.month(ym, days: days, tasks: tasks)
                 case .year(let months): writer.year(months)
+                case .habits: break
                 }
             }
         }
@@ -275,6 +303,120 @@ enum PdfExport {
                 sectionTitle(PageView.format("\(ym)-01", "MMMM"))
                 if lines.isEmpty { y += 14 } else { self.lines(lines) }
             }
+        }
+    }
+}
+
+/// A month of habits on one A5 sheet turned sideways (31 days need the width): the names, the days with their
+/// initials and week rules, the marks, and the notes under their days with a bracket, as on paper.
+struct HabitsSheet {
+    let ctx: UIGraphicsPDFRendererContext
+    let firstDay: Weekday
+    static let size = CGSize(width: PdfExport.size.height, height: PdfExport.size.width)
+    let margin: CGFloat = 28
+    let doneMark = UserDefaults.standard.string(forKey: "doneMark") ?? "×"
+
+    private func light(_ token: String) -> UIColor { PdfExport.light(token) }
+    private func font(_ size: CGFloat, bold: Bool = false) -> UIFont { PdfExport.Writer.font(size, bold: bold) }
+
+    private func text(_ s: String, _ size: CGFloat, _ color: UIColor, bold: Bool = false) -> NSAttributedString {
+        NSAttributedString(string: s, attributes: [.font: font(size, bold: bold), .foregroundColor: color])
+    }
+
+    func draw(_ page: PrintPage, ym: String, rows: [Entry], notes: [Entry]) {
+        ctx.beginPage(withBounds: CGRect(origin: .zero, size: Self.size), pageInfo: [:])
+        let w = Self.size.width - margin * 2
+        var y = margin
+        NSAttributedString(
+            string: page.label.uppercased(), attributes: [.font: font(8, bold: true), .foregroundColor: light("muted"), .kern: 1]
+        ).draw(at: CGPoint(x: margin, y: y))
+        y += 13
+        text(page.title, 17, light("text"), bold: true).draw(at: CGPoint(x: margin, y: y))
+        y += 30
+
+        let days = Dates.monthDays(ym)
+        let nameWidth: CGFloat = 96
+        let cell = (w - nameWidth) / 31
+        let gridX = margin + nameWidth
+        let noteFont = font(7.5)
+        // Notes: their days and lanes, as on the screen.
+        let spans: [(note: Entry, first: Int, span: Int, columns: Int)] = notes.compactMap { n in
+            guard let d = Habits.noteDays(n.slot) else { return nil }
+            let first = Int(d.start.suffix(2)) ?? 1
+            let last = Dates.monthOf(d.end) == ym ? Int(d.end.suffix(2)) ?? first : days.count
+            let span = max(1, last - first + 1)
+            let width = min(140, (n.text as NSString).size(withAttributes: [.font: noteFont]).width + 4)
+            return (n, first, span, max(span, Int((width / cell).rounded(.up))))
+        }
+        let lanes = Habits.lanes(spans.map { (id: $0.note.id, first: $0.first, columns: $0.columns) })
+        let laneCount = (lanes.values.max() ?? -1) + 1
+        let laneHeight: CGFloat = 26
+        let headerHeight: CGFloat = 20
+        let room = Self.size.height - margin - y - headerHeight - CGFloat(laneCount) * laneHeight - (laneCount > 0 ? 6 : 0)
+        let rowHeight = max(9, min(15, room / CGFloat(max(1, rows.count))))
+
+        // Day numbers and initials.
+        for (i, iso) in days.enumerated() {
+            let x = gridX + CGFloat(i) * cell
+            let weekend = [0, 6].contains(Dates.weekday(iso))
+            let n = text(String(i + 1), 6.5, weekend ? light("muted") : light("text"))
+            n.draw(at: CGPoint(x: x + (cell - n.size().width) / 2, y: y))
+            let initial = text(PageView.format(iso, "EEEEE"), 6, light("muted"))
+            initial.draw(at: CGPoint(x: x + (cell - initial.size().width) / 2, y: y + 9))
+        }
+        let top = y
+        y += headerHeight
+        let gridBottom = y + CGFloat(rows.count) * rowHeight
+        // Week rules, from the header to the last habit.
+        light("rule").setFill()
+        for (i, iso) in days.enumerated() where i > 0 && Dates.weekday(iso) == firstDay {
+            UIBezierPath(rect: CGRect(x: gridX + CGFloat(i) * cell, y: top, width: 0.5, height: gridBottom - top)).fill()
+        }
+        // The habits and their marks.
+        let truncating = NSMutableParagraphStyle()
+        truncating.lineBreakMode = .byTruncatingTail
+        for row in rows {
+            NSAttributedString(string: row.text, attributes: [.font: font(7.5), .foregroundColor: light("text"), .paragraphStyle: truncating])
+                .draw(in: CGRect(x: margin, y: y + (rowHeight - 10) / 2, width: nameWidth - 6, height: 10))
+            for i in 0..<days.count {
+                let cx = gridX + CGFloat(i) * cell + cell / 2
+                let cy = y + rowHeight / 2
+                switch Habits.mark(row.marks, day: i + 1) {
+                case .done:
+                    let m = text(doneMark, 8, light("task"), bold: true)
+                    m.draw(at: CGPoint(x: cx - m.size().width / 2, y: cy - m.size().height / 2))
+                case .missed:
+                    light("text").setFill()
+                    UIBezierPath(ovalIn: CGRect(x: cx - 1.3, y: cy - 1.3, width: 2.6, height: 2.6)).fill()
+                case .skipped:
+                    light("muted").setFill()
+                    UIBezierPath(rect: CGRect(x: cx - 2.5, y: cy - 0.35, width: 5, height: 0.7)).fill()
+                case .empty:
+                    light("rule").setFill()
+                    UIBezierPath(ovalIn: CGRect(x: cx - 0.6, y: cy - 0.6, width: 1.2, height: 1.2)).fill()
+                }
+            }
+            y += rowHeight
+        }
+        // The notes under their days.
+        y += 6
+        for s in spans {
+            let x = gridX + CGFloat(s.first - 1) * cell + 1
+            let ny = y + CGFloat(lanes[s.note.id] ?? 0) * laneHeight
+            let right = x + CGFloat(s.span) * cell - 2
+            let bracket = UIBezierPath()
+            bracket.move(to: CGPoint(x: x, y: ny))
+            bracket.addLine(to: CGPoint(x: x, y: ny + 3))
+            bracket.addLine(to: CGPoint(x: right, y: ny + 3))
+            bracket.addLine(to: CGPoint(x: right, y: ny))
+            bracket.lineWidth = 0.7
+            bracket.lineCapStyle = .round
+            light("event").setStroke()
+            bracket.stroke()
+            NSAttributedString(string: s.note.text, attributes: [.font: noteFont, .foregroundColor: light("text")])
+                .draw(
+                    with: CGRect(x: x, y: ny + 5, width: CGFloat(s.columns) * cell - 2, height: laneHeight - 6),
+                    options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
         }
     }
 }

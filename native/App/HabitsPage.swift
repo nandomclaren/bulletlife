@@ -35,6 +35,10 @@ struct HabitsPage: View {
     @State private var confirmDelete = false
     @State private var confirmDeleteAgain = false
     @FocusState private var addingFocused: Bool
+    /// Notes on periods of the month, written under their days (a trip, an illness: what explains the marks).
+    @State private var notes: [Entry] = []
+    @State private var draft: NoteDraft?
+    @State private var sharing: [Any]?
     @AppStorage("penMode") private var penOn = false
     @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
     @ObservedObject private var handwriting = Handwriting.shared
@@ -129,6 +133,7 @@ struct HabitsPage: View {
                         .frame(width: 96)
                     }
                     Menu {
+                        Button(S.exportPDF, systemImage: "doc.richtext") { exportPDF() }
                         Button(S.deleteCollection, role: .destructive) { confirmDelete = true }
                     } label: {
                         Image(systemName: "ellipsis").frame(width: 32, height: 32)
@@ -159,6 +164,13 @@ struct HabitsPage: View {
             Button(S.cancel, role: .cancel) {}
         } message: {
             Text(S.deleteAgainMessage)
+        }
+        .sheet(item: $draft) { d in
+            NoteEditor(draft: d, days: days.count, onSave: save, onDelete: deleteNote)
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: Binding(get: { sharing != nil }, set: { if !$0 { sharing = nil } })) {
+            ActivityView(items: sharing ?? [])
         }
         .confirmationDialog(
             choosing.map { c in "\(rows.first { $0.id == c.id }?.text ?? ""), \(Self.label("\(month)-\(String(format: "%02d", c.day))").short)" } ?? "",
@@ -237,7 +249,116 @@ struct HabitsPage: View {
                         onWrite: write, onErase: erase, onPencilTap: { erasing.toggle() })
                 }
             }
+            // Beside the notes under the days: their label, and the way to add one.
+            VStack(alignment: .leading, spacing: 6) {
+                Text(S.notes.uppercased())
+                    .font(Theme.body(11, weight: .semibold))
+                    .tracking(1.1)
+                    .foregroundStyle(Theme.muted)
+                if role != .second {
+                    Button("+ \(S.addNote)") { newNote(day: nil) }
+                        .font(Theme.body(14, weight: .medium))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.task)
+                }
+            }
+            .padding(.top, 12)
+            .frame(height: notesHeight, alignment: .top)
         }
+    }
+
+    // MARK: Notes under the days
+
+    private let noteLane: CGFloat = 52
+    private let noteFont = UIFont(name: "AvenirNext-Regular", size: 13) ?? .systemFont(ofSize: 13)
+
+    /// How many days a note takes under the grid: its days, or more when its words need the room.
+    private func columns(_ note: Entry, span: Int) -> Int {
+        let width = min(220, (note.text as NSString).size(withAttributes: [.font: noteFont]).width + 8)
+        return max(span, Int((width / cell).rounded(.up)))
+    }
+
+    /// Each note's first day and number of days in this month.
+    private func span(_ note: Entry) -> (first: Int, days: Int)? {
+        guard let d = Habits.noteDays(note.slot), Dates.monthOf(d.start) == month else { return nil }
+        let first = Int(d.start.suffix(2)) ?? 1
+        let last = Dates.monthOf(d.end) == month ? Int(d.end.suffix(2)) ?? first : days.count
+        return (first, max(1, last - first + 1))
+    }
+
+    private var noteLanes: [String: Int] {
+        Habits.lanes(notes.compactMap { n in span(n).map { (id: n.id, first: $0.first, columns: columns(n, span: $0.days)) } })
+    }
+
+    private var notesHeight: CGFloat { CGFloat(max(1, (noteLanes.values.max() ?? -1) + 1)) * noteLane + 16 }
+
+    /// The notes, each under its days with a bracket over them, like a note under a period on paper.
+    private var notesStrip: some View {
+        let lanes = noteLanes
+        return ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: CGFloat(days.count) * cell, height: notesHeight)
+            ForEach(notes) { n in
+                if let sp = span(n) {
+                    let width = CGFloat(columns(n, span: sp.days)) * cell - 4
+                    VStack(alignment: .leading, spacing: 4) {
+                        NoteBracket()
+                            .stroke(Theme.event, style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+                            .frame(width: CGFloat(sp.days) * cell - 6, height: 6)
+                        Text(n.text)
+                            .font(Theme.body(13))
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(2)
+                            .frame(width: width, alignment: .leading)
+                    }
+                    .padding(.leading, 3)
+                    .contentShape(Rectangle())
+                    .onTapGesture { if role != .second { edit(n) } }
+                    .offset(x: CGFloat(sp.first - 1) * cell, y: CGFloat(lanes[n.id] ?? 0) * noteLane + 10)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                }
+            }
+        }
+        .frame(width: CGFloat(days.count) * cell, height: notesHeight, alignment: .topLeading)
+    }
+
+    private func newNote(day: Int?) {
+        let today = Dates.today()
+        let d = day ?? (Dates.monthOf(today) == month ? Int(today.suffix(2)) ?? 1 : 1)
+        draft = NoteDraft(entryId: nil, from: d, to: d, text: "")
+    }
+
+    private func edit(_ note: Entry) {
+        guard let sp = span(note) else { return }
+        draft = NoteDraft(entryId: note.id, from: sp.first, to: sp.first + sp.days - 1, text: note.text)
+    }
+
+    private func save(_ d: NoteDraft) {
+        let text = d.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let slot = Habits.noteSlot(from: "\(month)-\(String(format: "%02d", d.from))", to: "\(month)-\(String(format: "%02d", d.to))")
+        if let id = d.entryId, var e = notes.first(where: { $0.id == id }) {
+            if text.isEmpty { return deleteNote(id) }
+            e.text = text
+            e.slot = slot
+            repo.saveHabit(e)
+        } else if !text.isEmpty {
+            let now = Repository.now()
+            repo.saveHabit(Entry(id: ULID.make(), logId: collection.id, slot: slot, order: "a0", text: text, createdAt: now, updatedAt: now))
+        }
+        load()
+    }
+
+    private func deleteNote(_ id: String) {
+        repo.deleteHabit(id: id)
+        load()
+    }
+
+    private func exportPDF() {
+        flush()
+        let page = PrintPages.habits(collection, month: month, repo: repo)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(PageMenu.fileName("\(collection.title) \(month)", "pdf"))
+        try? PdfExport.render([page], firstDay: firstDay).write(to: url)
+        sharing = [url]
     }
 
     /// A habit's name: typed (or its transcription), or its handwriting. Pen mode shows the handwriting (the
@@ -274,6 +395,9 @@ struct HabitsPage: View {
                     .frame(width: cell, height: headerHeight)
                     .overlay(alignment: .leading) { if weekStarts(iso) { Theme.rule.frame(width: 1) } }
                     .accessibilityLabel(Self.label(iso).full)
+                    .contentShape(Rectangle())
+                    // Holding a day: a note starting on it.
+                    .onLongPressGesture(minimumDuration: 0.45) { if role != .second { newNote(day: Int(iso.suffix(2))) } }
                     .id(iso)
                 }
             }
@@ -307,6 +431,7 @@ struct HabitsPage: View {
                     }
                 }
             }
+            notesStrip
         }
     }
 
@@ -458,6 +583,7 @@ struct HabitsPage: View {
     private func load() {
         flush()
         rows = repo.habits(logId: collection.id, month: month)
+        notes = repo.habitNotes(logId: collection.id, month: month)
     }
 
     private func rename() {
@@ -682,6 +808,76 @@ struct HabitMarksCanvas: UIViewRepresentable {
         @objc func tapped(_ g: UITapGestureRecognizer) {
             guard let at = place(g.location(in: g.view)) else { return }
             parent.onTap(at.row, at.day)
+        }
+    }
+}
+
+/// A bracket under a period's days, its ends turned up toward them.
+struct NoteBracket: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        return p
+    }
+}
+
+struct NoteDraft: Identifiable {
+    let id = UUID()
+    var entryId: String?
+    var from: Int
+    var to: Int
+    var text: String
+}
+
+/// Writing a note on a period: its days (from, to) and what was going on.
+struct NoteEditor: View {
+    @State var draft: NoteDraft
+    let days: Int
+    var onSave: (NoteDraft) -> Void
+    var onDelete: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField(S.notePlaceholder, text: $draft.text, axis: .vertical)
+                        .lineLimit(2...6)
+                        .font(Theme.body(16))
+                }
+                Section {
+                    Picker(S.noteFrom, selection: $draft.from) {
+                        ForEach(1...days, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    Picker(S.noteTo, selection: $draft.to) {
+                        ForEach(1...days, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                }
+                if let id = draft.entryId {
+                    Section {
+                        Button(S.deleteNote, role: .destructive) {
+                            onDelete(id)
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .onChange(of: draft.from) { if draft.to < draft.from { draft.to = draft.from } }
+            .onChange(of: draft.to) { if draft.to < draft.from { draft.from = draft.to } }
+            .navigationTitle(draft.entryId == nil ? S.addNote : S.editNote)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(S.cancel) { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(S.save) {
+                        onSave(draft)
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

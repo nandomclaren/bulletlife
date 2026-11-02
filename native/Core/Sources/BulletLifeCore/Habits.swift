@@ -82,4 +82,45 @@ public enum Habits {
         if b.width >= 6 && b.height <= max(4, b.width / 3) { return .skipped }
         return .done
     }
+
+    // MARK: Notes on a period
+
+    /// A note on the habits of some days ("liver crisis + late vet"), as written under those days on paper. It is an
+    /// entry of the collection whose slot names its days: 'YYYY-MM-DD..YYYY-MM-DD' (never a month, so it is never
+    /// taken for a habit).
+    public static func noteSlot(from start: String, to end: String) -> String {
+        let (a, b) = start <= end ? (start, end) : (end, start)
+        return "\(a)..\(b)"
+    }
+
+    /// The days a note's slot names, or nil for any other slot.
+    public static func noteDays(_ slot: String) -> (start: String, end: String)? {
+        let parts = slot.components(separatedBy: "..")
+        guard parts.count == 2, parts[0].count == 10, parts[1].count == 10 else { return nil }
+        return (parts[0], parts[1])
+    }
+
+    /// The notes of month `ym` (they start in it), by first day.
+    public static func notes(_ entries: [Entry], month ym: String) -> [Entry] {
+        entries.filter { e in noteDays(e.slot).map { Dates.monthOf($0.start) == ym } ?? false }
+            .sorted { ($0.slot, $0.order) < ($1.slot, $1.order) }
+    }
+
+    /// Lanes for notes under the days, so none covers another: each note takes the columns from its first day
+    /// for `columns` days (its days, or more when its text is wider), and goes on the first lane free there.
+    public static func lanes(_ spans: [(id: String, first: Int, columns: Int)]) -> [String: Int] {
+        var ends: [Int] = []
+        var out: [String: Int] = [:]
+        for s in spans.sorted(by: { ($0.first, $0.id) < ($1.first, $1.id) }) {
+            let last = s.first + max(1, s.columns) - 1
+            if let lane = ends.firstIndex(where: { $0 < s.first }) {
+                ends[lane] = last
+                out[s.id] = lane
+            } else {
+                ends.append(last)
+                out[s.id] = ends.count - 1
+            }
+        }
+        return out
+    }
 }

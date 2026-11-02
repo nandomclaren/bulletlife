@@ -1141,6 +1141,21 @@ final class HabitsTests: XCTestCase {
         XCTAssertEqual(Habits.toFill([water], today: "2026-10-04", todayDue: false), ["2026-10-03"])
     }
 
+    func testNotesOnAPeriod() {
+        let slot = Habits.noteSlot(from: "2026-10-26", to: "2026-10-20")
+        XCTAssertEqual(slot, "2026-10-20..2026-10-26")
+        XCTAssertEqual(Habits.noteDays(slot)?.start, "2026-10-20")
+        XCTAssertNil(Habits.noteDays("2026-10"))
+        let note = Entry(id: "n", logId: "collection:h", slot: slot, order: "a0", text: "Liver crisis", createdAt: "2026-10-27T08:00:00.000Z", updatedAt: "")
+        // A note is never a habit: nothing to fill, and it is listed with its month.
+        XCTAssertEqual(Habits.toFill([note], today: "2026-10-30"), [])
+        XCTAssertEqual(Habits.notes([note, row("2026-10", "Water")], month: "2026-10").map(\.id), ["n"])
+        XCTAssertEqual(Habits.notes([note], month: "2026-11"), [])
+        // Notes that would cover each other go on separate lanes; one after the other share a lane.
+        let lanes = Habits.lanes([(id: "a", first: 20, columns: 7), (id: "b", first: 22, columns: 3), (id: "c", first: 28, columns: 2)])
+        XCTAssertEqual(lanes, ["a": 0, "b": 1, "c": 0])
+    }
+
     func testMarksWrittenWithThePen() {
         func s(_ pts: [(Double, Double)]) -> Stroke { Stroke(k: .writing, p: pts.flatMap { [$0.0, $0.1, 0.5] }) }
         XCTAssertEqual(Habits.mark(written: s([(10, 10), (12, 11)])), .missed)

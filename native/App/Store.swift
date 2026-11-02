@@ -307,6 +307,21 @@ struct Repository {
         NotificationCenter.default.post(name: Self.saved, object: nil, userInfo: ["logId": e.logId, "slot": e.slot])
     }
 
+    /// The notes on periods of a month of habits (written under their days).
+    func habitNotes(logId: String, month: String) -> [Entry] {
+        let all = (try? context.fetch(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.logId == logId }))) ?? []
+        return Habits.notes(all.map(\.light), month: month)
+    }
+
+    /// The months of a Habits collection with something written (habits or notes), in order.
+    func habitMonths(logId: String) -> [String] {
+        let all = (try? context.fetch(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.logId == logId }))) ?? []
+        return Set(all.compactMap { r -> String? in
+            if r.slot.count == 7 { return r.slot }
+            return Habits.noteDays(r.slot).map { Dates.monthOf($0.start) }
+        }).sorted()
+    }
+
     func deleteHabit(id: String) {
         for r in (try? context.fetch(FetchDescriptor<EntryRecord>(predicate: #Predicate { $0.uid == id }))) ?? [] { context.delete(r) }
         try? context.save()
