@@ -259,10 +259,24 @@ enum PdfExport {
                 i += 3
             }
             if stroke.p.count == 3 { path.addLine(to: path.currentPoint) }
+            (stroke.b == true ? light(type.rawValue) : light(stroke.c)).setStroke()
+            // The fountain pen: each piece as wide as the nib was there.
+            if stroke.fountain, let nib = stroke.w, nib.count >= stroke.p.count, stroke.p.count >= 6 {
+                var j = 0
+                while j + 5 < stroke.p.count {
+                    let piece = UIBezierPath()
+                    piece.move(to: CGPoint(x: x + CGFloat(stroke.p[j]) * s, y: top + CGFloat(stroke.p[j + 1]) * s))
+                    piece.addLine(to: CGPoint(x: x + CGFloat(stroke.p[j + 3]) * s, y: top + CGFloat(stroke.p[j + 4]) * s))
+                    piece.lineWidth = max(0.3, CGFloat((nib[j] + nib[j + 1] + nib[j + 3] + nib[j + 4]) / 4) * s)
+                    piece.lineCapStyle = .round
+                    piece.stroke()
+                    j += 3
+                }
+                return
+            }
             path.lineWidth = max(0.4, CGFloat(stroke.s ?? 2.4) * s)
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
-            (stroke.b == true ? light(type.rawValue) : light(stroke.c)).setStroke()
             path.stroke()
         }
 

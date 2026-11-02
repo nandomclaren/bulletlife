@@ -161,8 +161,16 @@ public struct Stroke: Codable, Equatable, Sendable {
     public var b: Bool?
     /// Pen size (stroke diameter) when not the default.
     public var s: Double?
+    /// The pen: nil, the ballpoint (even width); "f", the fountain pen (its width follows the hand, kept per point
+    /// in `w`, so the stroke looks the same each time it is drawn).
+    public var i: String?
+    /// The fountain pen's width at each point.
+    public var w: [Double]?
 
-    public init(k: StrokeKind, c: String = "ink", r: Int = 0, p: [Double], pen: Bool? = nil, b: Bool? = nil, s: Double? = nil) {
+    public init(
+        k: StrokeKind, c: String = "ink", r: Int = 0, p: [Double], pen: Bool? = nil, b: Bool? = nil, s: Double? = nil,
+        i: String? = nil, w: [Double]? = nil
+    ) {
         self.k = k
         self.c = c
         self.r = r
@@ -170,9 +178,11 @@ public struct Stroke: Codable, Equatable, Sendable {
         self.pen = pen
         self.b = b
         self.s = s
+        self.i = i
+        self.w = w
     }
 
-    enum CodingKeys: String, CodingKey { case k, c, r, p, pen, b, s }
+    enum CodingKeys: String, CodingKey { case k, c, r, p, pen, b, s, i, w }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -183,7 +193,12 @@ public struct Stroke: Codable, Equatable, Sendable {
         pen = try c.decodeIfPresent(Bool.self, forKey: .pen)
         b = try c.decodeIfPresent(Bool.self, forKey: .b)
         s = try c.decodeIfPresent(Double.self, forKey: .s)
+        i = try c.decodeIfPresent(String.self, forKey: .i)
+        w = try c.decodeIfPresent([Double].self, forKey: .w)
     }
+
+    /// Written with the fountain pen.
+    public var fountain: Bool { i == "f" }
 
     public var box: Box { Box(points: p) }
 }

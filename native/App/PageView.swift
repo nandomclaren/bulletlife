@@ -33,6 +33,7 @@ struct PageView: View {
     @AppStorage("penColor") private var penColor = "ink"
     @AppStorage("penSize") private var penSize = defaultPenSize
     @State private var penTool: PenTool = .write
+    @AppStorage("penFountain") private var penFountain = false
     /// The tool before the last change (the Apple Pencil's double tap goes back to it).
     @State private var previousTool: PenTool = .write
     @State private var undoRequests = 0
@@ -117,6 +118,7 @@ struct PageView: View {
                 restore: loadedFor == logId && nav.restore?.place == place ? nav.restore : nil,
                 onScroll: { [place] in nav.remember($0, for: place) },
                 onCanUndo: { canUndo = $0 },
+                fountain: penFountain,
                 onPencilTap: pencilTap
             )
             .frame(maxWidth: 760)

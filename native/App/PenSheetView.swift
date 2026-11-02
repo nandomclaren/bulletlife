@@ -39,6 +39,39 @@ enum PenCalibration {
 /// The tool's width for a pen size (a drawn diameter).
 func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) }
 
+/// The pen page is shown at 70% (Fernando, after comparing with a notebook app): a line looks 28 pt tall and the
+/// hand writes smaller and looser. What is stored keeps its scale (40-unit lines), so nothing written before
+/// changes, and the line rules hold as they are; only the view is scaled.
+let penZoom: CGFloat = 0.7
+
+/// Holds the pen canvas, scaled to `penZoom` and filling it.
+final class PenSheetContainer: UIView {
+    let canvas = SheetCanvas()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        clipsToBounds = true
+        addSubview(canvas)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// The ink is drawn at the screen's resolution for its shown size, so the smaller page stays sharp.
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if let screen = window?.screen { canvas.contentScaleFactor = screen.scale / penZoom }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        canvas.transform = .identity
+        // The size only: a scroll view's bounds origin is where it is scrolled.
+        canvas.bounds.size = CGSize(width: bounds.width / penZoom, height: bounds.height / penZoom)
+        canvas.transform = CGAffineTransform(scaleX: penZoom, y: penZoom)
+        canvas.center = CGPoint(x: bounds.midX, y: bounds.midY)
+    }
+}
+
 struct PenSheetView: UIViewRepresentable {
     @Binding var lines: [Line]
     var tool: PenTool
@@ -54,13 +87,16 @@ struct PenSheetView: UIViewRepresentable {
     var restore: ScrollRestore? = nil
     var onScroll: (CGFloat) -> Void = { _ in }
     var onCanUndo: (Bool) -> Void
+    /// Write with the fountain pen (its width follows the hand) instead of the ballpoint.
+    var fountain = false
     /// A double tap on the Apple Pencil (as the system's Settings say: eraser, or the previous tool).
     var onPencilTap: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeUIView(context: Context) -> SheetCanvas {
-        let canvas = SheetCanvas()
+    func makeUIView(context: Context) -> PenSheetContainer {
+        let container = PenSheetContainer()
+        let canvas = container.canvas
         canvas.drawingPolicy = .pencilOnly
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
@@ -81,15 +117,16 @@ struct PenSheetView: UIViewRepresentable {
         let pencil = UIPencilInteraction()
         pencil.delegate = coordinator
         canvas.addInteraction(pencil)
-        return canvas
+        return container
     }
 
-    func updateUIView(_ canvas: SheetCanvas, context: Context) {
+    func updateUIView(_ container: PenSheetContainer, context: Context) {
+        let canvas = container.canvas
         let c = context.coordinator
         c.parent = self
-        setTopInset(canvas, topInset)
+        setTopInset(canvas, topInset / penZoom)
         // Only when it changes: a new tool would drop the lasso's selection.
-        let toolKey = "\(tool.rawValue)/\(color)/\(size)"
+        let toolKey = "\(tool.rawValue)/\(color)/\(size)/\(fountain)"
         if toolKey != c.toolKey {
             c.toolKey = toolKey
             canvas.tool = c.pkTool()
@@ -257,7 +294,9 @@ struct PenSheetView: UIViewRepresentable {
                 }
                 guard let center else { continue }
                 let id = l.id
-                let hit = PenBulletView(frame: CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44))
+                // 44 pt on the screen, whatever the page's scale.
+                let side = 44 / penZoom
+                let hit = PenBulletView(frame: CGRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side))
                 hit.lineId = id
                 hit.accessibilityLabel = "\(l.type.rawValue), \(l.state.rawValue)"
                 hit.onTap = { [weak self] in self?.tapped(id) }
@@ -327,7 +366,10 @@ struct PenSheetView: UIViewRepresentable {
             switch parent.tool {
             case .erase: return PKEraserTool(.vector)
             case .lasso: return PKLassoTool()
-            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
+            // Sizes are what the eye sees: the page is drawn at penZoom, so the tool is wider by as much.
+            case .write where parent.fountain:
+                return PKInkingTool(.fountainPen, color: Theme.ui(parent.color), width: penWidth(parent.size) / penZoom)
+            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size) / penZoom)
             }
         }
 
@@ -413,11 +455,18 @@ struct PenSheetView: UIViewRepresentable {
             let sizes = pk.path.map { Double($0.size.width) }.sorted()
             let median = sizes.isEmpty ? parent.size : sizes[sizes.count / 2]
             let drawn = (median * 10).rounded() / 10
-            if !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
+            let fountain = pk.ink.inkType == .fountainPen
+            if !fountain, !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
                 // The next strokes come out at the size asked for (this one is stored as it was drawn).
                 PenCalibration.ratio = median / Double(tool.width)
             }
-            let stroke = Stroke(k: kind, c: parent.color, p: p, pen: true, s: drawn == storedDefaultSize ? nil : drawn)
+            // The fountain pen's nib at each point (width, height, angle), so it is drawn again just as written.
+            let nib: [Double]? =
+                fountain
+                ? pk.path.flatMap { [(Double($0.size.width) * 100).rounded() / 100, (Double($0.size.height) * 100).rounded() / 100, (Double($0.azimuth) * 100).rounded() / 100] }
+                : nil
+            let stroke = Stroke(
+                k: kind, c: parent.color, p: p, pen: true, s: drawn == storedDefaultSize ? nil : drawn, i: fountain ? "f" : nil, w: nib)
             let box = stroke.box
             let now = Date().timeIntervalSinceReferenceDate
             let row = max(0, PenRules.strokeRow(box, kind: kind, last: lastStroke, now: now))
@@ -482,18 +531,25 @@ struct PenSheetView: UIViewRepresentable {
 
         static func pkStroke(_ s: Stroke, color: UIColor, date: Date) -> PKStroke {
             let width = CGFloat(s.s ?? storedDefaultSize)
+            let nib = s.fountain ? s.w : nil
             var points: [PKStrokePoint] = []
             var i = 0
             var t: TimeInterval = 0
             while i + 2 < s.p.count {
+                var size = CGSize(width: width, height: width)
+                var azimuth: CGFloat = 0
+                if let nib, i + 2 < nib.count {
+                    size = CGSize(width: nib[i], height: nib[i + 1])
+                    azimuth = CGFloat(nib[i + 2])
+                }
                 points.append(
                     PKStrokePoint(
-                        location: CGPoint(x: s.p[i], y: s.p[i + 1]), timeOffset: t, size: CGSize(width: width, height: width),
-                        opacity: 1, force: CGFloat(max(0.2, s.p[i + 2])), azimuth: 0, altitude: .pi / 2))
+                        location: CGPoint(x: s.p[i], y: s.p[i + 1]), timeOffset: t, size: size,
+                        opacity: 1, force: CGFloat(max(0.2, s.p[i + 2])), azimuth: azimuth, altitude: .pi / 2))
                 i += 3
                 t += 0.008
             }
-            return PKStroke(ink: PKInk(penInk, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
+            return PKStroke(ink: PKInk(nib != nil ? .fountainPen : penInk, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
         }
     }
 }
@@ -540,20 +596,22 @@ final class SheetBackground: UIView {
             backgroundColor = .clear
             return
         }
-        // A dot grid, as in a paper notebook (Fernando): one dot per ruled line every line's height, so the
-        // squares are as wide as the lines are tall; in the color of the habits' week rules.
-        let row = CGFloat(inkRow)
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: row, height: row))
+        // A dot grid, as in a paper notebook (Fernando): square, two squares to a written line (a dot on each
+        // line and one halfway); in the color of the habits' week rules.
+        let step = CGFloat(inkRow) / 2
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: step, height: step))
         let dot = Theme.ui("rule").resolvedColor(with: traitCollection)
+        let d = 2.4 / penZoom
         let image = renderer.image { ctx in
             dot.setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: row / 2 - 1.3, y: row - 2.6, width: 2.6, height: 2.6))
+            ctx.cgContext.fillEllipse(in: CGRect(x: step / 2 - d / 2, y: step - d, width: d, height: d))
         }
         backgroundColor = UIColor(patternImage: image)
     }
 
-    static let font = UIFont(name: "AvenirNext-Regular", size: 17) ?? .systemFont(ofSize: 17)
-    static let headingFont = UIFont(name: "AvenirNext-Bold", size: 21) ?? .boldSystemFont(ofSize: 21)
+    // Sized for the page's scale (penZoom): typed lines read at 17 pt on the screen.
+    static let font = UIFont(name: "AvenirNext-Regular", size: 17 / penZoom) ?? .systemFont(ofSize: 17 / penZoom)
+    static let headingFont = UIFont(name: "AvenirNext-Bold", size: 21 / penZoom) ?? .boldSystemFont(ofSize: 21 / penZoom)
 
     static func textX(_ l: Line) -> CGFloat { CGFloat(penTextX) + CGFloat(l.indent) * 26 }
 
@@ -570,10 +628,16 @@ final class SheetBackground: UIView {
         p.maximumLineHeight = CGFloat(inkRow)
         var attrs: [NSAttributedString.Key: Any] = [
             .font: heading ? headingFont : font, .paragraphStyle: p, .foregroundColor: faded ? Theme.ui("muted") : color,
-            .baselineOffset: 6,
+            .baselineOffset: 4,
         ]
         if struck { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
         return NSAttributedString(string: text, attributes: attrs)
+    }
+
+    /// Text drawn at the page's scale stays sharp (the sheet is shown smaller than it is drawn).
+    override func didAddSubview(_ subview: UIView) {
+        super.didAddSubview(subview)
+        subview.contentScaleFactor = (window?.screen.scale ?? UIScreen.main.scale) / penZoom
     }
 
     func show(lines: [Line], blocks: [PlacedBlock], eventStates: Bool, doneMark: String) {
@@ -591,7 +655,7 @@ final class SheetBackground: UIView {
             if [.done, .migrated, .scheduled].contains(l.state) {
                 let mark = UILabel()
                 mark.text = States.glyph(l.type, l.state, eventStates: eventStates, doneMark: doneMark)
-                mark.font = UIFont(name: "AvenirNext-Bold", size: 21) ?? .boldSystemFont(ofSize: 21)
+                mark.font = UIFont(name: "AvenirNext-Bold", size: 21 / penZoom) ?? .boldSystemFont(ofSize: 21 / penZoom)
                 mark.textColor = tint
                 mark.sizeToFit()
                 mark.center = CGPoint(x: CGFloat((box.x0 + box.x1) / 2), y: cy - 1)
@@ -622,7 +686,7 @@ final class SheetBackground: UIView {
             }
             let glyph = States.glyph(l.type, l.state, eventStates: eventStates, doneMark: doneMark)
             if !glyph.isEmpty {
-                let bullet = UILabel(frame: CGRect(x: x - 26, y: CGFloat(b.top), width: 22, height: CGFloat(inkRow)))
+                let bullet = UILabel(frame: CGRect(x: x - 34, y: CGFloat(b.top), width: 30, height: CGFloat(inkRow)))
                 bullet.textAlignment = .center
                 bullet.attributedText = Self.attributed(glyph, heading: false, color: tint, faded: false, struck: false)
                 addSubview(bullet)
@@ -642,6 +706,8 @@ struct PenToolbar: View {
     let onUndo: () -> Void
     /// Write or Draw, whichever was last: a size or color picked under the eraser or lasso goes back to it.
     @State private var lastInking: PenTool = .write
+    /// The pen Write uses: the ballpoint (even width) or the fountain pen.
+    @AppStorage("penFountain") private var fountain = false
 
     /// Sizes and colors belong to Write and Draw; under the eraser or lasso none is shown as chosen (they
     /// come back as they were).
@@ -649,7 +715,7 @@ struct PenToolbar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            toolButton(.write, icon: "pencil.tip", label: S.write)
+            toolButton(.write, icon: fountain ? "signature" : "pencil.tip", label: fountain ? S.fountainPen : S.ballpoint)
             toolButton(.draw, icon: "scribble", label: S.draw)
             toolButton(.erase, icon: "eraser", label: S.eraser)
             toolButton(.lasso, icon: "lasso", label: S.lasso)
@@ -704,6 +770,11 @@ struct PenToolbar: View {
 
     private func toolButton(_ t: PenTool, icon: String, label: String) -> some View {
         Button {
+            // Write, tapped when already chosen: the other pen (ballpoint, fountain pen).
+            if t == .write && tool == .write {
+                fountain.toggle()
+                Toasts.shared.tell(fountain ? S.fountainPen : S.ballpoint)
+            }
             tool = t
         } label: {
             Image(systemName: icon)
