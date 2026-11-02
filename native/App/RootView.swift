@@ -68,6 +68,9 @@ enum Prefs {
 
 @MainActor
 final class Navigator: ObservableObject {
+    /// The notebook's main navigator, for the menu bar's commands: on the Mac the menus are built once and
+    /// don't follow the focused scene, so they reach the notebook through this.
+    static weak var main: Navigator?
     @Published private(set) var place: Place
     @Published private(set) var lastPeriod: Period
     @Published private(set) var history: [Place] = []
@@ -376,6 +379,7 @@ struct RootView: View {
         .environmentObject(nav)
         // The app's menu commands (Go: search, Today, levels, pages) act on this window's notebook.
         .focusedSceneObject(nav)
+        .onAppear { Navigator.main = nav }
         .tint(Theme.task)
         // Light or dark only this way: holding the window too made the two fight, and painting the scene's
         // windows covered the app with the system's overlay windows.
@@ -654,7 +658,9 @@ struct SidesOnly: Shape {
 /// way around the notebook (CLAUDE.md 5.1): ⌘T Today; ⌃⌘↑ / ⌃⌘↓ a level up or down (Day › Week › Month ›
 /// Year, around the day looked at); ⌃⌘← / ⌃⌘→ the previous or next page at the same level.
 struct NotebookCommands: Commands {
-    @FocusedObject private var nav: Navigator?
+    @FocusedObject private var focused: Navigator?
+    /// The focused notebook, or the main one (the Mac's menu bar doesn't always know which scene has focus).
+    private var nav: Navigator? { focused ?? Navigator.main }
 
     var body: some Commands {
         // The app's Settings, where the Mac (and a keyboard) looks for them: ⌘,

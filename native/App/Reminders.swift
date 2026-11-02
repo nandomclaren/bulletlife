@@ -36,7 +36,17 @@ enum Reminders {
 }
 
 /// Receives the reminder's tap (and keeps it quiet while the app is open: the banner is there).
-final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    #if targetEnvironment(macCatalyst)
+        /// The Mac's Format › Font › Show Fonts takes ⌘T, which is Today here (the app has no font panel).
+        override func buildMenu(with builder: UIMenuBuilder) {
+            super.buildMenu(with: builder)
+            guard builder.system == .main, let font = builder.menu(for: .font) else { return }
+            let showFonts = NSSelectorFromString("orderFrontFontPanel:")
+            builder.replace(menu: .font, with: font.replacingChildren(font.children.filter { ($0 as? UICommand)?.action != showFonts }))
+        }
+    #endif
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         Reminders.update()
