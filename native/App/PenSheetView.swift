@@ -68,12 +68,6 @@ final class PenSheetContainer: UIView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// The ink is drawn at the screen's resolution for its shown size, so the smaller page stays sharp.
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if let screen = window?.screen { canvas.contentScaleFactor = screen.scale / penZoom }
-    }
-
     override func layoutSubviews() {
         super.layoutSubviews()
         canvas.transform = .identity
@@ -377,9 +371,10 @@ struct PenSheetView: UIViewRepresentable {
             case .erase: return PKEraserTool(.vector)
             case .lasso: return PKLassoTool()
             // Sizes are what the eye sees: the page is drawn at penZoom, so the tool is wider by as much.
-            // Measured on Fernando's iPad: on the 75% page a size drew about a third heavier than the same size
-            // written before it (Fine looked like Medium); scaled by the page's zoom, new writing matches the old.
-            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size) * penZoom)
+            // The canvas keeps the screen's own resolution: drawn at a higher one (for sharpness on the 75% page) the
+            // ink came out a third heavier (2.67 / 2), and thinning the tool to make up for it squeezed the sizes
+            // together (Fine and Medium alike).
+            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
             }
         }
 
