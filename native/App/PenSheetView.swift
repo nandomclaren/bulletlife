@@ -603,18 +603,18 @@ final class SheetBackground: UIView {
             backgroundColor = .clear
             return
         }
-        // A dot grid, as in a paper notebook (Fernando): square, three squares to two written lines (about 20 pt
-        // on the screen, as in the notebook app he compared with); in the color of the habits' week rules. One
-        // tile holds 3 × 3 dots, two lines tall, so the dots never drift.
-        let tile = 2 * CGFloat(inkRow)
-        let step = tile / 3
+        // A dot grid, as in a paper notebook (Fernando): square, about 28 dots across the page as in the notebook
+        // app he compared with: ten squares to nine written lines (27 pt on the screen); in the color of the
+        // habits' week rules. One tile holds 10 × 10 dots, nine lines tall, so the dots never drift.
+        let tile = 9 * CGFloat(inkRow)
+        let step = tile / 10
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: tile, height: tile))
         let dot = Theme.ui("rule").resolvedColor(with: traitCollection)
         let d = 2.4 / penZoom
         let image = renderer.image { ctx in
             dot.setFill()
-            for row in 1...3 {
-                for col in 0..<3 {
+            for row in 1...10 {
+                for col in 0..<10 {
                     ctx.cgContext.fillEllipse(in: CGRect(x: step * (CGFloat(col) + 0.5) - d / 2, y: step * CGFloat(row) - d, width: d, height: d))
                 }
             }
