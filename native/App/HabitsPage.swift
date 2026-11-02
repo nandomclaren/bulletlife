@@ -39,6 +39,9 @@ struct HabitsPage: View {
     @State private var notes: [Entry] = []
     @State private var draft: NoteDraft?
     @State private var sharing: [Any]?
+    /// How far the grid's top has scrolled past the top of the page: the days' header moves down by as much, so
+    /// it stays in view however many habits there are.
+    @State private var pinShift: CGFloat = 0
     @AppStorage("penMode") private var penOn = false
     @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
     @ObservedObject private var handwriting = Handwriting.shared
@@ -64,6 +67,7 @@ struct HabitsPage: View {
                 HStack(alignment: .top, spacing: 0) {
                     names
                         .frame(width: nameWidth, alignment: .leading)
+                        .zIndex(1)
                         .overlay(alignment: .trailing) { Theme.rule.frame(width: 1) }
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -77,11 +81,20 @@ struct HabitsPage: View {
                         }
                     }
                 }
+                .background(
+                    GeometryReader { g in
+                        Color.clear.preference(key: HabitsGridTop.self, value: g.frame(in: .named("habitsPage")).minY)
+                    })
+                .onPreferenceChange(HabitsGridTop.self) { top in
+                    let rowsHeight = CGFloat(rows.count + (role != .second ? 1 : 0)) * rowHeight
+                    pinShift = min(max(0, -top), max(0, rowsHeight - rowHeight))
+                }
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
             .padding(.bottom, 120)
         }
+        .coordinateSpace(name: "habitsPage")
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.paper)
         .onAppear {
@@ -213,7 +226,8 @@ struct HabitsPage: View {
     /// The fixed column: the habits' names, and the line to write a new one.
     private var names: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: headerHeight)
+            // Paper over the names that scroll under the pinned days' header.
+            Theme.paper.frame(height: headerHeight).offset(y: pinShift).zIndex(1)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     nameCell(row)
@@ -401,6 +415,11 @@ struct HabitsPage: View {
                     .id(iso)
                 }
             }
+            // Pinned: it follows the page down while the habits scroll under it.
+            .background(Theme.paper)
+            .overlay(alignment: .bottom) { if pinShift > 0 { Theme.rule.frame(height: 1) } }
+            .offset(y: pinShift)
+            .zIndex(1)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     HStack(spacing: 0) {
@@ -880,4 +899,10 @@ struct NoteEditor: View {
             }
         }
     }
+}
+
+/// Where the habits grid's top is in the page as it scrolls.
+struct HabitsGridTop: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
