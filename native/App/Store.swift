@@ -354,11 +354,13 @@ final class PageSaver {
         for saver in all.allObjects where saver.pending?.logId == logId && saver.pending?.slot == slot { saver.flush() }
     }
 
-    func schedule(_ lines: [Line], logId: String, slot: String = "", repo: Repository) {
+    /// `after`: seconds of quiet before it is written. Writing with the pen waits longer, so a save (which
+    /// encodes the page's ink) never lands in a short pause between two words.
+    func schedule(_ lines: [Line], logId: String, slot: String = "", repo: Repository, after: Double = 0.7) {
         pending = (lines, logId, slot, repo)
         task?.cancel()
         task = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: .milliseconds(Int(after * 1000)))
             guard !Task.isCancelled else { return }
             self?.flush()
         }

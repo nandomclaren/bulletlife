@@ -100,12 +100,18 @@ struct PenSheetView: UIViewRepresentable {
             // A transcription keeps every stroke where it was (it only adds text and colors the bullet): the
             // page is drawn again but Undo keeps its steps. Another page, or other changes, start Undo afresh.
             let sameInk = c.lines.map(\.id) == lines.map(\.id) && c.lines.map { $0.ink?.strokes.map(\.p) } == lines.map { $0.ink?.strokes.map(\.p) }
+            let previous = c.lines
             c.lines = lines
             if !sameInk {
                 c.history.removeAll()
                 DispatchQueue.main.async { onCanUndo(false) }
             }
-            if sameInk && tool == .lasso {
+            // A transcription that colors no bullet and changes no state leaves every stroke as drawn: only the
+            // sheet is laid out again, so a pen already writing the next word is not interrupted by a redraw.
+            let sameLook = sameInk
+                && previous.map { $0.ink?.strokes.map(\.b) } == lines.map { $0.ink?.strokes.map(\.b) }
+                && previous.map(\.state) == lines.map(\.state) && previous.map(\.type) == lines.map(\.type)
+            if sameInk && (tool == .lasso || sameLook) {
                 // While the lasso may hold a selection, a transcription only updates the sheet (the ink's
                 // colors follow when the tool changes).
                 c.relayout()

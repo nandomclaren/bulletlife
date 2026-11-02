@@ -69,7 +69,7 @@ struct PageView: View {
         .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { note in
             if consulting && note.isAbout(logId: logId) { lines = repo.lines(logId: logId) }
         }
-        .onChange(of: lines) { if !consulting { saver.schedule(lines, logId: logId, repo: repo) } }
+        .onChange(of: lines) { if !consulting { saver.schedule(lines, logId: logId, repo: repo, after: penOn && isPad ? 2.2 : 0.7) } }
         // Becoming only consulted (the main page came here): what was written goes to the page now.
         .onChange(of: consulting) { if consulting { saver.flush() } }
         .onChange(of: scenePhase) { if scenePhase != .active { saver.flush() } }

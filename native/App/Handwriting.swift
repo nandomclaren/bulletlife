@@ -95,8 +95,19 @@ final class Handwriting: ObservableObject {
                     t += 120
                     return Stroke(points: points)
                 })
+            // The writing area (the paragraph laid out on one ruled line: as wide as the writing, one line tall)
+            // helps the recognizer tell a space from the gap inside a word, and capitals from small letters.
+            var width: Float = 0
+            for p in strokes {
+                var i = 0
+                while i < p.count {
+                    width = max(width, Float(p[i]))
+                    i += 3
+                }
+            }
+            let context = DigitalInkRecognitionContext(preContext: "", writingArea: WritingArea(width: max(width, 1), height: 40))
             return await withCheckedContinuation { (done: CheckedContinuation<String?, Never>) in
-                recognizer.recognize(ink: ink) { result, _ in
+                recognizer.recognize(ink: ink, context: context) { result, _ in
                     let text = result?.candidates.first?.text
                     done.resume(returning: text.map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") })
                 }
