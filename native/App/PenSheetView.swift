@@ -387,7 +387,9 @@ struct PenSheetView: UIViewRepresentable {
             // direction, too faint and too uneven. A little bolder than the ballpoint at the same size.
             case .write where parent.fountain:
                 return PKInkingTool(.pen, color: Theme.ui(parent.color), width: fountainWidth(parent.size))
-            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
+            // Measured on Fernando's iPad: on the 75% page a size drew about a third heavier than the same size
+            // written before it (Fine looked like Medium); scaled by the page's zoom, new writing matches the old.
+            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size) * penZoom)
             }
         }
 
