@@ -9,7 +9,16 @@ import os
 /// Whether the pen is touching the page now (set by the canvas), so background work can wait for the lift.
 @MainActor
 enum PenState {
-    static var down = false
+    /// When the pen last touched down (nil: it is up). A touch is only believed for a few seconds: if PencilKit
+    /// never reports a stroke's end (a cancelled touch, a tool changed under it), a plain flag stayed "down" for
+    /// good and held back the saves and the transcription for ever.
+    private static var since: Date?
+    static var down: Bool {
+        guard let since else { return false }
+        return Date().timeIntervalSince(since) < 4
+    }
+    static func began() { since = Date() }
+    static func ended() { since = nil }
     /// The pen page is on screen: background counting waits until it is left.
     static var pageOpen = false
 }

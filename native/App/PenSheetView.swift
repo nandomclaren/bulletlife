@@ -129,6 +129,7 @@ struct PenSheetView: UIViewRepresentable {
     static func dismantleUIView(_ container: PenSheetContainer, coordinator: Coordinator) {
         coordinator.frames.stop()
         PenState.pageOpen = false
+        PenState.ended()
     }
 
     func updateUIView(_ container: PenSheetContainer, context: Context) {
@@ -431,9 +432,9 @@ struct PenSheetView: UIViewRepresentable {
 
         // MARK: What the pen did
 
-        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) { PenState.down = true }
+        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) { PenState.began() }
 
-        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) { PenState.down = false }
+        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) { PenState.ended() }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !rendering else { return }

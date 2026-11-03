@@ -572,3 +572,18 @@ open" only after its first read.
 Pen lab (Fernando's iPad): our ink now shows (the finished PencilKit stroke, drawn with our brush) but live touches
 still stop after the first (`recognizer 1, moves 0`). The recognizer now moves to began/changed/ended and may
 recognize together with PencilKit's, which keeps a recognizer listening once another one takes the touch.
+
+## Native: "pen down" can no longer get stuck; drawings in Type mode (2026-11-03)
+Fernando's page (photos): writing in Pen mode is much better, but in Type mode minutes passed without the ink being
+transcribed, the paragraph's untranscribed ink showed as scaled boxes with other line breaks, and a coloured drawing
+came out scrambled.
+- Likely cause of the missing transcription (introduced this session): the saves, the transcription result and the
+  Open items reads wait while `PenState.down`, a flag set by `canvasViewDidBeginUsingTool` and cleared by
+  `canvasViewDidEndUsingTool`. If PencilKit does not report a stroke's end (cancelled touch, tool changed mid-stroke) it
+  stayed true for good. `PenState.down` is now "touched down within the last 4 s" (`began()` stamps the time, `ended()`
+  clears it, and leaving the pen page clears it), so no wait can last more than a few seconds.
+- The scrambled drawing is only how Type mode shows it, the stored ink is intact (Pen mode draws it whole). Since
+  Draw is paint (zero rows) each burst of a drawing is its own entry placed after the line its first stroke started
+  on, and Type mode shows every entry's ink scaled into its own box (`InkPreview.frame`), so the outline and the
+  colour fills of one picture no longer line up. Not changed yet: the proper fix is to draw all of a page's paint in
+  Type mode as one layer at true scale, each stroke kept over the same text line it was drawn over, reserving no space.
