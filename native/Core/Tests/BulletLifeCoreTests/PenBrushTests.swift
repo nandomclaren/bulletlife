@@ -42,3 +42,53 @@ final class PenBrushTests: XCTestCase {
         XCTAssertTrue(PenBrush.outline([], BrushParams()).isEmpty)
     }
 }
+
+final class PaintMapTests: XCTestCase {
+    func testSameMapForEveryStrokeAndExtrapolation() {
+        // Two lines of 40 on the Pen page; in Type the first is 27 tall and the second 54.
+        let blocks = [
+            PlacedBlock(id: "a", top: 0, height: 40, typed: true, strokes: []),
+            PlacedBlock(id: "p", top: 40, height: 0, typed: false, strokes: []),
+            PlacedBlock(id: "b", top: 40, height: 40, typed: true, strokes: []),
+        ]
+        let m = PaintMap(blocks: blocks, tops: ["a": 10, "b": 37], ends: ["a": 37, "b": 91])
+        XCTAssertEqual(m.map(0), 10, accuracy: 1e-9)
+        XCTAssertEqual(m.map(20), 23.5, accuracy: 1e-9)
+        XCTAssertEqual(m.map(40), 37, accuracy: 1e-9)
+        XCTAssertEqual(m.map(60), 64, accuracy: 1e-9)
+        XCTAssertEqual(m.map(80), 91, accuracy: 1e-9)
+        // Above and below the page it continues at the Pen page's scale.
+        XCTAssertEqual(m.map(-20), 10 - 15, accuracy: 1e-9)
+        XCTAssertEqual(m.map(120), 91 + 30, accuracy: 1e-9)
+        // Monotonic.
+        var prev = -Double.infinity
+        for y in stride(from: -30.0, through: 130, by: 5) {
+            XCTAssertGreaterThanOrEqual(m.map(y), prev)
+            prev = m.map(y)
+        }
+    }
+
+    func testLinesLeftOutOfTypeStandOnASpot() {
+        let blocks = [
+            PlacedBlock(id: "a", top: 0, height: 40, typed: true, strokes: []),
+            PlacedBlock(id: "gone", top: 40, height: 80, typed: false, strokes: []),
+            PlacedBlock(id: "b", top: 120, height: 40, typed: true, strokes: []),
+        ]
+        let m = PaintMap(blocks: blocks, tops: ["a": 0, "b": 30], ends: ["a": 30, "b": 60])
+        XCTAssertEqual(m.map(80), 30, accuracy: 1e-9)
+        XCTAssertEqual(m.map(140), 45, accuracy: 1e-9)
+    }
+
+    func testPaintStrokesOnlyFromPaintEntries() {
+        let draw = Stroke(k: .drawing, c: "ink", p: [1, 2, 0.5, 3, 4, 0.5])
+        let paint = Line(id: "p", ink: Ink(strokes: [draw], free: true))
+        let old = Line(id: "o", ink: Ink(strokes: [draw]))
+        let text = Line(id: "t", text: "hello")
+        let lines = [text, paint, old]
+        let blocks = InkPage.blocks(lines) { _ in 1 }
+        let got = InkPage.paintStrokes(lines, blocks: blocks)
+        XCTAssertEqual(got.map(\.entryId), ["p"])
+        // In page coordinates: the paint sits after the first line (40 units down).
+        XCTAssertEqual(got[0].stroke.p[1], 2 + 40, accuracy: 1e-9)
+    }
+}

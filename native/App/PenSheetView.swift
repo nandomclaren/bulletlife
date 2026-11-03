@@ -129,7 +129,6 @@ struct PenSheetView: UIViewRepresentable {
     static func dismantleUIView(_ container: PenSheetContainer, coordinator: Coordinator) {
         coordinator.frames.stop()
         PenState.pageOpen = false
-        PenState.ended()
     }
 
     func updateUIView(_ container: PenSheetContainer, context: Context) {
@@ -432,10 +431,6 @@ struct PenSheetView: UIViewRepresentable {
 
         // MARK: What the pen did
 
-        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) { PenState.began() }
-
-        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) { PenState.ended() }
-
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !rendering else { return }
             let strokes = canvasView.drawing.strokes
@@ -698,9 +693,12 @@ final class SheetBackground: UIView {
     static func textX(_ l: Line) -> CGFloat { CGFloat(penTextX) + CGFloat(l.indent) * 26 }
 
     /// Rows a typed line takes, kept by what decides it (measuring text on every stroke was most of `added`).
-    private var rowsCache: [String: Int] = [:]
+    nonisolated(unsafe) private static var rowsCache: [String: Int] = [:]
 
-    func typedRows(_ l: Line, width: CGFloat) -> Int {
+    func typedRows(_ l: Line, width: CGFloat) -> Int { Self.rows(l, width: width) }
+
+    /// Rows a typed line takes on the Pen page (also used by Type mode, to line paint up with the text).
+    static func rows(_ l: Line, width: CGFloat) -> Int {
         let key = "\(l.type == .heading)|\(l.indent)|\(Int(width))|\(l.text)"
         if let rows = rowsCache[key] { return rows }
         if rowsCache.count > 600 { rowsCache.removeAll() }
@@ -709,9 +707,9 @@ final class SheetBackground: UIView {
         return rows
     }
 
-    private func measuredRows(_ l: Line, width: CGFloat) -> Int {
-        let text = Self.attributed(l.text.isEmpty ? " " : l.text, heading: l.type == .heading, color: .label, faded: false, struck: false)
-        let w = max(40, width - Self.textX(l) - 16)
+    private static func measuredRows(_ l: Line, width: CGFloat) -> Int {
+        let text = attributed(l.text.isEmpty ? " " : l.text, heading: l.type == .heading, color: .label, faded: false, struck: false)
+        let w = max(40, width - textX(l) - 16)
         let h = text.boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin], context: nil).height
         return max(1, Int((h / CGFloat(inkRow)).rounded(.up)))
     }

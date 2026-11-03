@@ -99,9 +99,6 @@ struct PageView: View {
         let lang = HandwritingLang(rawValue: handwritingLang) ?? .ptBR
         for job in Transcription.jobs(lines) {
             guard !Task.isCancelled, let text = await handwriting.recognize(job.strokes, lang: lang), !Task.isCancelled else { return }
-            // The result waits for the pen to lift: applying it redraws the sheet, which would catch a stroke.
-            while PenState.down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(300)) }
-            guard !Task.isCancelled else { return }
             if let next = PenPerf.measure("transcribe-apply", { Transcription.apply(id: job.id, n: job.n, text: text, shape: job.shape, to: lines) }) {
                 lines = next
             }

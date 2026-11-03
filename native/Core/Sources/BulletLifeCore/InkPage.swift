@@ -68,7 +68,7 @@ public enum InkPage {
 
     /// Files a new stroke (page coordinates) the way `placement` says: on an entry's ruled line, or in a new
     /// entry (after blank lines for ruled lines skipped, as on paper). Returns the lines and the entry written.
-    static func isPaint(_ l: Line) -> Bool {
+    public static func isPaint(_ l: Line) -> Bool {
         l.text.isEmpty && l.ink?.isPaint == true
     }
 

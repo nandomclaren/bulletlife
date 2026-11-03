@@ -593,3 +593,16 @@ came out scrambled.
 no ML Kit (`canImport(MLKit)` is false) and Settings › Handwriting says "not in this build yet": no transcription at all.
 Builds from the Pen lab commit until this one were made that way. The order is `xcodegen generate && pod install`,
 then build the `.xcworkspace`. (Check: `strings BulletLife.app/BulletLife | grep -c MLKDigitalInk` is above 0.)
+
+## Native: paint in Type mode, and the pen-down wait removed (2026-11-03)
+- The `PenState.down` wait is gone (saves, the transcription result and the Open items reads no longer wait for the pen
+  to lift): the missing transcription was the missing ML Kit, not this, and the wait added risk for no measured gain.
+  `PenState.pageOpen` stays (the Open items count does not run while the pen page is open).
+- Paint (Draw mode) in Type mode: the page's paint entries are left out of the text flow (they took a blank line each) and
+  drawn as one `PaintLayerView` over the text: strokes grouped by colour and size in shape layers, at the Pen page's
+  scale (`penZoom`, the same size on the screen), no space reserved, no touches. Each stroke's y goes through one
+  `PaintMap` (Core, tested) from the Pen page's heights to the Type page's, with the same map for every stroke, so the
+  entries of one picture register with each other exactly, and each stays over the text line it was drawn over (the
+  map is piecewise linear through each line's top and bottom in both layouts). x: the Pen page's text start is the Type
+  page's text start. Drawings made before Draw was paint (and handwriting) keep the old preview boxes.
+  Not in Type mode for paint: selecting, sizing, moving, deleting (use the Pen mode's eraser and lasso).

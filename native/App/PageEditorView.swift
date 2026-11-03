@@ -175,7 +175,11 @@ struct PageEditorView: UIViewRepresentable {
             let hidden = Outline.hidden(lines)
             // A handwritten line left out of Type mode comes back once it has text again (typed text joined
             // into it with Backspace becomes its correction).
-            visible = lines.indices.filter { !hidden[$0] && !(erased.contains(lines[$0].id) && lines[$0].text.isEmpty) }
+            // Paint (Draw mode) is not text: Type mode shows it as one layer over the page, taking no line.
+            let paintless = !parent.embedded
+            visible = lines.indices.filter {
+                !hidden[$0] && !(erased.contains(lines[$0].id) && lines[$0].text.isEmpty) && !(paintless && InkPage.isPaint(lines[$0]))
+            }
             if visible.isEmpty {
                 lines.append(Line())
                 visible = [lines.count - 1]
@@ -308,6 +312,55 @@ struct PageEditorView: UIViewRepresentable {
             var top = vc
             while let next = top.presentedViewController { top = next }
             return top
+        }
+
+        // MARK: Paint in Type mode
+
+        private var paintView: PaintLayerView?
+
+        /// All of the page's paint as one layer, at the Pen page's scale (the same size on the screen) and with each
+        /// stroke over the line it was drawn on. Takes no room and no touch. Returns its lowest point.
+        private func layoutPaint(in view: UITextView, tops: [String: Double], ends: [String: Double]) -> CGFloat {
+            // Nothing to work out on a page without paint.
+            guard lines.contains(where: { InkPage.isPaint($0) }) else {
+                paintView?.show([])
+                return 0
+            }
+            let zoom = Double(penZoom)
+            let width = CGFloat(min(760, max(1, view.bounds.width)) / penZoom)
+            let blocks = InkPage.blocks(lines) { SheetBackground.rows($0, width: width) }
+            let strokes = InkPage.paintStrokes(lines, blocks: blocks)
+            guard !strokes.isEmpty else {
+                paintView?.show([])
+                return 0
+            }
+            let map = PaintMap(blocks: blocks, tops: tops, ends: ends, scale: zoom)
+            // The Pen page's text starts at `penTextX`; the Type page's at its own margin.
+            let originX = Double(view.textContainerInset.left + textIndent(Line())) - Double(penTextX) * zoom
+            let pv: PaintLayerView
+            if let existing = paintView {
+                pv = existing
+            } else {
+                pv = PaintLayerView()
+                view.addSubview(pv)
+                paintView = pv
+            }
+            view.bringSubviewToFront(pv)
+            var bottom: CGFloat = 0
+            let drawn = strokes.map { ps -> PaintLayerView.Stroke in
+                var points: [CGPoint] = []
+                var i = 0
+                while i + 1 < ps.stroke.p.count {
+                    let pt = CGPoint(x: originX + ps.stroke.p[i] * zoom, y: map.map(ps.stroke.p[i + 1]))
+                    bottom = max(bottom, pt.y)
+                    points.append(pt)
+                    i += 3
+                }
+                return PaintLayerView.Stroke(points: points, color: ps.stroke.c, width: CGFloat((ps.stroke.s ?? storedDefaultSize) * zoom))
+            }
+            pv.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: max(view.contentSize.height, bottom + 40))
+            pv.show(drawn)
+            return bottom
         }
 
         // MARK: Drawings in Type mode
@@ -935,6 +988,8 @@ struct PageEditorView: UIViewRepresentable {
             let length = (view.text as NSString).length
             var used = 0
             var usedChevrons = 0
+            var typeTops: [String: Double] = [:]
+            var typeOrder: [String] = []
             for (k, i) in visible.enumerated() {
                 let l = lines[i]
                 // The first line of the paragraph: the empty last line lives in the extra line fragment.
@@ -947,6 +1002,8 @@ struct PageEditorView: UIViewRepresentable {
                     rect = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: min(s[k], length - 1)), effectiveRange: nil)
                 }
                 rect = rect.offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
+                typeTops[l.id] = Double(rect.minY)
+                typeOrder.append(l.id)
                 let glyph = States.glyph(l.type, l.state, eventStates: parent.eventStates, doneMark: parent.doneMark)
                 if !glyph.isEmpty || l.priority || l.inspiration || l.explore {
                     let b = bullet(used)
@@ -987,6 +1044,12 @@ struct PageEditorView: UIViewRepresentable {
                 v.setNeedsDisplay()
             }
             for (n, v) in inkViews.enumerated() { v.isHidden = n >= usedInk }
+            if !parent.embedded {
+                let textEnd = Double(lm.usedRect(for: view.textContainer).maxY + view.textContainerInset.top)
+                var ends: [String: Double] = [:]
+                for (n, id) in typeOrder.enumerated() { ends[id] = n + 1 < typeOrder.count ? typeTops[typeOrder[n + 1]] : max(textEnd, typeTops[id] ?? 0) }
+                inkBottom = max(inkBottom, layoutPaint(in: view, tops: typeTops, ends: ends))
+            }
             // Room below the text for a drawing put lower than the last line.
             if !parent.embedded {
                 let text = lm.usedRect(for: view.textContainer).maxY + view.textContainerInset.top
@@ -1536,4 +1599,65 @@ final class DatePickerController: UIViewController, UIPopoverPresentationControl
 
     /// A popover on iPhone too, not a full-screen sheet.
     func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle { .none }
+}
+
+/// The page's paint in Type mode: strokes grouped by colour and size, one shape layer for each group (so a big
+/// drawing costs a few layers, not one view per stroke). It takes no touch.
+final class PaintLayerView: UIView {
+    struct Stroke {
+        var points: [CGPoint]
+        var color: String
+        var width: CGFloat
+    }
+
+    private var layers: [String: CAShapeLayer] = [:]
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        isOpaque = false
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func show(_ strokes: [Stroke]) {
+        var paths: [String: (path: UIBezierPath, color: String, width: CGFloat)] = [:]
+        for s in strokes where !s.points.isEmpty {
+            let key = "\(s.color)|\(Int((s.width * 10).rounded()))"
+            let group = paths[key] ?? (UIBezierPath(), s.color, s.width)
+            let path = group.path
+            path.move(to: s.points[0])
+            if s.points.count == 1 {
+                path.addLine(to: CGPoint(x: s.points[0].x + 0.01, y: s.points[0].y))
+            } else {
+                for p in s.points.dropFirst() { path.addLine(to: p) }
+            }
+            paths[key] = group
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (key, layer) in layers where paths[key] == nil {
+            layer.removeFromSuperlayer()
+            layers[key] = nil
+        }
+        for (key, group) in paths {
+            let layer: CAShapeLayer
+            if let existing = layers[key] {
+                layer = existing
+            } else {
+                layer = CAShapeLayer()
+                layer.fillColor = nil
+                layer.lineCap = .round
+                layer.lineJoin = .round
+                self.layer.addSublayer(layer)
+                layers[key] = layer
+            }
+            layer.frame = bounds
+            layer.lineWidth = max(0.6, group.width)
+            layer.strokeColor = Theme.ui(group.color).resolvedColor(with: traitCollection).cgColor
+            layer.path = group.path.cgPath
+        }
+        CATransaction.commit()
+    }
 }
