@@ -587,3 +587,9 @@ came out scrambled.
   on, and Type mode shows every entry's ink scaled into its own box (`InkPreview.frame`), so the outline and the
   colour fills of one picture no longer line up. Not changed yet: the proper fix is to draw all of a page's paint in
   Type mode as one layer at true scale, each stroke kept over the same text line it was drawn over, reserving no space.
+
+## Native: always `pod install` after `xcodegen` (2026-11-03)
+`xcodegen generate` rewrites `BulletLife.xcodeproj` and drops CocoaPods' integration, so a build made right after it has
+no ML Kit (`canImport(MLKit)` is false) and Settings › Handwriting says "not in this build yet": no transcription at all.
+Builds from the Pen lab commit until this one were made that way. The order is `xcodegen generate && pod install`,
+then build the `.xcworkspace`. (Check: `strings BulletLife.app/BulletLife | grep -c MLKDigitalInk` is above 0.)
