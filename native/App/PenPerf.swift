@@ -56,6 +56,9 @@ final class FrameWatch: NSObject {
     func start() {
         guard link == nil else { return }
         let l = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        // Without this the system hands a display link a slower cadence when little is drawn, and its gaps would
+        // look like dropped frames.
+        l.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
         l.add(to: .main, forMode: .common)
         link = l
         last = 0

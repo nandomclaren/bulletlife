@@ -9,7 +9,11 @@ import UIKit
 /// The quiet button that opens the panel, with how many items are open (no red badge, no alarm).
 struct OpenItemsButton: View {
     @Binding var isOpen: Bool
-    @Query private var records: [EntryRecord]
+    /// The count is worked out from the whole notebook, so it is not tied to every save (a @Query over all entries
+    /// reloaded them, ink included, after each one: a quarter of a second of main thread while writing). It is
+    /// read again a few seconds after the last change, and never while the pen is on the page.
+    @State private var count = 0
+    @State private var refresh: Task<Void, Never>?
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("firstDay") private var firstDay = 1
     /// Settings: the count can be hidden.
@@ -17,11 +21,29 @@ struct OpenItemsButton: View {
 
     @Environment(\.modelContext) private var context
 
+    private func recount() {
+        PenPerf.measure("openCount") {
+            let repo = Repository(context: context)
+            let entries = repo.lightEntries()
+            let today = Dates.today()
+            let habits = Habits.pending(entries, habitLogIds: repo.habitLogIds(), today: today, todayDue: Habits.todayDue).count
+            count = OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today).count + habits
+        }
+    }
+
+    /// `after`: seconds of quiet first (0 reads now).
+    private func recount(after seconds: Double) {
+        refresh?.cancel()
+        guard seconds > 0 else { return recount() }
+        refresh = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            while PenState.down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(500)) }
+            guard !Task.isCancelled else { return }
+            recount()
+        }
+    }
+
     var body: some View {
-        let entries = records.map(\.light)
-        let today = Dates.today()
-        let habits = Habits.pending(entries, habitLogIds: Repository(context: context).habitLogIds(), today: today, todayDue: Habits.todayDue).count
-        let count = OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today).count + habits
         Button {
             isOpen.toggle()
         } label: {
@@ -32,6 +54,11 @@ struct OpenItemsButton: View {
             .foregroundStyle(Theme.muted)
         }
         .accessibilityLabel(S.openCount(count))
+        .onAppear { recount() }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { _ in recount(after: 4) }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { _ in recount(after: 0.3) }
+        .onChange(of: eventStates) { recount() }
+        .onChange(of: firstDay) { recount() }
     }
 }
 

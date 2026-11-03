@@ -521,3 +521,12 @@ Fernando's `-penperf` log (iPad, Release): every stroke cost `updateUIView` 6 ms
 - The save is split into `save.fetch/decode/diff/context/notify` and the page's `transcriptionKey` is timed, to see what
   remains. Still open: about 20 ms of each stroke's frame gap is not in any measured section (SwiftUI re-evaluating
   the page on `lines`).
+
+## Native pen: the Open items count off the writing path (2026-11-03)
+Second `-penperf` log: sections were now small (save 36 ms), but 150-250 ms gaps followed each save. `OpenItemsButton`
+held a `@Query` over every entry, so each save reloaded the whole notebook (ink included) and recounted on the main
+thread. The count is now a `@State` worked out by `recount()`: at once on appear and when the settings it depends on
+change, 0.3 s after an individual change from outside the page, and 4 s after a page save, waiting while the pen is
+on the glass. (It can be a few seconds old while writing; it is only a count.) The `FrameWatch` display link asks for
+60-120 Hz: without it the system delivered it at about 40 Hz when little was drawn, and the steady "frame gap
+24-29 ms" lines were that cadence, not dropped frames.
