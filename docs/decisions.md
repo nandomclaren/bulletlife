@@ -478,3 +478,34 @@ Fernando feels a hitch at the start of words. The suspects are main-thread work 
 - The save and the transcription result wait while the pen is on the glass (`PenState.down`, from
   `canvasViewDidBegin/EndUsingTool`), so they never land in the middle of a stroke.
 Not measured with a pen yet (no pen in the build session): the numbers come from Fernando's iPad run.
+
+## Native pen: a stroke of our own, prototype (2026-11-03)
+Goal (Fernando): writing as fluid and pleasant as GoodNotes. PencilKit's inks have no pressure-response setting, so
+the next step is our own stroke while PencilKit keeps receiving the Pencil. Prototype only; the pen page is unchanged
+until approved.
+- `PenBrush` (BulletLifeCore, tested): points with force -> outline to fill. Width = min + (max - min) * force^gamma;
+  pressure smoothed forward and backward (no lag behind the hand), Catmull-Rom curve (about 1.5 pt steps), soft ends
+  (taper), optional thinning with speed, round caps. Pure math, so the pen page and the PDF could share it.
+- Pen lab (Settings, iPad only, `App/PenLab.swift`): a `PKCanvasView` whose ink is transparent still receives the
+  Pencil (so palm rejection and the system's behavior stay); a passive `UIGestureRecognizer` (never leaves the
+  possible state) reads the same touches with coalesced samples and the system's predicted ones (drawn ahead of the
+  tip, dropped at the next real sample), and a `CAShapeLayer` draws the outline. Sliders: pressure curve, thin/full
+  width, smoothing, soft ends, thin-when-fast; presets Flat (today), Soft, Firm, Ink; "PencilKit's ink" shows the
+  system line in red for comparison. The chosen numbers are kept on the device.
+- To decide on the iPad: which numbers feel right. Then: render finished strokes with `PenBrush` instead of
+  `PKStroke` on the pen page (stored points already carry force, `Stroke.p` = x, y, pressure), keep the live line on
+  a shape layer, and let PencilKit's own ink stay transparent. Strokes written before keep their recorded look until
+  then (the flat width), so nothing changes on existing pages.
+
+## Native pen: sharpness of the 75% page (2026-11-03, evaluation, no code change)
+The canvas is laid out at 1/0.75 of the view and scaled by 0.75. Its ink is rasterized at the screen's scale (2x per
+page point) and then minified by 0.75 with the default bilinear filter: 1.33x oversampled against the display, so
+it is readable but slightly soft and can shimmer while scrolling. Raising `contentScaleFactor` fixes sharpness but
+PencilKit then draws the ink thicker (seen: 2.67/2), so that stays off. Options, safest first:
+1. Draw the ink ourselves (the Pen lab brush) as vector `CAShapeLayer`s: the layer re-rasterizes at the effective
+   scale (0.75 x 2), so lines are crisp at any zoom, with no thickening. This is the proper fix and comes with the
+   brush decision above.
+2. Meanwhile, `canvas.layer.minificationFilter = .trilinear` (mipmapped minification) softens the shimmer but not
+   the softness; not applied, to avoid changing the look without checking it on the iPad.
+3. Changing `penZoom` to 0.5 or 1.0 would give integer ratios (crisp), but changes the page the way Fernando chose
+   (75%, 30 pt line); not proposed.

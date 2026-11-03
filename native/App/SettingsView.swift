@@ -200,6 +200,15 @@ struct SettingsView: View {
             } footer: {
                 Text(S.handwritingHint)
             }
+            #if !targetEnvironment(macCatalyst)
+                if UIDevice.current.userInterfaceIdiom == .pad {
+                    Section {
+                        NavigationLink("Pen lab") { PenLabView() }
+                    } footer: {
+                        Text("A line of our own on top of PencilKit, with a pressure curve to tune. Only a test: the pen page is not changed.")
+                    }
+                }
+            #endif
             Section(S.onDevice) {
                 Text(S.entries(count)).foregroundStyle(.secondary)
             }
