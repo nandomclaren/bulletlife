@@ -79,3 +79,45 @@ final class PaintFigureTests: XCTestCase {
         XCTAssertEqual(f.x, (160 - InkPreview.pad - penTextX) * InkPreview.paintScale, accuracy: 1e-6)
     }
 }
+
+final class MisreadBulletTests: XCTestCase {
+    private func circle(cx: Double, cy: Double, r: Double) -> Stroke {
+        let pts = (0...12).flatMap { i -> [Double] in
+            let a = Double.pi * 2 * Double(i) / 12
+            return [cx + cos(a) * r, cy + sin(a) * r, 0.5]
+        }
+        return Stroke(k: .writing, c: "ink", p: pts)
+    }
+
+    func testACircleAboutInLineWithTheWordsAboveIsALetter() {
+        let o = circle(cx: 100, cy: 10, r: 6)  // x1 = 106
+        XCTAssertFalse(PenRules.bulletish(o, o.box, lineStart: 100))
+        XCTAssertFalse(PenRules.bulletish(o, o.box, lineStart: 110))  // used to count as a bullet (106 <= 114)
+        let margin = circle(cx: 60, cy: 10, r: 6)  // x1 = 66, clearly left of 100
+        XCTAssertTrue(PenRules.bulletish(margin, margin.box, lineStart: 100))
+    }
+
+    func testErasingTheDrawnBulletTakesTheTypeWithIt() {
+        var bullet = circle(cx: 40, cy: 10, r: 6)
+        bullet.b = true
+        let word = Stroke(k: .writing, c: "ink", p: [80, 5, 0.5, 120, 20, 0.5])
+        let line = Line(id: "a", type: .event, state: .done, text: "ping", ink: Ink(strokes: [bullet, word], tx: "ping", n: 1))
+        let out = InkPage.erase(["a": [0]], from: [line])
+        XCTAssertEqual(out[0].type, .text)
+        XCTAssertEqual(out[0].state, .open)
+        XCTAssertEqual(out[0].ink?.strokes.count, 1)
+        XCTAssertNil(out[0].ink?.n)  // read again
+        XCTAssertEqual(out[0].text, "ping")  // the words stay
+    }
+
+    func testBackspaceOnAHandwrittenEventTurnsItsBulletIntoLetters() {
+        var bullet = circle(cx: 40, cy: 10, r: 6)
+        bullet.b = true
+        let word = Stroke(k: .writing, c: "ink", p: [80, 5, 0.5, 120, 20, 0.5])
+        let lines = [Line(id: "t", text: "above"), Line(id: "a", type: .event, text: "ping", ink: Ink(strokes: [bullet, word], tx: "ping", n: 2))]
+        let edited = PageEdit.backspaceAtStart(lines, at: Caret(index: 1, offset: 0))!
+        XCTAssertEqual(edited.lines[1].type, .text)
+        XCTAssertFalse(edited.lines[1].ink!.strokes.contains { $0.b == true })
+        XCTAssertNil(edited.lines[1].ink?.n)
+    }
+}

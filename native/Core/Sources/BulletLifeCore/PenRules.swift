@@ -106,7 +106,9 @@ public enum PenRules {
         guard let kind = shapeOf(s, b) else { return false }
         if kind == .event && max(b.width, b.height) > 16 { return false }
         guard let lineStart else { return true }
-        return b.x1 <= lineStart + 4
+        // A circle is also a written "o" (a word, a letter): as an event bullet it has to sit clearly in the
+        // margin, not just about in line with the words above. Dots and dashes keep the old tolerance.
+        return b.x1 <= lineStart + (kind == .event ? -8 : 4)
     }
 
     /// Where the last ruled line of a handwritten block starts (its leftmost writing stroke).

@@ -610,3 +610,17 @@ then build the `.xcworkspace`. (Check: `strings BulletLife.app/BulletLife | grep
   (corner), movable (drag) and deletable like any drawing in Type mode; size and place live in `Ink.view` of the
   primary entry, independent of the Pen page, whose strokes never change. Deleting a figure in Type mode removes all its
   entries. Not done: resizing paint in Pen mode (PencilKit's lasso moves and deletes only).
+
+## Native: a misread "o" and bullets that could not be removed (2026-11-03)
+Fernando's page: a handwritten "o" (the word) at the start of a row was read as an event bullet, splitting a paragraph; the
+bullet could not be removed (erasing its strokes left the event type, Backspace left the drawn circle, the bullet menu's
+Delete took the whole paragraph, handwriting included, with no Undo).
+- `PenRules.bulletish`: below a handwritten line, a circle (event) is a bullet only when clearly in the margin (right edge at
+  least 8 units left of the line above's start); dots and dashes keep the +4 tolerance.
+- Erasing or lassoing away a line's drawn bullet makes it plain text again (`InkPage.bulletGone`: type text, state open, read
+  again), instead of leaving the event type.
+- A drawn bullet becomes letters again (`InkPage.dropBullet`: strokes lose their bullet mark, the line is read again) when the
+  line's type is set to Text or Title (bullet menu, `LineAction.type`) and on Backspace at the start of a typed-bullet line.
+- The bullet menu's Delete is gone for handwritten lines (handwriting is never deleted from Type mode; the Pen's eraser takes it
+  away). For other lines it shows "Line deleted" with Undo, which restores the lines (the editor's own undo stack is cleared
+  whenever the page changes from outside, which is why Cmd-Z found nothing).

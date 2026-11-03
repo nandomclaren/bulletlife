@@ -233,6 +233,8 @@ public enum PageEdit {
             lines[i].type = .text
             lines[i].state = .open
             clearSignifiers(&lines[i])
+            // A bullet drawn by hand becomes letters again (a written "o" taken for a bullet), read again.
+            InkPage.dropBullet(&lines[i])
             return commit(lines, before: before, caret: at)
         }
         if i == 0 { return nil }

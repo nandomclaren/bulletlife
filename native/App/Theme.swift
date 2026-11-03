@@ -403,6 +403,7 @@ enum S {
     static let eraser = "Eraser"
     static let lasso = "Lasso"
     static let undo = "Undo"
+    static let deletedLine = "Line deleted"
     static let sizes = ["Fine", "Medium", "Bold"]
     static let colorNames = ["ink": "Ink", "task": "Red", "event": "Blue", "note": "Green"]
     static let handwriting = "Handwriting"

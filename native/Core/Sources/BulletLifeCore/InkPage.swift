@@ -51,6 +51,28 @@ public enum InkPage {
         return out
     }
 
+    /// A handwritten line stops having a drawn bullet: its marks are letters again (the line is read again, so
+    /// they join the text). Nothing is erased.
+    public static func dropBullet(_ l: inout Line) {
+        guard var ink = l.ink, ink.strokes.contains(where: { $0.b == true }) else { return }
+        ink.strokes = ink.strokes.map { s in
+            var s = s
+            s.b = nil
+            return s
+        }
+        ink.n = nil
+        l.ink = ink
+    }
+
+    /// The drawn bullet of a line is gone (erased, lassoed away): the line is plain text, as it was before it had
+    /// one, and is read again.
+    static func bulletGone(_ l: inout Line, hadBullet: Bool) {
+        guard hadBullet, !(l.ink?.strokes.contains { $0.b == true } ?? false), l.type == .task || l.type == .event || l.type == .note else { return }
+        l.type = .text
+        l.state = .open
+        l.ink?.n = nil
+    }
+
     public static func contentEnd(_ blocks: [PlacedBlock]) -> Double {
         blocks.last.map { $0.top + $0.height } ?? 0
     }
@@ -124,6 +146,7 @@ public enum InkPage {
             guard let i = lines.firstIndex(where: { $0.id == id }), var ink = lines[i].ink else { continue }
             if isPaint(lines[i]), ink.strokes.indices.allSatisfy(gone.contains) { gonePaint.insert(id) }
             let transcribed = ink.tx != nil && lines[i].text == ink.tx
+            let hadBullet = ink.strokes.contains { $0.b == true }
             ink.strokes = ink.strokes.enumerated().filter { !gone.contains($0.offset) }.map(\.element)
             if !ink.hasWriting && transcribed {
                 lines[i].text = ""
@@ -131,6 +154,7 @@ public enum InkPage {
                 lines[i].state = .open
             }
             lines[i].ink = ink.strokes.isEmpty ? nil : ink
+            bulletGone(&lines[i], hadBullet: hadBullet)
         }
         // Erased paint goes with its line: it took no room, so nothing moves.
         lines.removeAll { gonePaint.contains($0.id) }
@@ -177,6 +201,7 @@ extension InkPage {
             guard let i = lines.firstIndex(where: { $0.id == id }), var ink = lines[i].ink else { continue }
             if isPaint(lines[i]), ink.strokes.indices.allSatisfy(gone.contains) { gonePaint.insert(id) }
             let transcribed = ink.tx != nil && lines[i].text == ink.tx
+            let hadBullet = ink.strokes.contains { $0.b == true }
             ink.strokes = ink.strokes.enumerated().filter { !gone.contains($0.offset) }.map(\.element)
             if !ink.hasWriting && transcribed {
                 lines[i].text = ""
@@ -185,6 +210,7 @@ extension InkPage {
             }
             ink.n = nil
             lines[i].ink = ink.strokes.isEmpty ? nil : ink
+            bulletGone(&lines[i], hadBullet: hadBullet)
         }
         switch placed {
         case .join(let id, _, _, _):

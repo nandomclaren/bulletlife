@@ -1186,8 +1186,20 @@ struct PageEditorView: UIViewRepresentable {
                 restItems += [
                     UIAction(title: S.indent) { _ in act(.indent) },
                     UIAction(title: S.outdent) { _ in act(.outdent) },
-                    UIAction(title: S.delete, attributes: .destructive) { _ in act(.delete) },
                 ]
+                // Handwriting is never deleted from here (its bullet: choose Text; the rest: the Pen's eraser).
+                if l.ink?.hasWriting != true {
+                    restItems.append(
+                        UIAction(title: S.delete, attributes: .destructive) { [weak self] _ in
+                            guard let self, let index = self.lines.firstIndex(where: { $0.id == id }) else { return }
+                            let before = self.lines
+                            act(.delete)
+                            // The page was changed by the action; Undo puts back what it was.
+                            Toasts.shared.show(S.deletedLine) { [weak self] in
+                                self?.apply(Edited(lines: before, caret: Caret(index: min(index, before.count - 1), offset: 0)), keepScroll: true)
+                            }
+                        })
+                }
             }
             let rest = UIMenu(options: .displayInline, children: restItems)
             return UIMenu(children: [types] + (states.isEmpty ? [] : [UIMenu(options: .displayInline, children: states)]) + [rest])

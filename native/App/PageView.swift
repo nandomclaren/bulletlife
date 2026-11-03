@@ -332,6 +332,8 @@ enum LineAction: Equatable {
         case .type(let t):
             lines[i].type = t
             if !States.stateful(t, eventStates: eventStates) { lines[i].state = .open }
+            // Plain text or a title has no bullet: one drawn by hand becomes letters again.
+            if t == .text || t == .heading { InkPage.dropBullet(&lines[i]) }
         case .state(let s):
             lines[i].state = s
         case .togglePriority:
@@ -347,6 +349,8 @@ enum LineAction: Equatable {
         case .toggleCollapsed:
             lines[i].collapsed.toggle()
         case .delete:
+            // Handwriting is never deleted from the bullet menu (only the Pen mode's eraser takes it away).
+            if lines[i].ink?.hasWriting == true { return }
             // Its children move up one level (they are not deleted with it).
             lines = PageEdit.deleteLine(lines, id: id)
         }
