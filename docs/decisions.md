@@ -542,3 +542,12 @@ the first to hear a stroke owns it, and the screen shows how many touches each h
 current appearance whenever the view is placed (it could stay black on a dark page). `FrameWatch` also runs in the lab:
 if the lab shows no steady 24-30 ms frame gaps while writing, those on the pen page come from the page (sheet,
 75% transform, canvas size) and not from PencilKit.
+
+## Native pen: Pen lab input, round 2 (2026-11-03)
+The lab showed "canvas 0, recognizer 1, samples 0": the canvas subclass hears nothing (PencilKit hands the touch to an
+inner view) and the passive recognizer heard the start of a stroke only, or its coalesced list came back empty.
+Now the coalesced samples fall back to the touch itself when empty, the screen counts moves, a single point is not a
+stroke, and `PKCanvasViewDelegate.canvasViewDrawingDidChange` draws the finished PencilKit stroke with our brush when no
+live samples reached us (so at least the line shows, without the live feel). If live moves still do not arrive, the
+next reader is a `UIWindow.sendEvent` override (needs a custom window for the scene).
+Pen page: the Open items count no longer runs while the pen page is on screen (`PenState.pageOpen`), only when it is left.

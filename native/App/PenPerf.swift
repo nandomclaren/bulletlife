@@ -10,6 +10,8 @@ import os
 @MainActor
 enum PenState {
     static var down = false
+    /// The pen page is on screen: background counting waits until it is left.
+    static var pageOpen = false
 }
 
 enum PenPerf {

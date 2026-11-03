@@ -37,7 +37,7 @@ struct OpenItemsButton: View {
         guard seconds > 0 else { return recount() }
         refresh = Task {
             try? await Task.sleep(for: .seconds(seconds))
-            while PenState.down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(500)) }
+            while PenState.down || PenState.pageOpen, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(500)) }
             guard !Task.isCancelled else { return }
             recount()
         }

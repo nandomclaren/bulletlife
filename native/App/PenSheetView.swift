@@ -122,11 +122,13 @@ struct PenSheetView: UIViewRepresentable {
         pencil.delegate = coordinator
         canvas.addInteraction(pencil)
         coordinator.frames.start()
+        PenState.pageOpen = true
         return container
     }
 
     static func dismantleUIView(_ container: PenSheetContainer, coordinator: Coordinator) {
         coordinator.frames.stop()
+        PenState.pageOpen = false
     }
 
     func updateUIView(_ container: PenSheetContainer, context: Context) {

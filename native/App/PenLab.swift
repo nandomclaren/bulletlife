@@ -88,9 +88,12 @@
         private var owner: Int?
         private var counts = [0, 0]
         private var samples = 0
+        private var moves = 0
+        /// Whether the last stroke was drawn from live samples (otherwise the finished PencilKit stroke stands in).
+        private(set) var lastKept = false
 
         private func report() {
-            onCounts("Touches heard: canvas \(counts[0]), recognizer \(counts[1]); samples \(samples)")
+            onCounts("Touches heard: canvas \(counts[0]), recognizer \(counts[1]); moves \(moves); samples \(samples)")
         }
 
         func began(_ source: Int, _ t: UITouch, in view: UIView) {
@@ -105,7 +108,10 @@
 
         func moved(_ source: Int, _ t: UITouch, _ event: UIEvent?, in view: UIView) {
             guard owner == source else { return }
-            let real = (event?.coalescedTouches(for: t) ?? [t]).map { Self.sample($0, in: view) }
+            moves += 1
+            // The coalesced samples when there are some, otherwise the touch itself.
+            let coalesced = event?.coalescedTouches(for: t) ?? []
+            let real = (coalesced.isEmpty ? [t] : coalesced).map { Self.sample($0, in: view) }
             let guess = (event?.predictedTouches(for: t) ?? []).map { Self.sample($0, in: view) }
             samples += real.count
             ink?.extend(real, predicted: guess)
@@ -117,7 +123,8 @@
             guard owner == source else { return }
             owner = nil
             // PencilKit may cancel a touch it took over: what was written until then is kept.
-            ink?.end(keep: true)
+            lastKept = ink?.end(keep: true) ?? false
+            report()
         }
 
         static func sample(_ t: UITouch, in view: UIView) -> BrushPoint {
@@ -230,11 +237,22 @@
             drawLive()
         }
 
-        func end(keep: Bool) {
-            if keep, !live.isEmpty { strokes.append(live) }
+        /// Whether a stroke was kept (a single touch point is not a stroke).
+        @discardableResult
+        func end(keep: Bool) -> Bool {
+            let kept = keep && live.count >= 2
+            if kept { strokes.append(live) }
             live = []
             predicted = []
             current.path = nil
+            redrawAll()
+            return kept
+        }
+
+        /// A stroke PencilKit finished, drawn by us when no live samples reached us.
+        func add(_ points: [BrushPoint]) {
+            guard points.count >= 2 else { return }
+            strokes.append(points)
             redrawAll()
         }
 
@@ -278,8 +296,23 @@
         var onForce: (Double) -> Void
         var onCounts: (String) -> Void
 
-        final class Coordinator {
+        final class Coordinator: NSObject, PKCanvasViewDelegate {
             var clears = 0
+            var seen = 0
+
+            func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+                let strokes = canvasView.drawing.strokes
+                defer { seen = strokes.count }
+                guard strokes.count == seen + 1, let last = strokes.last else { return }
+                // The strokes we drew from live touches are already there; if none reached us, this one stands in
+                // (drawn once the stroke is finished, without the live feel).
+                if input.lastKept { return }
+                let points = last.path.map { p -> BrushPoint in
+                    let at = p.location.applying(last.transform)
+                    return BrushPoint(x: at.x, y: at.y, force: Double(min(1, max(0, p.force / 4))))
+                }
+                ink?.add(points)
+            }
             weak var canvas: PKCanvasView?
             weak var ink: LabInkView?
             let input = LabInput()
@@ -291,6 +324,7 @@
             let root = UIView()
             let canvas = LabCanvas()
             canvas.drawingPolicy = .pencilOnly
+            canvas.delegate = context.coordinator
             canvas.backgroundColor = .clear
             canvas.isScrollEnabled = false
             canvas.frame = root.bounds
@@ -323,6 +357,7 @@
             canvas.tool = PKInkingTool(.pen, color: showPencilKit ? UIColor.systemRed.withAlphaComponent(0.6) : .clear, width: 3)
             if clears != context.coordinator.clears {
                 context.coordinator.clears = clears
+                context.coordinator.seen = 0
                 ink.clear()
                 canvas.drawing = PKDrawing()
             }
