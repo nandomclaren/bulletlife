@@ -162,7 +162,7 @@
     }
 
     /// Reads the Pencil's touches without taking them from PencilKit (it never leaves the possible state).
-    final class TouchObserver: UIGestureRecognizer {
+    final class TouchObserver: UIGestureRecognizer, UIGestureRecognizerDelegate {
         var began: ((UITouch) -> Void)?
         var moved: ((UITouch, UIEvent) -> Void)?
         var ended: ((UITouch, Bool) -> Void)?
@@ -173,12 +173,32 @@
             cancelsTouchesInView = false
             delaysTouchesBegan = false
             delaysTouchesEnded = false
+            delegate = self
         }
 
-        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { began?($0) } }
-        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { moved?($0, event) } }
-        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { ended?($0, true) } }
-        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { ended?($0, false) } }
+        // A recognizer that never leaves "possible" stopped hearing the touch once PencilKit's own recognizer took
+        // over (only the start arrived). Moving to "began/changed" keeps it listening, and both run together.
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            touches.forEach { began?($0) }
+            if state == .possible { state = .began }
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+            touches.forEach { moved?($0, event) }
+            if state == .began || state == .changed { state = .changed }
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+            touches.forEach { ended?($0, true) }
+            if state == .began || state == .changed { state = .ended }
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+            touches.forEach { ended?($0, false) }
+            if state == .began || state == .changed { state = .cancelled }
+        }
     }
 
     /// Draws the strokes: finished ones in one layer, the one being written in another (rebuilt on each touch event).

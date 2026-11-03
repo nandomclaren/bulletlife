@@ -5,6 +5,28 @@ import BulletLifeCore
 import Foundation
 import SwiftData
 
+/// The notebook read on a context of its own, off the main thread (Open items: reading every entry on the main
+/// context took 75-85 ms, a hitch while writing). Entries come back as plain values.
+enum NotebookReader {
+    struct Snapshot: Sendable {
+        var entries: [Entry]
+        var habitLogIds: Set<String>
+    }
+
+    static func read(_ container: ModelContainer) -> Snapshot {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<EntryRecord>()
+        descriptor.propertiesToFetch = [
+            \.uid, \.logId, \.slot, \.parentId, \.orderKey, \.kind, \.state, \.text, \.signifiers, \.collapsed, \.dueDate,
+            \.placementData, \.marks, \.createdAt, \.updatedAt,
+        ]
+        let entries = ((try? context.fetch(descriptor)) ?? []).map(\.light)
+        let habits = FetchDescriptor<LogRecord>(predicate: #Predicate { $0.template == "habits" })
+        let ids = Set(((try? context.fetch(habits)) ?? []).map(\.uid))
+        return Snapshot(entries: entries, habitLogIds: ids)
+    }
+}
+
 /// Decoded ink by entry, valid while the stored bytes are the same: saving a page decoded all of its ink as JSON
 /// each time (20-30 ms on a written page); now only the ink that changed is. Used from the main thread only.
 enum InkCache {

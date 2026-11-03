@@ -21,13 +21,17 @@ struct OpenItemsButton: View {
 
     @Environment(\.modelContext) private var context
 
+    /// Read and counted off the main thread, on a context of its own.
     private func recount() {
-        PenPerf.measure("openCount") {
-            let repo = Repository(context: context)
-            let entries = repo.lightEntries()
-            let today = Dates.today()
-            let habits = Habits.pending(entries, habitLogIds: repo.habitLogIds(), today: today, todayDue: Habits.todayDue).count
-            count = OpenItems.items(entries, eventStates: eventStates, firstDay: firstDay, today: today).count + habits
+        let container = context.container
+        let (events, first, due, today) = (eventStates, firstDay, Habits.todayDue, Dates.today())
+        Task {
+            let n = await Task.detached(priority: .utility) { () -> Int in
+                let snap = NotebookReader.read(container)
+                let habits = Habits.pending(snap.entries, habitLogIds: snap.habitLogIds, today: today, todayDue: due).count
+                return OpenItems.items(snap.entries, eventStates: events, firstDay: first, today: today).count + habits
+            }.value
+            count = n
         }
     }
 
@@ -74,6 +78,7 @@ struct OpenItemsPanel: View {
     /// page (its own taps), and a moment after a page is saved, never with the pen on the glass. A @Query over every
     /// entry reloaded the notebook and rebuilt this list after each save, about 150 ms of main thread while writing.
     @State private var entries: [Entry] = []
+    @State private var loaded = false
     @State private var reload: Task<Void, Never>?
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("firstDay") private var firstDay = 1
@@ -83,8 +88,14 @@ struct OpenItemsPanel: View {
 
     private var repo: Repository { Repository(context: context) }
 
+    /// Read off the main thread, on a context of its own.
     private func load() {
-        PenPerf.measure("openItems.load") { entries = repo.lightEntries() }
+        let container = context.container
+        Task {
+            let read = await Task.detached(priority: .userInitiated) { NotebookReader.read(container).entries }.value
+            entries = read
+            loaded = true
+        }
     }
 
     private func load(after seconds: Double) {
@@ -146,7 +157,7 @@ struct OpenItemsPanel: View {
                         .textCase(nil)
                 }
             }
-            if groups.isEmpty && habits.isEmpty {
+            if loaded && groups.isEmpty && habits.isEmpty {
                 Text(S.nothingOpen)
                     .font(Theme.body(15))
                     .foregroundStyle(Theme.muted)

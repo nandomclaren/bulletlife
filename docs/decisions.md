@@ -563,3 +563,12 @@ hog; the biggest blocks, in order:
 - SwiftUI `_UIHostingView.beginTransaction` bursts of 15-17 ms (the page body re-evaluating on `lines`), PencilKit's own
   gesture handling (`PKDrawingGestureRecognizer`, about 90 ms in total) and its Scribble text-input finder at each
   stroke start (`PKTextInputInteraction`, about 24 ms in total): small; left as they are.
+
+## Native: the notebook read off the main thread; Pen lab recognizer (2026-11-03)
+Open items still cost 75-85 ms on the main thread (`openCount`, `openItems.load`): the fetch of every entry is slow
+whatever it loads. `NotebookReader.read` now does it on a `ModelContext` of its own in a detached task and hands
+back plain `Entry` values and the Habits collections' ids; the count is computed there too. The panel shows "nothing
+open" only after its first read.
+Pen lab (Fernando's iPad): our ink now shows (the finished PencilKit stroke, drawn with our brush) but live touches
+still stop after the first (`recognizer 1, moves 0`). The recognizer now moves to began/changed/ended and may
+recognize together with PencilKit's, which keeps a recognizer listening once another one takes the touch.
