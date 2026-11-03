@@ -9,6 +9,23 @@ import os
 /// State shared with background work.
 @MainActor
 enum PenState {
+    /// When the pen last touched down (nil: it is up). While it is on the glass NOTHING else runs: no save, no
+    /// transcription result, no reading of the notebook (Fernando: nothing may disturb writing). A touch is only
+    /// believed for 10 s, so a stroke whose end PencilKit never reports cannot hold anything back for good; leaving
+    /// the pen page clears it at once.
+    private static var since: Date?
+    static var down: Bool {
+        guard let since else { return false }
+        return Date().timeIntervalSince(since) < 10
+    }
+    static func began() { since = Date() }
+    static func ended() { since = nil }
+
+    /// Returns once the pen is off the glass (at once when it already is).
+    static func idle() async {
+        while down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(250)) }
+    }
+
     /// The pen page is on screen: background counting waits until it is left.
     static var pageOpen = false
 }

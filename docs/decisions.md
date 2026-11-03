@@ -594,15 +594,19 @@ no ML Kit (`canImport(MLKit)` is false) and Settings › Handwriting says "not i
 Builds from the Pen lab commit until this one were made that way. The order is `xcodegen generate && pod install`,
 then build the `.xcworkspace`. (Check: `strings BulletLife.app/BulletLife | grep -c MLKDigitalInk` is above 0.)
 
-## Native: paint in Type mode, and the pen-down wait removed (2026-11-03)
-- The `PenState.down` wait is gone (saves, the transcription result and the Open items reads no longer wait for the pen
-  to lift): the missing transcription was the missing ML Kit, not this, and the wait added risk for no measured gain.
-  `PenState.pageOpen` stays (the Open items count does not run while the pen page is open).
-- Paint (Draw mode) in Type mode: the page's paint entries are left out of the text flow (they took a blank line each) and
-  drawn as one `PaintLayerView` over the text: strokes grouped by colour and size in shape layers, at the Pen page's
-  scale (`penZoom`, the same size on the screen), no space reserved, no touches. Each stroke's y goes through one
-  `PaintMap` (Core, tested) from the Pen page's heights to the Type page's, with the same map for every stroke, so the
-  entries of one picture register with each other exactly, and each stays over the text line it was drawn over (the
-  map is piecewise linear through each line's top and bottom in both layouts). x: the Pen page's text start is the Type
-  page's text start. Drawings made before Draw was paint (and handwriting) keep the old preview boxes.
-  Not in Type mode for paint: selecting, sizing, moving, deleting (use the Pen mode's eraser and lasso).
+## Native: paint in Type mode as a floating figure; the pen-down wait restored (2026-11-03)
+- Nothing may disturb writing (Fernando): while the pen is on the glass nothing else runs. `PenState.down` (set by
+  `canvasViewDidBegin/EndUsingTool`) now holds back the page save, the transcription (before it starts, before each job
+  and before its result is applied) and the Open items reads (count and panel, before and after the background read).
+  It expires after 10 s and leaving the pen page clears it, so a stroke whose end is never reported cannot block for
+  good. (The missing transcription had been the missing ML Kit, not this wait.)
+- Paint (Draw mode) in Type mode. Several entries make one picture (a stroke burst each), and Type mode scaled each
+  into its own box, so the pieces no longer lined up. Now: (1) in Draw mode a stroke that touches an existing drawing
+  (within `PaintFigures.margin`, 40 units) joins that entry (`PenRules.place`), so a picture is one entry from now on;
+  (2) for pages made before, `PaintFigures.figures` groups paint entries whose boxes touch into one figure, in the
+  primary's coordinates (display only, nothing stored); (3) Type mode leaves every piece out of the text (no blank
+  line, no room, nothing pushed) and floats the figure at the top of the next line of text, at the Pen page's size
+  (`InkPreview.paintScale`) and horizontal place, unless it was sized or moved in Type mode. It is selectable, sizable
+  (corner), movable (drag) and deletable like any drawing in Type mode; size and place live in `Ink.view` of the
+  primary entry, independent of the Pen page, whose strokes never change. Deleting a figure in Type mode removes all its
+  entries. Not done: resizing paint in Pen mode (PencilKit's lasso moves and deletes only).

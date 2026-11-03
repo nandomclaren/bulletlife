@@ -230,6 +230,8 @@ public enum InkPreview {
     public static let pad = 4.0
     public static let writingScale = 0.7
     public static let minDrawingWidth = 60.0
+    /// The Pen page is shown at 75%: paint keeps that size in Type mode.
+    public static let paintScale = 0.75
 
     public static func kind(_ l: Line) -> Kind? {
         guard let ink = l.ink, !ink.strokes.isEmpty else { return nil }
@@ -255,8 +257,11 @@ public enum InkPreview {
             let width = min(w * writingScale, maxWidth)
             return (width, h * width / w, 0)
         case .drawing:
-            let width = min(max(ink.view?.w ?? min(w * 0.6, 240) + 20, minDrawingWidth), maxWidth)
-            let x = min(max(0, ink.view?.x ?? 0), max(0, maxWidth - width))
+            // Paint (Draw mode) starts at the size it has on the Pen page and where it was drawn across the page;
+            // older drawings start smaller, at the line's start.
+            let paint = ink.isPaint
+            let width = min(max(ink.view?.w ?? (paint ? w * paintScale : min(w * 0.6, 240) + 20), minDrawingWidth), maxWidth)
+            let x = min(max(0, ink.view?.x ?? (paint ? (b.x0 - penTextX) * paintScale : 0)), max(0, maxWidth - width))
             return (width, h * width / w, x)
         }
     }

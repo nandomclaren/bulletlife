@@ -434,6 +434,8 @@ final class PageSaver {
         task?.cancel()
         task = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Int(after * 1000)))
+            // Not while the pen is on the glass.
+            await PenState.idle()
             guard !Task.isCancelled else { return }
             self?.flush()
         }

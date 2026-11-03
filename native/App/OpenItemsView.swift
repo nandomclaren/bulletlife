@@ -26,11 +26,13 @@ struct OpenItemsButton: View {
         let container = context.container
         let (events, first, due, today) = (eventStates, firstDay, Habits.todayDue, Dates.today())
         Task {
+            await PenState.idle()
             let n = await Task.detached(priority: .utility) { () -> Int in
                 let snap = NotebookReader.read(container)
                 let habits = Habits.pending(snap.entries, habitLogIds: snap.habitLogIds, today: today, todayDue: due).count
                 return OpenItems.items(snap.entries, eventStates: events, firstDay: first, today: today).count + habits
             }.value
+            await PenState.idle()
             count = n
         }
     }
@@ -41,7 +43,7 @@ struct OpenItemsButton: View {
         guard seconds > 0 else { return recount() }
         refresh = Task {
             try? await Task.sleep(for: .seconds(seconds))
-            while PenState.pageOpen, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(500)) }
+            while PenState.pageOpen || PenState.down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(500)) }
             guard !Task.isCancelled else { return }
             recount()
         }
@@ -92,7 +94,9 @@ struct OpenItemsPanel: View {
     private func load() {
         let container = context.container
         Task {
+            await PenState.idle()
             let read = await Task.detached(priority: .userInitiated) { NotebookReader.read(container).entries }.value
+            await PenState.idle()
             entries = read
             loaded = true
         }

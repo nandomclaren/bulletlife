@@ -150,6 +150,8 @@ struct PageEditorView: UIViewRepresentable {
         /// Handwritten lines whose text was deleted in Type mode, as the page opened: left out of Type mode
         /// (they stay in Pen mode, with their ink).
         var erased: Set<String> = []
+        /// The pictures drawn in Draw mode, by the line each sits on (see PaintFigures).
+        var figures: [String: PaintFigure] = [:]
         let undo = UndoManager()
         private var bullets: [BulletView] = []
         /// The lowest drawing's bottom, in the text view: the page (or an embedded editor) is at least that tall.
@@ -175,10 +177,13 @@ struct PageEditorView: UIViewRepresentable {
             let hidden = Outline.hidden(lines)
             // A handwritten line left out of Type mode comes back once it has text again (typed text joined
             // into it with Backspace becomes its correction).
-            // Paint (Draw mode) is not text: Type mode shows it as one layer over the page, taking no line.
-            let paintless = !parent.embedded
+            // Paint (Draw mode): the pieces of one picture are one figure on one line; the other pieces are not text.
+            figures = computeFigures()
+            // Paint takes no line and no room in the text: every piece, the first too, is left out of it, and the
+            // picture floats over the page (see layoutDecor).
+            let pieces = Set(figures.values.flatMap(\.members))
             visible = lines.indices.filter {
-                !hidden[$0] && !(erased.contains(lines[$0].id) && lines[$0].text.isEmpty) && !(paintless && InkPage.isPaint(lines[$0]))
+                !hidden[$0] && !(erased.contains(lines[$0].id) && lines[$0].text.isEmpty) && !pieces.contains(lines[$0].id)
             }
             if visible.isEmpty {
                 lines.append(Line())
@@ -231,8 +236,26 @@ struct PageEditorView: UIViewRepresentable {
             return parent.embedded && bulletless ? EditorLayout.bulletX(l.indent) : EditorLayout.textX(l.indent)
         }
 
+        /// The pictures on this page: paint entries that touch are one figure (none on embedded pages).
+        private func computeFigures() -> [String: PaintFigure] {
+            guard !parent.embedded, lines.contains(where: { InkPage.isPaint($0) }) else { return [:] }
+            // The Pen page's own measure of the text (its width, 760 at most, in page units).
+            let width = CGFloat(min(760, max(1, textView?.bounds.width ?? 760)) / penZoom)
+            let blocks = InkPage.blocks(lines) { SheetBackground.rows($0, width: width) }
+            return Dictionary(PaintFigures.figures(lines, blocks: blocks).map { ($0.primary, $0) }, uniquingKeysWith: { a, _ in a })
+        }
+
+        /// A line as Type mode draws its ink: a figure's line shows every piece of the picture.
+        func displayLine(_ l: Line) -> Line {
+            guard let f = figures[l.id] else { return l }
+            var d = l
+            d.ink = f.ink
+            return d
+        }
+
         /// The ink a line shows in Type mode, sized for the page's width.
         func previewFrame(_ l: Line) -> (width: Double, height: Double, x: Double)? {
+            let l = displayLine(l)
             guard l.ink != nil else { return nil }
             let width = (textView?.bounds.width ?? 0) > 0 ? textView!.bounds.width : 600
             let inset = textView.map { $0.textContainerInset.left + $0.textContainerInset.right } ?? 32
@@ -314,55 +337,6 @@ struct PageEditorView: UIViewRepresentable {
             return top
         }
 
-        // MARK: Paint in Type mode
-
-        private var paintView: PaintLayerView?
-
-        /// All of the page's paint as one layer, at the Pen page's scale (the same size on the screen) and with each
-        /// stroke over the line it was drawn on. Takes no room and no touch. Returns its lowest point.
-        private func layoutPaint(in view: UITextView, tops: [String: Double], ends: [String: Double]) -> CGFloat {
-            // Nothing to work out on a page without paint.
-            guard lines.contains(where: { InkPage.isPaint($0) }) else {
-                paintView?.show([])
-                return 0
-            }
-            let zoom = Double(penZoom)
-            let width = CGFloat(min(760, max(1, view.bounds.width)) / penZoom)
-            let blocks = InkPage.blocks(lines) { SheetBackground.rows($0, width: width) }
-            let strokes = InkPage.paintStrokes(lines, blocks: blocks)
-            guard !strokes.isEmpty else {
-                paintView?.show([])
-                return 0
-            }
-            let map = PaintMap(blocks: blocks, tops: tops, ends: ends, scale: zoom)
-            // The Pen page's text starts at `penTextX`; the Type page's at its own margin.
-            let originX = Double(view.textContainerInset.left + textIndent(Line())) - Double(penTextX) * zoom
-            let pv: PaintLayerView
-            if let existing = paintView {
-                pv = existing
-            } else {
-                pv = PaintLayerView()
-                view.addSubview(pv)
-                paintView = pv
-            }
-            view.bringSubviewToFront(pv)
-            var bottom: CGFloat = 0
-            let drawn = strokes.map { ps -> PaintLayerView.Stroke in
-                var points: [CGPoint] = []
-                var i = 0
-                while i + 1 < ps.stroke.p.count {
-                    let pt = CGPoint(x: originX + ps.stroke.p[i] * zoom, y: map.map(ps.stroke.p[i + 1]))
-                    bottom = max(bottom, pt.y)
-                    points.append(pt)
-                    i += 3
-                }
-                return PaintLayerView.Stroke(points: points, color: ps.stroke.c, width: CGFloat((ps.stroke.s ?? storedDefaultSize) * zoom))
-            }
-            pv.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: max(view.contentSize.height, bottom + 40))
-            pv.show(drawn)
-            return bottom
-        }
-
         // MARK: Drawings in Type mode
 
         /// The drawing selected (tap it): it can then be sized, moved sideways or deleted.
@@ -388,6 +362,15 @@ struct PageEditorView: UIViewRepresentable {
         func deleteDrawing(_ id: String) {
             guard let i = lines.firstIndex(where: { $0.id == id }), InkPreview.kind(lines[i]) == .drawing else { return }
             var next = lines
+            if let figure = figures[id] {
+                // A picture goes whole, with the lines that held its pieces (they took no room).
+                let gone = Set(figure.members)
+                next.removeAll { gone.contains($0.id) }
+                if next.isEmpty { next = [Line()] }
+                selectedDrawing = nil
+                apply(Edited(lines: next, caret: Caret(index: min(max(0, i - 1), next.count - 1), offset: 0)), keepScroll: true)
+                return
+            }
             next[i].ink = nil
             selectedDrawing = nil
             apply(Edited(lines: next, caret: Caret(index: i, offset: 0)), keepScroll: true)
@@ -988,8 +971,6 @@ struct PageEditorView: UIViewRepresentable {
             let length = (view.text as NSString).length
             var used = 0
             var usedChevrons = 0
-            var typeTops: [String: Double] = [:]
-            var typeOrder: [String] = []
             for (k, i) in visible.enumerated() {
                 let l = lines[i]
                 // The first line of the paragraph: the empty last line lives in the extra line fragment.
@@ -1002,8 +983,6 @@ struct PageEditorView: UIViewRepresentable {
                     rect = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: min(s[k], length - 1)), effectiveRange: nil)
                 }
                 rect = rect.offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
-                typeTops[l.id] = Double(rect.minY)
-                typeOrder.append(l.id)
                 let glyph = States.glyph(l.type, l.state, eventStates: parent.eventStates, doneMark: parent.doneMark)
                 if !glyph.isEmpty || l.priority || l.inspiration || l.explore {
                     let b = bullet(used)
@@ -1023,7 +1002,7 @@ struct PageEditorView: UIViewRepresentable {
             var usedInk = 0
             inkBottom = 0
             for (k, i) in visible.enumerated() {
-                let l = lines[i]
+                let l = displayLine(lines[i])
                 guard let f = previewFrame(l), let kind = InkPreview.kind(l) else { continue }
                 var rect: CGRect
                 if length == 0 || (s[k] >= length && k == visible.count - 1 && l.text.isEmpty) {
@@ -1043,13 +1022,33 @@ struct PageEditorView: UIViewRepresentable {
                 v.maxWidth = CGFloat(f.width) + max(0, view.bounds.width - view.textContainerInset.left - view.textContainerInset.right - textIndent(l) - 8 - CGFloat(f.width))
                 v.setNeedsDisplay()
             }
-            for (n, v) in inkViews.enumerated() { v.isHidden = n >= usedInk }
-            if !parent.embedded {
-                let textEnd = Double(lm.usedRect(for: view.textContainer).maxY + view.textContainerInset.top)
-                var ends: [String: Double] = [:]
-                for (n, id) in typeOrder.enumerated() { ends[id] = n + 1 < typeOrder.count ? typeTops[typeOrder[n + 1]] : max(textEnd, typeTops[id] ?? 0) }
-                inkBottom = max(inkBottom, layoutPaint(in: view, tops: typeTops, ends: ends))
+            // Pictures (Draw mode): no line, no room. Each floats where its place in the page is (the top of the next
+            // line of text, or the end of the text), at the size and place it was given in Type mode.
+            for li in figures.keys.compactMap({ id in lines.firstIndex { $0.id == id } }).sorted() {
+                let l = displayLine(lines[li])
+                guard let f = previewFrame(l), let kind = InkPreview.kind(l) else { continue }
+                var anchor: CGFloat
+                if let k = visible.firstIndex(where: { $0 > li }) {
+                    if length == 0 || (s[k] >= length && k == visible.count - 1 && lines[visible[k]].text.isEmpty) {
+                        anchor = lm.extraLineFragmentRect.minY
+                    } else {
+                        anchor = lm.lineFragmentRect(forGlyphAt: lm.glyphIndexForCharacter(at: min(s[k], length - 1)), effectiveRange: nil).minY
+                    }
+                } else {
+                    anchor = lm.usedRect(for: view.textContainer).maxY
+                }
+                let v = inkView(usedInk)
+                usedInk += 1
+                v.configure(line: l, kind: kind, color: .text, selected: selectedDrawing == l.id, coordinator: self)
+                let top = l.ink?.view?.y.map { CGFloat($0) }
+                v.frame = CGRect(
+                    x: view.textContainerInset.left + textIndent(l) + CGFloat(f.x), y: view.textContainerInset.top + (top ?? anchor + 3),
+                    width: CGFloat(f.width), height: CGFloat(f.height))
+                inkBottom = max(inkBottom, v.frame.maxY)
+                v.maxWidth = CGFloat(f.width) + max(0, view.bounds.width - view.textContainerInset.left - view.textContainerInset.right - textIndent(l) - 8 - CGFloat(f.width))
+                v.setNeedsDisplay()
             }
+            for (n, v) in inkViews.enumerated() { v.isHidden = n >= usedInk }
             // Room below the text for a drawing put lower than the last line.
             if !parent.embedded {
                 let text = lm.usedRect(for: view.textContainer).maxY + view.textContainerInset.top
@@ -1599,65 +1598,4 @@ final class DatePickerController: UIViewController, UIPopoverPresentationControl
 
     /// A popover on iPhone too, not a full-screen sheet.
     func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle { .none }
-}
-
-/// The page's paint in Type mode: strokes grouped by colour and size, one shape layer for each group (so a big
-/// drawing costs a few layers, not one view per stroke). It takes no touch.
-final class PaintLayerView: UIView {
-    struct Stroke {
-        var points: [CGPoint]
-        var color: String
-        var width: CGFloat
-    }
-
-    private var layers: [String: CAShapeLayer] = [:]
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isUserInteractionEnabled = false
-        backgroundColor = .clear
-        isOpaque = false
-    }
-
-    required init?(coder: NSCoder) { fatalError("not used") }
-
-    func show(_ strokes: [Stroke]) {
-        var paths: [String: (path: UIBezierPath, color: String, width: CGFloat)] = [:]
-        for s in strokes where !s.points.isEmpty {
-            let key = "\(s.color)|\(Int((s.width * 10).rounded()))"
-            let group = paths[key] ?? (UIBezierPath(), s.color, s.width)
-            let path = group.path
-            path.move(to: s.points[0])
-            if s.points.count == 1 {
-                path.addLine(to: CGPoint(x: s.points[0].x + 0.01, y: s.points[0].y))
-            } else {
-                for p in s.points.dropFirst() { path.addLine(to: p) }
-            }
-            paths[key] = group
-        }
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for (key, layer) in layers where paths[key] == nil {
-            layer.removeFromSuperlayer()
-            layers[key] = nil
-        }
-        for (key, group) in paths {
-            let layer: CAShapeLayer
-            if let existing = layers[key] {
-                layer = existing
-            } else {
-                layer = CAShapeLayer()
-                layer.fillColor = nil
-                layer.lineCap = .round
-                layer.lineJoin = .round
-                self.layer.addSublayer(layer)
-                layers[key] = layer
-            }
-            layer.frame = bounds
-            layer.lineWidth = max(0.6, group.width)
-            layer.strokeColor = Theme.ui(group.color).resolvedColor(with: traitCollection).cgColor
-            layer.path = group.path.cgPath
-        }
-        CATransaction.commit()
-    }
 }

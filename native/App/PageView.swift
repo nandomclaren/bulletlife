@@ -95,10 +95,15 @@ struct PageView: View {
         // Waits first, then looks for work: every stroke restarts this task, and working out the jobs (the page's
         // lines read as paragraphs) at each stroke was the second biggest cost on the main thread while writing.
         if penOn && isPad { try? await Task.sleep(for: .seconds(2.5)) }
+        // Nothing runs while the pen is on the glass (here, and again before the result is applied).
+        await PenState.idle()
         guard !Task.isCancelled, !Transcription.jobs(lines).isEmpty else { return }
         let lang = HandwritingLang(rawValue: handwritingLang) ?? .ptBR
         for job in Transcription.jobs(lines) {
+            await PenState.idle()
             guard !Task.isCancelled, let text = await handwriting.recognize(job.strokes, lang: lang), !Task.isCancelled else { return }
+            await PenState.idle()
+            guard !Task.isCancelled else { return }
             if let next = PenPerf.measure("transcribe-apply", { Transcription.apply(id: job.id, n: job.n, text: text, shape: job.shape, to: lines) }) {
                 lines = next
             }

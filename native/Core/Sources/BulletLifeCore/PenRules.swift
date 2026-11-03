@@ -157,6 +157,17 @@ public enum PenRules {
             if let lastId, let b = blocks.first(where: { $0.id == lastId }), b.height == 0, drawingOnly(b) {
                 return .join(id: b.id, r: 0, top: b.top, absorb: nil)
             }
+            // A stroke that touches a drawing already there (within a margin) belongs to it: one picture, one entry.
+            let m = PaintFigures.margin
+            if let b = blocks.last(where: { b in
+                guard b.height == 0, drawingOnly(b) else { return false }
+                let boxes = b.strokes.map(\.box)
+                let x0 = boxes.map(\.x0).min()! - m, x1 = boxes.map(\.x1).max()! + m
+                let y0 = boxes.map(\.y0).min()! + b.top - m, y1 = boxes.map(\.y1).max()! + b.top + m
+                return box.x0 <= x1 && x0 <= box.x1 && box.y0 <= y1 && y0 <= box.y1
+            }) {
+                return .join(id: b.id, r: 0, top: b.top, absorb: nil)
+            }
             if y < contentEnd, let b = blocks.last(where: { $0.height > 0 && $0.top <= y }) {
                 return .new(after: b.id, blanks: 0, top: b.top + b.height)
             }
