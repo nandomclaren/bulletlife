@@ -376,6 +376,8 @@ final class PageSaver {
         task?.cancel()
         task = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Int(after * 1000)))
+            // Not while the pen is on the glass: the write would land in the middle of a stroke.
+            while PenState.down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(300)) }
             guard !Task.isCancelled else { return }
             self?.flush()
         }
@@ -386,7 +388,7 @@ final class PageSaver {
         task = nil
         guard let p = pending else { return }
         pending = nil
-        p.repo.save(p.lines, logId: p.logId, slot: p.slot)
+        PenPerf.measure("save") { p.repo.save(p.lines, logId: p.logId, slot: p.slot) }
     }
 }
 

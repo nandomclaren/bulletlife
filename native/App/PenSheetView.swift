@@ -121,10 +121,19 @@ struct PenSheetView: UIViewRepresentable {
         let pencil = UIPencilInteraction()
         pencil.delegate = coordinator
         canvas.addInteraction(pencil)
+        coordinator.frames.start()
         return container
     }
 
+    static func dismantleUIView(_ container: PenSheetContainer, coordinator: Coordinator) {
+        coordinator.frames.stop()
+    }
+
     func updateUIView(_ container: PenSheetContainer, context: Context) {
+        PenPerf.measure("updateUIView") { update(container, context: context) }
+    }
+
+    private func update(_ container: PenSheetContainer, context: Context) {
         let canvas = container.canvas
         let c = context.coordinator
         c.parent = self
@@ -181,6 +190,7 @@ struct PenSheetView: UIViewRepresentable {
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         /// The last restore applied (see `restore`).
         var restored = 0
+        let frames = FrameWatch()
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             parent.onScroll(scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
@@ -216,7 +226,9 @@ struct PenSheetView: UIViewRepresentable {
 
         // MARK: Drawing the page
 
-        func render() {
+        func render() { PenPerf.measure("render") { renderNow() } }
+
+        private func renderNow() {
             guard let canvas, let sheet else { return }
             let width = canvas.bounds.width
             guard width > 0 else { return }
@@ -266,7 +278,35 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         /// The sheet behind the ink (rules and typed lines), and room below the last line to keep writing.
-        func layoutSheet() {
+        func layoutSheet() { PenPerf.measure("layoutSheet") { layoutSheetNow() } }
+
+        /// What `show` and `layoutBullets` draw depends only on this: when it is the same as last time (a stroke
+        /// added to an open handwritten line, say), the labels and tap targets already there are still right.
+        private var sheetKey: [AnyHashable] = []
+
+        private func sheetSignature(_ width: CGFloat) -> [AnyHashable] {
+            var key: [AnyHashable] = [
+                Int(width), parent.eventStates, parent.doneMark, UserDefaults.standard.string(forKey: "palette") ?? "",
+                sheet?.traitCollection.userInterfaceStyle.rawValue ?? 0,
+            ]
+            let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            for b in blocks {
+                guard let l = byId[b.id] else { continue }
+                var item: [AnyHashable] = [b.id, b.top, b.height, b.typed, l.type.rawValue, l.state.rawValue, l.indent]
+                if b.typed {
+                    item += [l.text]
+                } else {
+                    // A drawn bullet and (once the line is no longer open) its words.
+                    if let box = InkPage.handBullet(l) { item += [box.x0, box.y0, box.x1, box.y1] }
+                    if l.state != .open, let w = InkPage.handWords(l) { item += [w.x0, w.x1] }
+                }
+                key.append(item)
+            }
+            key.append(Outline.colorTypes(lines).map(\.rawValue))
+            return key
+        }
+
+        private func layoutSheetNow() {
             guard let canvas, let sheet else { return }
             let width = canvas.bounds.width
             // Below the last line, almost a screen of paper: the end of the page can be scrolled up to the top, so
@@ -278,6 +318,12 @@ struct PenSheetView: UIViewRepresentable {
             let height = max(CGFloat(end) + room, canvas.bounds.height + CGFloat(inkRow))
             canvas.contentSize = CGSize(width: width, height: height)
             sheet.frame = CGRect(x: 0, y: 0, width: width, height: height)
+            let key = sheetSignature(width)
+            guard key != sheetKey else {
+                bullets?.frame = sheet.frame
+                return
+            }
+            sheetKey = key
             sheet.show(lines: lines, blocks: blocks, eventStates: parent.eventStates, doneMark: parent.doneMark)
             layoutBullets(frame: sheet.frame)
         }
@@ -383,6 +429,10 @@ struct PenSheetView: UIViewRepresentable {
 
         // MARK: What the pen did
 
+        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) { PenState.down = true }
+
+        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) { PenState.down = false }
+
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !rendering else { return }
             let strokes = canvasView.drawing.strokes
@@ -447,7 +497,9 @@ struct PenSheetView: UIViewRepresentable {
             layoutSheet()
         }
 
-        private func added(_ pk: PKStroke) {
+        private func added(_ pk: PKStroke) { PenPerf.measure("added") { addedNow(pk) } }
+
+        private func addedNow(_ pk: PKStroke) {
             var p: [Double] = []
             for point in pk.path {
                 let at = point.location.applying(pk.transform)

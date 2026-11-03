@@ -464,3 +464,17 @@ unchanged), with no blank lines. The writing rules ignore paint (zero-height blo
 or lassoing all of a paint's strokes removes its entry (it held no line). The Pen page height and the PDF reach
 past the lowest paint stroke; the PDF draws paint without advancing. Drawings made before keep their rows, so
 nothing jumps on update.
+
+## Native pen: hitch measurement and quieter main thread (2026-11-03)
+Fernando feels a hitch at the start of words. The suspects are main-thread work that lands in a pause: the page save
+(2.2 s of quiet), the transcription result (2.5 s) and the sheet rebuild. Changes, none touching what is stored:
+- `PenPerf` (App/PenPerf.swift): signposts and a log line for every pen section over 3 ms (`render`, `layoutSheet`,
+  `added`, `updateUIView`, `save`, `transcribe-apply`), and `FrameWatch`, a display link that logs frames the main
+  thread missed with the sections that ran just before. Read with the `-penperf` launch argument
+  (`xcrun devicectl device process launch --console --device <id> com.bulletlife.notebook -penperf`) or Instruments.
+- `layoutSheet` skips rebuilding every label and tap target when what they draw is unchanged (`sheetSignature`: sizes,
+  per-line type/state/indent/text for typed lines, the drawn bullet's box, palette, appearance). A stroke added to an
+  open handwritten line used to destroy and recreate them all.
+- The save and the transcription result wait while the pen is on the glass (`PenState.down`, from
+  `canvasViewDidBegin/EndUsingTool`), so they never land in the middle of a stroke.
+Not measured with a pen yet (no pen in the build session): the numbers come from Fernando's iPad run.
