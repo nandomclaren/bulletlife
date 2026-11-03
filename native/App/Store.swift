@@ -5,6 +5,29 @@ import BulletLifeCore
 import Foundation
 import SwiftData
 
+/// Decoded ink by entry, valid while the stored bytes are the same: saving a page decoded all of its ink as JSON
+/// each time (20-30 ms on a written page); now only the ink that changed is. Used from the main thread only.
+enum InkCache {
+    nonisolated(unsafe) private static var cache: [String: (data: Data, ink: Ink)] = [:]
+
+    static func ink(uid: String, data: Data?) -> Ink? {
+        guard let data else { return nil }
+        if let hit = cache[uid], hit.data == data { return hit.ink }
+        guard let ink = try? JSONDecoder().decode(Ink.self, from: data) else { return nil }
+        store(uid, data, ink)
+        return ink
+    }
+
+    static func remember(uid: String, data: Data?, ink: Ink?) {
+        if let data, let ink { store(uid, data, ink) } else { cache[uid] = nil }
+    }
+
+    private static func store(_ uid: String, _ data: Data, _ ink: Ink) {
+        if cache.count > 600 { cache.removeAll() }
+        cache[uid] = (data, ink)
+    }
+}
+
 @Model
 final class EntryRecord {
     var uid: String = ""
@@ -44,6 +67,7 @@ final class EntryRecord {
         collapsed = e.collapsed
         dueDate = e.dueDate
         inkData = e.ink.flatMap { try? JSONEncoder().encode($0) }
+        InkCache.remember(uid: e.id, data: inkData, ink: e.ink)
         placementData = e.placement.flatMap { try? JSONEncoder().encode($0) }
         marks = e.marks ?? ""
         createdAt = e.createdAt
@@ -67,7 +91,7 @@ final class EntryRecord {
             id: uid, logId: logId, slot: slot, parentId: parentId, order: orderKey,
             type: EntryType(rawValue: kind) ?? .text, state: EntryState(rawValue: state) ?? .open, text: text,
             signifiers: signifiers.split(separator: ",").compactMap { Signifier(rawValue: String($0)) }, collapsed: collapsed,
-            dueDate: dueDate, ink: inkData.flatMap { try? JSONDecoder().decode(Ink.self, from: $0) },
+            dueDate: dueDate, ink: InkCache.ink(uid: uid, data: inkData),
             placement: placementData.flatMap { try? JSONDecoder().decode(Placement.self, from: $0) },
             marks: marks.isEmpty ? nil : marks, createdAt: createdAt, updatedAt: updatedAt
         )
@@ -182,7 +206,13 @@ struct Repository {
 
     /// Every entry without its ink (fast: for queries over the whole notebook).
     func lightEntries() -> [Entry] {
-        ((try? context.fetch(FetchDescriptor<EntryRecord>())) ?? []).map(\.light)
+        // The ink is not even loaded: only the fields `light` reads.
+        var descriptor = FetchDescriptor<EntryRecord>()
+        descriptor.propertiesToFetch = [
+            \.uid, \.logId, \.slot, \.parentId, \.orderKey, \.kind, \.state, \.text, \.signifiers, \.collapsed, \.dueDate,
+            \.placementData, \.marks, \.createdAt, \.updatedAt,
+        ]
+        return ((try? context.fetch(descriptor)) ?? []).map(\.light)
     }
 
     /// One page's entries without their ink (the Spotlight index after a save: not the whole notebook).

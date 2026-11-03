@@ -530,3 +530,15 @@ change, 0.3 s after an individual change from outside the page, and 4 s after a 
 on the glass. (It can be a few seconds old while writing; it is only a count.) The `FrameWatch` display link asks for
 60-120 Hz: without it the system delivered it at about 40 Hz when little was drawn, and the steady "frame gap
 24-29 ms" lines were that cadence, not dropped frames.
+
+## Native pen: ink decode cache, lighter Open items fetch, Pen lab input (2026-11-03)
+Third `-penperf` log: `save.decode` grew with the page (20-32 ms: all of its ink decoded from JSON at every save) and
+`openCount` still took 50-94 ms (it loaded every entry's ink blob). Now: `InkCache` keeps decoded ink by entry while
+its stored bytes are unchanged (comparing bytes, not decoding), and `lightEntries()` fetches only the fields `light`
+reads (`propertiesToFetch`, no ink). The Open items count waits 8 s of quiet after a save.
+Pen lab: Fernando saw nothing drawn and "Pressure now" stuck at 0, so the passive recognizer was not hearing the Pencil.
+Input now comes from two readers at once (a `PKCanvasView` subclass overriding the touch methods, and the recognizer);
+the first to hear a stroke owns it, and the screen shows how many touches each heard. The stroke colour is set from the
+current appearance whenever the view is placed (it could stay black on a dark page). `FrameWatch` also runs in the lab:
+if the lab shows no steady 24-30 ms frame gaps while writing, those on the pen page come from the page (sheet,
+75% transform, canvas size) and not from PencilKit.

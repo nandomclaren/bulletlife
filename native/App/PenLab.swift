@@ -15,10 +15,12 @@
         @State private var showPencilKit = false
         @State private var clears = 0
         @State private var force = 0.0
+        @State private var counts = "Touches heard: none yet"
+        @State private var frames = FrameWatch()
 
         var body: some View {
             ZStack(alignment: .bottom) {
-                PenLabCanvas(params: params, showPencilKit: showPencilKit, clears: clears, onForce: { force = $0 })
+                PenLabCanvas(params: params, showPencilKit: showPencilKit, clears: clears, onForce: { force = $0 }, onCounts: { counts = $0 })
                     .background(Color(uiColor: Theme.ui("bg")))
                     .ignoresSafeArea(edges: .bottom)
                 controls
@@ -26,6 +28,8 @@
             .navigationTitle("Pen lab")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: params) { Self.save(params) }
+            .onAppear { frames.start() }
+            .onDisappear { frames.stop() }
         }
 
         private var controls: some View {
@@ -44,7 +48,7 @@
                 slider("Smoothing", $params.smoothing, 0...0.95, String(format: "%.2f", params.smoothing))
                 slider("Soft ends", $params.taper, 0...24, String(format: "%.0f pt", params.taper))
                 slider("Thin when fast", $params.velocityThinning, 0...0.8, String(format: "%.2f", params.velocityThinning))
-                Text(String(format: "Pressure now: %.2f", force)).font(.footnote).foregroundStyle(.secondary)
+                Text(String(format: "Pressure now: %.2f  ·  ", force) + counts).font(.footnote).foregroundStyle(.secondary)
             }
             .padding(12)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -75,9 +79,84 @@
         }
     }
 
+    /// Where the Pencil's samples come from. Two readers are tried at once (a canvas subclass and a passive
+    /// recognizer); whichever hears a stroke first owns it, and the counters say which one works.
+    final class LabInput {
+        var ink: LabInkView?
+        var onForce: (Double) -> Void = { _ in }
+        var onCounts: (String) -> Void = { _ in }
+        private var owner: Int?
+        private var counts = [0, 0]
+        private var samples = 0
+
+        private func report() {
+            onCounts("Touches heard: canvas \(counts[0]), recognizer \(counts[1]); samples \(samples)")
+        }
+
+        func began(_ source: Int, _ t: UITouch, in view: UIView) {
+            guard owner == nil else { return }
+            owner = source
+            counts[source] += 1
+            let p = Self.sample(t, in: view)
+            ink?.begin(p)
+            onForce(p.force)
+            report()
+        }
+
+        func moved(_ source: Int, _ t: UITouch, _ event: UIEvent?, in view: UIView) {
+            guard owner == source else { return }
+            let real = (event?.coalescedTouches(for: t) ?? [t]).map { Self.sample($0, in: view) }
+            let guess = (event?.predictedTouches(for: t) ?? []).map { Self.sample($0, in: view) }
+            samples += real.count
+            ink?.extend(real, predicted: guess)
+            if let last = real.last { onForce(last.force) }
+            report()
+        }
+
+        func ended(_ source: Int, keep: Bool) {
+            guard owner == source else { return }
+            owner = nil
+            // PencilKit may cancel a touch it took over: what was written until then is kept.
+            ink?.end(keep: true)
+        }
+
+        static func sample(_ t: UITouch, in view: UIView) -> BrushPoint {
+            let at = t.location(in: view)
+            return BrushPoint(x: at.x, y: at.y, force: t.maximumPossibleForce > 0 ? Double(t.force / t.maximumPossibleForce) : 0)
+        }
+    }
+
+    /// The canvas hears the Pencil's touches too (it passes everything on to PencilKit).
+    final class LabCanvas: PKCanvasView {
+        var input: LabInput?
+        var inkView: UIView?
+
+        private func pencil(_ touches: Set<UITouch>) -> UITouch? { touches.first { $0.type == .pencil } }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            super.touchesBegan(touches, with: event)
+            if let t = pencil(touches), let v = inkView { input?.began(0, t, in: v) }
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            super.touchesMoved(touches, with: event)
+            if let t = pencil(touches), let v = inkView { input?.moved(0, t, event, in: v) }
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            super.touchesEnded(touches, with: event)
+            if pencil(touches) != nil { input?.ended(0, keep: true) }
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            super.touchesCancelled(touches, with: event)
+            if pencil(touches) != nil { input?.ended(0, keep: false) }
+        }
+    }
+
     /// Reads the Pencil's touches without taking them from PencilKit (it never leaves the possible state).
     final class TouchObserver: UIGestureRecognizer {
-        var began: ((UITouch, UIEvent) -> Void)?
+        var began: ((UITouch) -> Void)?
         var moved: ((UITouch, UIEvent) -> Void)?
         var ended: ((UITouch, Bool) -> Void)?
 
@@ -89,7 +168,7 @@
             delaysTouchesEnded = false
         }
 
-        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { began?($0, event) } }
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { began?($0) } }
         override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { moved?($0, event) } }
         override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { ended?($0, true) } }
         override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { touches.forEach { ended?($0, false) } }
@@ -110,16 +189,27 @@
             isOpaque = false
             for l in [done, current] {
                 layer.addSublayer(l)
-                l.fillColor = UIColor.label.cgColor
                 l.actions = ["path": NSNull()]
             }
+            paintColor()
         }
 
         required init?(coder: NSCoder) { fatalError("not used") }
 
+        /// The ink is the text color of the current appearance (black on a light page, white on a dark one).
+        private func paintColor() {
+            let c = traitCollection.userInterfaceStyle == .dark ? UIColor.white : UIColor.black
+            for l in [done, current] { l.fillColor = c.cgColor }
+        }
+
         override func traitCollectionDidChange(_ previous: UITraitCollection?) {
             super.traitCollectionDidChange(previous)
-            for l in [done, current] { l.fillColor = UIColor.label.resolvedColor(with: traitCollection).cgColor }
+            paintColor()
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            paintColor()
         }
 
         override func layoutSubviews() {
@@ -186,18 +276,20 @@
         var showPencilKit: Bool
         var clears: Int
         var onForce: (Double) -> Void
+        var onCounts: (String) -> Void
 
         final class Coordinator {
             var clears = 0
             weak var canvas: PKCanvasView?
             weak var ink: LabInkView?
+            let input = LabInput()
         }
 
         func makeCoordinator() -> Coordinator { Coordinator() }
 
         func makeUIView(context: Context) -> UIView {
             let root = UIView()
-            let canvas = PKCanvasView()
+            let canvas = LabCanvas()
             canvas.drawingPolicy = .pencilOnly
             canvas.backgroundColor = .clear
             canvas.isScrollEnabled = false
@@ -208,24 +300,16 @@
             ink.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             root.addSubview(canvas)
             root.addSubview(ink)
+            let input = context.coordinator.input
+            input.ink = ink
+            input.onForce = onForce
+            input.onCounts = onCounts
+            canvas.input = input
+            canvas.inkView = ink
             let observer = TouchObserver(target: nil, action: nil)
-            func sample(_ t: UITouch) -> BrushPoint {
-                let at = t.location(in: ink)
-                return BrushPoint(x: at.x, y: at.y, force: t.maximumPossibleForce > 0 ? Double(t.force / t.maximumPossibleForce) : 0)
-            }
-            observer.began = { t, _ in
-                let p = sample(t)
-                ink.begin(p)
-                onForce(p.force)
-            }
-            observer.moved = { t, event in
-                // Every sample the Pencil produced since the last event, then the system's guess of where it goes next.
-                let real = (event.coalescedTouches(for: t) ?? [t]).map(sample)
-                let guess = (event.predictedTouches(for: t) ?? []).map(sample)
-                ink.extend(real, predicted: guess)
-                if let last = real.last { onForce(last.force) }
-            }
-            observer.ended = { _, kept in ink.end(keep: kept) }
+            observer.began = { t in input.began(1, t, in: ink) }
+            observer.moved = { t, event in input.moved(1, t, event, in: ink) }
+            observer.ended = { _, kept in input.ended(1, keep: kept) }
             canvas.addGestureRecognizer(observer)
             context.coordinator.canvas = canvas
             context.coordinator.ink = ink

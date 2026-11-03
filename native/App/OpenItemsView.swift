@@ -55,7 +55,7 @@ struct OpenItemsButton: View {
         }
         .accessibilityLabel(S.openCount(count))
         .onAppear { recount() }
-        .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { _ in recount(after: 4) }
+        .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { _ in recount(after: 8) }
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { _ in recount(after: 0.3) }
         .onChange(of: eventStates) { recount() }
         .onChange(of: firstDay) { recount() }
