@@ -643,7 +643,8 @@ final class SheetCanvas: PKCanvasView {
 /// What sits under the ink: the dot grid (a dot every 40 pt, on each ruled line) and the typed lines, each on whole ruled rows.
 final class SheetBackground: UIView {
     var showsRules = true {
-        didSet { updateRules() }
+        // Only when it changes: it is set on every update, and the dot grid is an image to draw.
+        didSet { if showsRules != oldValue { updateRules() } }
     }
     private var labels: [UIView] = []
     /// Each line's bullet as drawn on the sheet (the typed glyph, or ×, > or < over a drawn bullet), and where its
@@ -693,7 +694,19 @@ final class SheetBackground: UIView {
 
     static func textX(_ l: Line) -> CGFloat { CGFloat(penTextX) + CGFloat(l.indent) * 26 }
 
+    /// Rows a typed line takes, kept by what decides it (measuring text on every stroke was most of `added`).
+    private var rowsCache: [String: Int] = [:]
+
     func typedRows(_ l: Line, width: CGFloat) -> Int {
+        let key = "\(l.type == .heading)|\(l.indent)|\(Int(width))|\(l.text)"
+        if let rows = rowsCache[key] { return rows }
+        if rowsCache.count > 600 { rowsCache.removeAll() }
+        let rows = measuredRows(l, width: width)
+        rowsCache[key] = rows
+        return rows
+    }
+
+    private func measuredRows(_ l: Line, width: CGFloat) -> Int {
         let text = Self.attributed(l.text.isEmpty ? " " : l.text, heading: l.type == .heading, color: .label, faded: false, struck: false)
         let w = max(40, width - Self.textX(l) - 16)
         let h = text.boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin], context: nil).height

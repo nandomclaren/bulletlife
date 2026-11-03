@@ -81,6 +81,10 @@ struct PageView: View {
     // MARK: Transcription (N3)
 
     private var transcriptionKey: String {
+        PenPerf.measure("transcriptionKey") { transcriptionKeyNow }
+    }
+
+    private var transcriptionKeyNow: String {
         "\(logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(Transcription.pending(lines).count)|\(handwritingLang)|\(handwriting.status == .ready)"
     }
 

@@ -509,3 +509,15 @@ PencilKit then draws the ink thicker (seen: 2.67/2), so that stays off. Options,
    the softness; not applied, to avoid changing the look without checking it on the iPad.
 3. Changing `penZoom` to 0.5 or 1.0 would give integer ratios (crisp), but changes the page the way Fernando chose
    (75%, 30 pt line); not proposed.
+
+## Native pen: first measurements and three fixes (2026-11-03)
+Fernando's `-penperf` log (iPad, Release): every stroke cost `updateUIView` 6 ms + `added` 3 ms and dropped a frame
+(about 30 ms gap); a save took 90 ms, followed by a 210 ms gap. Causes found and fixed:
+- `SheetBackground.showsRules` was set on every update and its `didSet` redrew the dot-grid image each time: now only
+  when the value changes.
+- `added` measured every typed line's text on every stroke: the rows are cached by (heading, indent, width, text).
+- After each save the Spotlight index read the whole notebook (`lightEntries()` unfiltered) to keep one page: now it
+  fetches that page only (`lightEntries(logId:slot:)`).
+- The save is split into `save.fetch/decode/diff/context/notify` and the page's `transcriptionKey` is timed, to see what
+  remains. Still open: about 20 ms of each stroke's frame gap is not in any measured section (SwiftUI re-evaluating
+  the page on `lines`).

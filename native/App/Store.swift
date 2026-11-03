@@ -137,10 +137,11 @@ struct Repository {
 
     /// Writes what changed on a page. A page that is still blank is not created (CLAUDE.md principle 7).
     func save(_ lines: [Line], logId: String, slot: String = "") {
-        let records = records(logId: logId, slot: slot)
+        let records = PenPerf.measure("save.fetch") { self.records(logId: logId, slot: slot) }
         let blank = lines.allSatisfy { $0.text.trimmingCharacters(in: .whitespaces).isEmpty && ($0.type == .text || $0.type == .heading) && $0.ink == nil }
         if records.isEmpty && blank { return }
-        let (put, remove) = Outline.diff(lines: lines, existing: records.map(\.entry), logId: logId, slot: slot, now: Self.now())
+        let existing = PenPerf.measure("save.decode") { records.map(\.entry) }
+        let (put, remove) = PenPerf.measure("save.diff") { Outline.diff(lines: lines, existing: existing, logId: logId, slot: slot, now: Self.now()) }
         guard !put.isEmpty || !remove.isEmpty else { return }
         let byId = Dictionary(records.map { ($0.uid, $0) }, uniquingKeysWith: { a, _ in a })
         for e in put {
@@ -149,8 +150,8 @@ struct Repository {
         for id in remove {
             if let r = byId[id] { context.delete(r) }
         }
-        try? context.save()
-        NotificationCenter.default.post(name: Self.saved, object: nil, userInfo: ["logId": logId, "slot": slot])
+        PenPerf.measure("save.context") { try? context.save() }
+        PenPerf.measure("save.notify") { NotificationCenter.default.post(name: Self.saved, object: nil, userInfo: ["logId": logId, "slot": slot]) }
     }
 
     /// A bullet's tap or menu on a page shown only to consult: written to that one entry, as Open items does
@@ -182,6 +183,11 @@ struct Repository {
     /// Every entry without its ink (fast: for queries over the whole notebook).
     func lightEntries() -> [Entry] {
         ((try? context.fetch(FetchDescriptor<EntryRecord>())) ?? []).map(\.light)
+    }
+
+    /// One page's entries without their ink (the Spotlight index after a save: not the whole notebook).
+    func lightEntries(logId: String, slot: String) -> [Entry] {
+        records(logId: logId, slot: slot).map(\.light)
     }
 
     /// "Link it" (CLAUDE.md 4.4): the user confirms a line is the rewrite of an open item. The original gets its >

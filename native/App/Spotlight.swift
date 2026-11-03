@@ -17,7 +17,7 @@ enum Spotlight {
     /// One page again, after it was written.
     static func index(logId: String, slot: String, repo: Repository) {
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
-        let entries = repo.lightEntries().filter { $0.logId == logId && $0.slot == slot }
+        let entries = repo.lightEntries(logId: logId, slot: slot)
         // Built here, on the main actor; the index's callback only hands them over.
         let items = entries.compactMap { item($0, titles: titles) }
         CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain(logId, slot)]) { _ in
