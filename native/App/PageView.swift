@@ -91,8 +91,11 @@ struct PageView: View {
     /// Reads the handwriting the last pass didn't, after a pause in writing (at once in Type mode). The ink is
     /// already saved; the text is its transcription, and a correction typed in Type mode is never overwritten.
     private func transcribe() async {
-        guard !consulting, !Transcription.jobs(lines).isEmpty else { return }
+        guard !consulting else { return }
+        // Waits first, then looks for work: every stroke restarts this task, and working out the jobs (the page's
+        // lines read as paragraphs) at each stroke was the second biggest cost on the main thread while writing.
         if penOn && isPad { try? await Task.sleep(for: .seconds(2.5)) }
+        guard !Task.isCancelled, !Transcription.jobs(lines).isEmpty else { return }
         let lang = HandwritingLang(rawValue: handwritingLang) ?? .ptBR
         for job in Transcription.jobs(lines) {
             guard !Task.isCancelled, let text = await handwriting.recognize(job.strokes, lang: lang), !Task.isCancelled else { return }

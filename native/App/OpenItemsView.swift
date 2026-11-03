@@ -70,7 +70,11 @@ struct OpenItemsPanel: View {
     /// Opens a Habits collection on a day still to fill.
     var openHabits: (String, String) -> Void = { _, _ in }
     @Environment(\.modelContext) private var context
-    @Query private var records: [EntryRecord]
+    /// The notebook's entries (without ink), read when the panel opens, at once after a change made from outside a
+    /// page (its own taps), and a moment after a page is saved, never with the pen on the glass. A @Query over every
+    /// entry reloaded the notebook and rebuilt this list after each save, about 150 ms of main thread while writing.
+    @State private var entries: [Entry] = []
+    @State private var reload: Task<Void, Never>?
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("firstDay") private var firstDay = 1
     @AppStorage("doneMark") private var doneMark = "×"
@@ -79,9 +83,30 @@ struct OpenItemsPanel: View {
 
     private var repo: Repository { Repository(context: context) }
 
+    private func load() {
+        PenPerf.measure("openItems.load") { entries = repo.lightEntries() }
+    }
+
+    private func load(after seconds: Double) {
+        reload?.cancel()
+        guard seconds > 0 else { return load() }
+        reload = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            while PenState.down, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(300)) }
+            guard !Task.isCancelled else { return }
+            load()
+        }
+    }
+
     var body: some View {
+        content
+            .onAppear { load() }
+            .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { _ in load(after: 2) }
+            .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { _ in load() }
+    }
+
+    @ViewBuilder private var content: some View {
         let today = Dates.today()
-        let entries = records.map(\.light)
         let byId = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let found =
             onlyToday

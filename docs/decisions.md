@@ -551,3 +551,15 @@ stroke, and `PKCanvasViewDelegate.canvasViewDrawingDidChange` draws the finished
 live samples reached us (so at least the line shows, without the live feel). If live moves still do not arrive, the
 next reader is a `UIWindow.sendEvent` override (needs a custom window for the scene).
 Pen page: the Open items count no longer runs while the pen page is on screen (`PenState.pageOpen`), only when it is left.
+
+## Native pen: first Time Profiler (2026-11-03)
+20 s on the pen page (`native/tools/profile-pen.sh`). The main thread was busy only 5-25% of each second, so no single
+hog; the biggest blocks, in order:
+- `OpenItemsPanel.body` (about 150 ms in a row, repeatedly): the open panel's `@Query` over every entry reloaded the
+  notebook and rebuilt the list after each save. The panel now holds its own `entries` (no ink), read when it opens,
+  at once after a change from its own taps, and 2 s after a page save, never with the pen down.
+- `Transcription.jobs` (about 70 ms): run at the start of every transcription task, i.e. at every stroke, before the
+  2.5 s wait. The task now waits first and looks for work only after the pause.
+- SwiftUI `_UIHostingView.beginTransaction` bursts of 15-17 ms (the page body re-evaluating on `lines`), PencilKit's own
+  gesture handling (`PKDrawingGestureRecognizer`, about 90 ms in total) and its Scribble text-input finder at each
+  stroke start (`PKTextInputInteraction`, about 24 ms in total): small; left as they are.
