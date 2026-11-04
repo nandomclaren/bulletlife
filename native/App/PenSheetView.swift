@@ -1235,10 +1235,15 @@ final class EraserOverlayView: UIView {
     func setRadius(_ r: CGFloat, zoom z: CGFloat) {
         ring.bounds = CGRect(x: 0, y: 0, width: r * 2, height: r * 2)
         ring.path = UIBezierPath(ovalIn: ring.bounds).cgPath
-        ring.lineWidth = 1.5 / z
+        // Clear on a dark page too: a full-strength line, a visible tint inside, and a thin dark edge to lift it off.
+        ring.lineWidth = 2.5 / z
         let tint = Theme.display("text", in: self)
-        ring.strokeColor = tint.withAlphaComponent(0.7).cgColor
-        ring.fillColor = tint.withAlphaComponent(0.08).cgColor
+        ring.strokeColor = tint.cgColor
+        ring.fillColor = tint.withAlphaComponent(0.22).cgColor
+        ring.shadowColor = UIColor.black.cgColor
+        ring.shadowOpacity = 0.45
+        ring.shadowRadius = 1.5 / z
+        ring.shadowOffset = .zero
     }
 
     func showRing(at p: CGPoint) {

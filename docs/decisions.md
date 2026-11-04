@@ -712,3 +712,6 @@ once) it took the touch from PencilKit's own eraser. The Pencil now comes to `Er
 (`touchesBegan/Moved`, coalesced samples), hit-tested for everything except a touch known for certain to be a finger (the
 event's touches may be unfilled during hit-testing, which counts as the Pencil); no recognizer is added. PencilKit's drawing
 gesture stays ON beside it, so erasing never depends on the overlay.
+
+Eraser ring, more visible (2026-11-04): full-strength line (2.5 pt on the screen), a 22% tint inside and a thin dark edge, since
+the first ring (70% line, 8% tint) was too faint on dark pages.
