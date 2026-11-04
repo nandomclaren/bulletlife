@@ -161,3 +161,51 @@ private extension Entry {
         return e
     }
 }
+
+final class PaintResizeTests: XCTestCase {
+    private func draw(_ id: String, _ pts: [Double], size: Double? = nil) -> Line {
+        Line(id: id, ink: Ink(strokes: [Stroke(k: .drawing, c: "ink", p: pts, s: size)], free: true))
+    }
+
+    func testResizeScalesAboutTheTopLeftAndMergesThePieces() {
+        // Two touching pieces after different lines: tops 40 and 80.
+        let lines = [Line(id: "t", text: "hello"), draw("a", [100, 10, 0.5, 200, 60, 0.5], size: 3), Line(id: "u", text: "world"), draw("b", [150, 10, 0.5, 250, 30, 0.5])]
+        let blocks = InkPage.blocks(lines) { _ in 1 }
+        let fig = PaintFigures.figures(lines, blocks: blocks)[0]
+        XCTAssertEqual(fig.members, ["a", "b"])
+        let out = InkPage.resizeFigure(lines, figure: fig, factor: 2)
+        XCTAssertEqual(out.map(\.id), ["t", "a", "u"])  // the second piece went into the first; nothing else moved
+        let ink = out[1].ink!
+        XCTAssertEqual(ink.strokes.count, 2)
+        XCTAssertEqual(ink.free, true)
+        // Page coordinates: the top-left corner stays, distances double.
+        let ax = fig.box.x0, ay = fig.box.y0
+        let p0 = ink.strokes[0].p
+        XCTAssertEqual(p0[0], ax + (100 - ax) * 2, accuracy: 1e-9)
+        XCTAssertEqual(p0[1] + fig.top, ay + (10 + fig.top - ay) * 2, accuracy: 1e-9)
+        XCTAssertEqual(p0[3], ax + (200 - ax) * 2, accuracy: 1e-9)
+        XCTAssertEqual(ink.strokes[0].s ?? 0, 6, accuracy: 1e-9)
+        XCTAssertEqual(ink.strokes[1].s ?? 0, 2.4 * 2, accuracy: 1e-9)
+        // Pressure is untouched.
+        XCTAssertEqual(p0[2], 0.5, accuracy: 1e-9)
+    }
+
+    func testFactorIsClampedAndUnknownFigureIsANoop() {
+        let lines = [draw("a", [100, 10, 0.5, 200, 60, 0.5])]
+        let blocks = InkPage.blocks(lines) { _ in 1 }
+        let fig = PaintFigures.figures(lines, blocks: blocks)[0]
+        let big = InkPage.resizeFigure(lines, figure: fig, factor: 100)
+        XCTAssertEqual(big[0].ink!.strokes[0].p[3] - big[0].ink!.strokes[0].p[0], 100 * 6, accuracy: 1e-6)
+        var missing = fig
+        missing.primary = "nobody"
+        XCTAssertEqual(InkPage.resizeFigure(lines, figure: missing, factor: 2), lines)
+    }
+
+    func testHitFindsTheDrawingNearAPoint() {
+        let lines = [draw("a", [100, 10, 0.5, 300, 10, 0.5])]
+        let blocks = InkPage.blocks(lines) { _ in 1 }
+        let figs = PaintFigures.figures(lines, blocks: blocks)
+        XCTAssertEqual(PaintFigures.hit(figs, x: 200, y: 14, tolerance: 8)?.primary, "a")
+        XCTAssertNil(PaintFigures.hit(figs, x: 200, y: 60, tolerance: 8))
+    }
+}

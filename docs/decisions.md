@@ -672,3 +672,14 @@ Now two anchors are read in the same layout pass, in screen coordinates: the pag
 scrolled content) and the grid's top; their difference is where the grid starts in the content, the same wherever the
 page is scrolled and whenever it is read. The pin is `offset + inset - gridInContent`, clamped, with the offset from
 `onScrollGeometryChange` only.
+
+## Native: resizing a drawing in Pen mode (2026-11-04)
+PencilKit's lasso only moves and deletes, so resizing is ours, kept apart from the pen: with the lasso as the tool, a tap of the
+FINGER on a drawing (within 22 screen points of a stroke, `PaintFigures.hit`) selects its figure (the paint entries whose
+strokes touch, see PaintFigures); a dashed outline and a handle at its bottom-right corner appear (`PaintSelectionView`, a layer
+over the canvas that takes no touch but the handle's, and only from the finger, so the Pencil and scrolling pass through).
+Dragging the handle previews the outline (the width follows the finger, proportions kept, the top-left corner fixed) and
+letting go resizes (`InkPage.resizeFigure`, Core, tested): points scale about the corner, widths (`s`, the fountain pen's `w`)
+by the same factor, pressure untouched, and the pieces of the picture become one entry (the first), so it stays one picture
+in Type mode (whose own size/place, `Ink.view`, are kept). Paint takes no line, so nothing else moves. One Undo step
+(the toolbar's). Tapping elsewhere, or choosing another tool, lets the selection go. Factor limited to 0.2-6.

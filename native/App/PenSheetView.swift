@@ -124,7 +124,16 @@ struct PenSheetView: UIViewRepresentable {
         // The bullets' tap targets, over the ink (the finger taps them; the pen keeps writing).
         let bullets = PassThroughView()
         canvas.addSubview(bullets)
+        // A drawing selected with the finger (lasso tool): its outline and the corner handle that resizes it.
+        let paint = PaintSelectionView()
+        canvas.addSubview(paint)
         let coordinator = context.coordinator
+        coordinator.paintSelection = paint
+        paint.onResize = { [weak coordinator] k in coordinator?.resizeSelectedPaint(k) }
+        let finger = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.fingerTapped(_:)))
+        finger.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        finger.cancelsTouchesInView = false
+        canvas.addGestureRecognizer(finger)
         coordinator.canvas = canvas
         coordinator.sheet = sheet
         coordinator.bullets = bullets
@@ -170,6 +179,8 @@ struct PenSheetView: UIViewRepresentable {
             c.toolKey = toolKey
             canvas.tool = c.pkTool()
             if tool != .lasso && c.stale { c.render() }
+            if tool != .lasso { c.selectedPaint = nil }
+            c.layoutPaintSelection()
         }
         c.sheet?.showsRules = tool != .draw
         if c.lines != lines {
@@ -226,6 +237,9 @@ struct PenSheetView: UIViewRepresentable {
         weak var canvas: SheetCanvas?
         weak var sheet: SheetBackground?
         weak var bullets: PassThroughView?
+        weak var paintSelection: PaintSelectionView?
+        /// The drawing selected for resizing (the id of its first entry), only while the lasso is the tool.
+        var selectedPaint: String?
         var lines: [Line] = []
         var blocks: [PlacedBlock] = []
         /// Who owns each stroke on the canvas, in the canvas's order.
@@ -304,7 +318,48 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         /// The sheet behind the ink (rules and typed lines), and room below the last line to keep writing.
-        func layoutSheet() { PenPerf.measure("layoutSheet") { layoutSheetNow() } }
+        func layoutSheet() {
+            PenPerf.measure("layoutSheet") { layoutSheetNow() }
+            layoutPaintSelection()
+        }
+
+        // MARK: Resizing a drawing (finger, lasso tool)
+
+        private func figure(_ id: String) -> PaintFigure? {
+            PaintFigures.figures(lines, blocks: blocks).first { $0.primary == id }
+        }
+
+        @objc func fingerTapped(_ g: UITapGestureRecognizer) {
+            guard parent.tool == .lasso, let canvas else {
+                if selectedPaint != nil { selectedPaint = nil; layoutPaintSelection() }
+                return
+            }
+            let at = g.location(in: canvas)
+            let hit = PaintFigures.hit(
+                PaintFigures.figures(lines, blocks: blocks), x: Double(at.x), y: Double(at.y), tolerance: Double(22 / penZoom))
+            selectedPaint = hit?.primary
+            layoutPaintSelection()
+        }
+
+        func layoutPaintSelection() {
+            guard let view = paintSelection, let id = selectedPaint, parent.tool == .lasso, let f = figure(id) else {
+                if selectedPaint != nil && parent.tool != .lasso { selectedPaint = nil }
+                paintSelection?.show(box: nil, zoom: penZoom)
+                return
+            }
+            view.frame = canvas?.sheetFrame ?? view.frame
+            view.show(box: CGRect(x: f.box.x0, y: f.box.y0, width: f.box.x1 - f.box.x0, height: f.box.y1 - f.box.y0), zoom: penZoom)
+        }
+
+        /// The handle was let go: the picture is resized (one Undo step), its pieces joined into one entry.
+        func resizeSelectedPaint(_ factor: CGFloat) {
+            guard let id = selectedPaint, let f = figure(id), abs(factor - 1) > 0.02 else { return layoutPaintSelection() }
+            remember()
+            lines = InkPage.resizeFigure(lines, figure: f, factor: Double(factor))
+            lastStroke = nil
+            parent.lines = lines
+            render()
+        }
 
         /// What `show` and `layoutBullets` draw depends only on this: when it is the same as last time (a stroke
         /// added to an open handwritten line, say), the labels and tap targets already there are still right.
@@ -654,6 +709,8 @@ struct PenSheetView: UIViewRepresentable {
 
 /// A canvas that tells when its width changes (the page is laid out again).
 final class SheetCanvas: PKCanvasView {
+    /// The sheet's size (the page), for views that cover it.
+    var sheetFrame: CGRect { CGRect(origin: .zero, size: contentSize) }
     var onWidthChange: (() -> Void)?
     var onAppearanceChange: (() -> Void)?
     private var lastWidth: CGFloat = 0
@@ -943,5 +1000,85 @@ extension PenSheetView.Coordinator: UIPencilInteractionDelegate {
     @available(iOS 17.5, *)
     func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
         parent.onPencilTap()
+    }
+}
+
+
+/// A drawing selected for resizing in Pen mode: a dashed outline round it and a handle at its bottom-right corner;
+/// dragging the handle (with the finger) previews the new size, and letting go resizes the drawing. Takes no touch but
+/// the handle's, so the pen and the finger's scrolling pass through.
+final class PaintSelectionView: UIView {
+    var onResize: ((CGFloat) -> Void)?
+    private let outline = CAShapeLayer()
+    private let handle = UIView()
+    private let knob = UIView()
+    private var box: CGRect?
+    private var zoom: CGFloat = 1
+    private var start: CGRect = .zero
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        outline.fillColor = nil
+        outline.lineDashPattern = [6, 4]
+        layer.addSublayer(outline)
+        knob.isUserInteractionEnabled = false
+        knob.backgroundColor = .white
+        knob.layer.borderWidth = 1.5
+        handle.addSubview(knob)
+        addSubview(handle)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(drag(_:)))
+        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        handle.addGestureRecognizer(pan)
+        handle.accessibilityLabel = S.resizeDrawing
+        handle.isAccessibilityElement = true
+        isHidden = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func show(box: CGRect?, zoom: CGFloat) {
+        self.box = box
+        self.zoom = zoom
+        isHidden = box == nil
+        guard let box else { return }
+        place(box)
+    }
+
+    /// The outline round `box` and the handle at its corner, at the same size on the screen whatever the page's zoom.
+    private func place(_ box: CGRect) {
+        let accent = Theme.display("task", in: self)
+        outline.strokeColor = accent.cgColor
+        outline.lineWidth = 1.5 / zoom
+        outline.lineDashPattern = [NSNumber(value: 6 / zoom), NSNumber(value: 4 / zoom)]
+        let pad = 6 / zoom
+        outline.path = UIBezierPath(roundedRect: box.insetBy(dx: -pad, dy: -pad), cornerRadius: 8 / zoom).cgPath
+        let side = 44 / zoom
+        handle.frame = CGRect(x: box.maxX + pad - side / 2, y: box.maxY + pad - side / 2, width: side, height: side)
+        let k = 14 / zoom
+        knob.frame = CGRect(x: (side - k) / 2, y: (side - k) / 2, width: k, height: k)
+        knob.layer.cornerRadius = k / 2
+        knob.layer.borderWidth = 1.5 / zoom
+        knob.layer.borderColor = accent.cgColor
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        !isHidden && handle.frame.contains(point)
+    }
+
+    @objc private func drag(_ g: UIPanGestureRecognizer) {
+        guard let box else { return }
+        let t = g.translation(in: self)
+        // The width follows the finger (the picture keeps its proportions); the corner at the top-left stays.
+        let k = min(6, max(0.2, (box.width + t.x) / max(1, box.width)))
+        switch g.state {
+        case .changed:
+            place(CGRect(x: box.minX, y: box.minY, width: box.width * k, height: box.height * k))
+        case .ended:
+            onResize?(k)
+        case .cancelled, .failed:
+            place(box)
+        default: break
+        }
     }
 }
