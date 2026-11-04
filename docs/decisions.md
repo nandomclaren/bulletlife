@@ -730,3 +730,8 @@ Fernando asked for a highlighter as a pen tool, at first with the pen's own colo
 (after the refactor) in CLAUDE.md with the points to settle when it starts (marker ink, the three Fine/Medium/Bold widths, a
 stroke kind of its own that stays out of transcription and out of the line rows like paint, Pen/Type/PDF display, dark mode,
 eraser and lasso). Not started.
+
+Roadmap order (2026-11-04): the highlighter now comes before the refactor (items 1 and 2 swapped). Requirement added: highlighted
+handwriting must appear as `==text==` in the transcription (the editor's existing highlight mark; also in Markdown). Plan: split
+the writing strokes by what the highlight covers, recognise each run, join with `==` around the covered ones; to be checked in a
+prototype against reading accuracy (ML Kit returns text only, no word positions).
