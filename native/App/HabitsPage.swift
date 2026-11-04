@@ -661,7 +661,9 @@ enum HabitInk {
         return drawing.image(from: bounds, scale: UIScreen.main.scale)
     }
 
-    static func pencilTool() -> PKTool { PKInkingTool(penInk, color: Theme.ui("ink"), width: penWidth(defaultPenSize)) }
+    static func pencilTool(in view: UIView?) -> PKTool {
+        PKInkingTool(penInk, color: Theme.display("ink", in: view), width: penWidth(defaultPenSize))
+    }
 }
 
 /// The pen over the habits' names: a stroke on a habit's line joins its name; below the last, a new habit. The
@@ -683,7 +685,8 @@ struct HabitNamesCanvas: UIViewRepresentable {
         canvas.isOpaque = false
         canvas.isScrollEnabled = false
         canvas.delegate = context.coordinator
-        canvas.tool = HabitInk.pencilTool()
+        canvas.overrideUserInterfaceStyle = .light  // see Theme.display
+        canvas.tool = HabitInk.pencilTool(in: canvas)
         let pencil = UIPencilInteraction()
         pencil.delegate = context.coordinator
         canvas.addInteraction(pencil)
@@ -697,15 +700,22 @@ struct HabitNamesCanvas: UIViewRepresentable {
         c.parent = self
         if erasing != c.erasing {
             c.erasing = erasing
-            canvas.tool = erasing ? PKEraserTool(.vector) : HabitInk.pencilTool()
+            canvas.tool = erasing ? PKEraserTool(.vector) : HabitInk.pencilTool(in: canvas)
         }
-        if c.signature != Coordinator.signature(rows) { c.render() }
+        // The ink's colors follow light and dark (the canvas itself is held in the light appearance).
+        let style = canvas.superview?.traitCollection.userInterfaceStyle ?? .unspecified
+        if style != c.style {
+            c.style = style
+            if !erasing { canvas.tool = HabitInk.pencilTool(in: canvas) }
+            c.render()
+        } else if c.signature != Coordinator.signature(rows) { c.render() }
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate, UIPencilInteractionDelegate {
         var parent: HabitNamesCanvas
         weak var canvas: PKCanvasView?
         var erasing = false
+        var style: UIUserInterfaceStyle = .unspecified
         var signature = ""
         /// Who each drawn stroke belongs to (entry id, index in its ink), by the stroke's key.
         private var owners: [(key: String, id: String, index: Int)] = []
@@ -726,7 +736,7 @@ struct HabitNamesCanvas: UIViewRepresentable {
                     var moved = s
                     moved.p = s.p.enumerated().map { j, v in j % 3 == 1 ? v + Double(r) * Double(parent.rowHeight) : v }
                     let pk = PenSheetView.Coordinator.pkStroke(
-                        moved, color: Theme.ui(s.c), date: Date(timeIntervalSinceReferenceDate: Double(strokes.count)))
+                        moved, color: Theme.display(s.c, in: canvas), date: Date(timeIntervalSinceReferenceDate: Double(strokes.count)))
                     strokes.append(pk)
                     owners.append((PenSheetView.Coordinator.key(pk), row.id, i))
                 }
@@ -787,7 +797,8 @@ struct HabitMarksCanvas: UIViewRepresentable {
         canvas.isOpaque = false
         canvas.isScrollEnabled = false
         canvas.delegate = context.coordinator
-        canvas.tool = HabitInk.pencilTool()
+        canvas.overrideUserInterfaceStyle = .light  // see Theme.display
+        canvas.tool = HabitInk.pencilTool(in: canvas)
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         canvas.addGestureRecognizer(tap)

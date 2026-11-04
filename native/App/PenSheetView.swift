@@ -64,6 +64,12 @@ final class PenSheetContainer: UIView {
         super.init(frame: frame)
         clipsToBounds = true
         addSubview(canvas)
+        // The canvas is held in the light appearance (see Theme.display); this view follows the app's, so the ink's
+        // colors are chosen again when light and dark change.
+        canvas.overrideUserInterfaceStyle = .light
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: PenSheetContainer, _: UITraitCollection) in
+            view.canvas.onAppearanceChange?()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -118,6 +124,11 @@ struct PenSheetView: UIViewRepresentable {
         coordinator.sheet = sheet
         coordinator.bullets = bullets
         canvas.onWidthChange = { [weak coordinator] in coordinator?.render() }
+        canvas.onAppearanceChange = { [weak coordinator] in
+            guard let coordinator, let canvas = coordinator.canvas else { return }
+            canvas.tool = coordinator.pkTool()
+            coordinator.render()
+        }
         let pencil = UIPencilInteraction()
         pencil.delegate = coordinator
         canvas.addInteraction(pencil)
@@ -241,7 +252,7 @@ struct PenSheetView: UIViewRepresentable {
             var strokes: [PKStroke] = []
             owners = []
             for (n, ps) in InkPage.strokes(blocks).enumerated() {
-                var tint = ps.stroke.b == true ? Theme.ui(colors[ps.entryId]?.rawValue ?? "ink") : Theme.ui(ps.stroke.c)
+                var tint = ps.stroke.b == true ? Theme.display(colors[ps.entryId]?.rawValue ?? "ink", in: canvas) : Theme.display(ps.stroke.c, in: canvas)
                 // A handwritten line shows its state like a typed one: done and cancelled fade, and the drawn
                 // bullet gives way to ×, > or < (drawn on the sheet).
                 if let l = byId[ps.entryId], States.stateful(l.type, eventStates: parent.eventStates) {
@@ -426,7 +437,7 @@ struct PenSheetView: UIViewRepresentable {
             // The canvas keeps the screen's own resolution: drawn at a higher one (for sharpness on the 75% page) the
             // ink came out a third heavier (2.67 / 2), and thinning the tool to make up for it squeezed the sizes
             // together (Fine and Medium alike).
-            case .write, .draw: return PKInkingTool(penInk, color: Theme.ui(parent.color), width: penWidth(parent.size))
+            case .write, .draw: return PKInkingTool(penInk, color: Theme.display(parent.color, in: canvas), width: penWidth(parent.size))
             }
         }
 
@@ -632,6 +643,7 @@ struct PenSheetView: UIViewRepresentable {
 /// A canvas that tells when its width changes (the page is laid out again).
 final class SheetCanvas: PKCanvasView {
     var onWidthChange: (() -> Void)?
+    var onAppearanceChange: (() -> Void)?
     private var lastWidth: CGFloat = 0
 
     override func layoutSubviews() {

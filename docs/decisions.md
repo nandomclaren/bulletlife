@@ -624,3 +624,13 @@ Delete took the whole paragraph, handwriting included, with no Undo).
 - The bullet menu's Delete is gone for handwritten lines (handwriting is never deleted from Type mode; the Pen's eraser takes it
   away). For other lines it shows "Line deleted" with Undo, which restores the lines (the editor's own undo stack is cleared
   whenever the page changes from outside, which is why Cmd-Z found nothing).
+
+## Native: pen ink in dark mode (2026-11-04)
+On a dark page the pen's black ink was almost invisible: `Theme.ui("ink")` is a dynamic colour (dark in light, light in
+dark) and PencilKit also adapts colours to dark mode on its own, so an already-light ink was inverted again. The pen canvases
+(the Pen page and the Habits names/marks) are now held in the light appearance (`overrideUserInterfaceStyle = .light`, which
+stops PencilKit's own inversion) and every colour they are given is resolved against the app's real appearance
+(`Theme.display(token, in: view)`); the page re-chooses them when light and dark change. Display only: the stored colour is
+still the token (`ink` for the default pen), which is why ink written "white" on a dark page is black on a light page, in
+Type mode previews and in the PDF (`light(stroke.c)`), exactly as written. Not changed: the Habits names' Type-mode picture
+(`HabitInk.image`).

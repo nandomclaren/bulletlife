@@ -91,6 +91,15 @@ enum Theme {
 
     private static var uiCache: [String: UIColor] = [:]
 
+    /// A color as it is to be drawn by a PencilKit canvas shown in `view`'s place: resolved now against the app's
+    /// real appearance (the canvas itself is held in the light appearance so PencilKit does not also invert dark
+    /// colors, which left the ink almost invisible on a dark page). Only for what is shown; what is stored (a
+    /// stroke's color token) and what is printed do not change.
+    static func display(_ token: String, in view: UIView?) -> UIColor {
+        let trait = view?.superview?.traitCollection ?? view?.traitCollection ?? UITraitCollection.current
+        return ui(token).resolvedColor(with: trait)
+    }
+
     private static func bullet(_ k: Int) -> UIColor {
         UIColor { t in
             let c = palette.colors[k]
