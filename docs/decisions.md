@@ -724,3 +724,9 @@ regression. Not started; waits for his go-ahead and a tagged stable version. Pla
 Eraser sizes (2026-11-04): no separate selector. The toolbar's three Fine / Medium / Bold buttons choose the eraser's circle while
 the eraser is the tool (radius 8, 16 and 32 pt on the screen; Medium by default, kept as `eraserSize`) and the pen's width under
 the pen. The popover that opened from the eraser button is gone.
+
+## Roadmap: highlighter (2026-11-04)
+Fernando asked for a highlighter as a pen tool, at first with the pen's own colours, to be tried by feel. Added as roadmap item 2
+(after the refactor) in CLAUDE.md with the points to settle when it starts (marker ink, the three Fine/Medium/Bold widths, a
+stroke kind of its own that stays out of transcription and out of the line rows like paint, Pen/Type/PDF display, dark mode,
+eraser and lasso). Not started.
