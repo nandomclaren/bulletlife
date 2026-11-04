@@ -698,3 +698,10 @@ popover with three circles, Small, Medium (default) and Large (radius 8, 16 and 
 Pen toolbar, selected tool in dark mode (2026-11-04): the disc behind the chosen tool or size used the page's rule colour, which is
 almost the glass's own colour on a dark page. It is now a clearly lighter disc in dark appearances (white at 26%) and the rule
 colour as before in light ones (`PenToolbar.selected`); the eraser's size popover uses it too.
+
+Eraser, fix (2026-11-04): the first version stopped erasing and showed no ring. The overlay chose its touches in `hitTest` by
+`event.allTouches` (the Pencil), which is not reliably filled in at hit-test time, so no touch reached it, and PencilKit's own
+drawing gesture had been switched off. Now the Pencil comes through `EraserGesture`, a recognizer on the canvas that takes the
+Pencil only (UIKit filters the touch types; it goes to `.began` at once so its moves arrive), the overlay only draws the ring and
+takes no touch, and PencilKit's own eraser is left ON beside ours, so erasing can never depend on ours alone (ours adds the
+circle and its size: whatever the circle touches goes).
