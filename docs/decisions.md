@@ -705,3 +705,10 @@ drawing gesture had been switched off. Now the Pencil comes through `EraserGestu
 Pencil only (UIKit filters the touch types; it goes to `.began` at once so its moves arrive), the overlay only draws the ring and
 takes no touch, and PencilKit's own eraser is left ON beside ours, so erasing can never depend on ours alone (ours adds the
 circle and its size: whatever the circle touches goes).
+
+Eraser, second fix (2026-11-04): with the touch-type recognizer the ring showed at a tap but never followed a drag, and dragging
+erased nothing at all: like the Pen lab's recognizer, it heard the start of a stroke and no moves, and (having recognized at
+once) it took the touch from PencilKit's own eraser. The Pencil now comes to `EraserOverlayView` as plain touches of a view
+(`touchesBegan/Moved`, coalesced samples), hit-tested for everything except a touch known for certain to be a finger (the
+event's touches may be unfilled during hit-testing, which counts as the Pencil); no recognizer is added. PencilKit's drawing
+gesture stays ON beside it, so erasing never depends on the overlay.

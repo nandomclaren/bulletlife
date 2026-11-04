@@ -137,15 +137,8 @@ struct PenSheetView: UIViewRepresentable {
         let eraser = EraserOverlayView()
         canvas.addSubview(eraser)
         coordinator.eraserView = eraser
-        let eraserGesture = EraserGesture(target: nil, action: nil)
-        eraserGesture.isEnabled = false
-        eraserGesture.onSamples = { [weak coordinator] points in coordinator?.eraserMoved(points) }
-        eraserGesture.onEnd = { [weak coordinator] in
-            coordinator?.eraseOpen = false
-            coordinator?.eraserView?.hideRing()
-        }
-        canvas.addGestureRecognizer(eraserGesture)
-        coordinator.eraserGesture = eraserGesture
+        eraser.onSamples = { [weak coordinator] points in coordinator?.eraserMoved(points) }
+        eraser.onEnd = { [weak coordinator] in coordinator?.eraseOpen = false }
         canvas.addGestureRecognizer(UIHoverGestureRecognizer(target: coordinator, action: #selector(Coordinator.hovered(_:))))
         let finger = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.fingerTapped(_:)))
         finger.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
@@ -257,7 +250,6 @@ struct PenSheetView: UIViewRepresentable {
         weak var bullets: PassThroughView?
         weak var paintSelection: PaintSelectionView?
         weak var eraserView: EraserOverlayView?
-        weak var eraserGesture: EraserGesture?
         /// One Undo step for a whole stroke of the eraser: the first thing it takes opens it.
         var eraseOpen = false
         /// The drawing selected for resizing (the id of its first entry), only while the lasso is the tool.
@@ -351,12 +343,12 @@ struct PenSheetView: UIViewRepresentable {
         /// The circle's radius on the screen, for each size.
         static let eraserRadii: [CGFloat] = [8, 16, 32]
 
-        /// Under the eraser our gesture adds the circle and its size to the Pencil's touches; PencilKit's own eraser
-        /// stays on beside it, so erasing never depends on ours (it only takes more, within the circle).
+        /// Under the eraser the overlay adds the ring and its size to the Pencil's touches; PencilKit's own eraser stays on
+        /// beside it (erasing never depends on the overlay: if PencilKit takes a touch from it mid-stroke, the ring is
+        /// lost, not the erasing). Under any other tool the overlay is hidden.
         func applyEraser() {
             let on = parent.tool == .erase
             canvas?.drawingGestureRecognizer.isEnabled = true
-            eraserGesture?.isEnabled = on
             guard let view = eraserView else { return }
             view.isHidden = !on
             if let canvas { view.frame = canvas.sheetFrame }
@@ -1220,14 +1212,18 @@ final class PaintSelectionView: UIView {
 }
 
 
-/// The eraser's ring, shown where it erases. It takes no touch (the Pencil's come through `EraserGesture`).
+/// The eraser: a ring where it erases, and the Apple Pencil's touches while it is the tool. Received as plain touches of
+/// a view (the way a drawing view gets the Pencil, coalesced samples included): a recognizer beside PencilKit's got the
+/// start of a stroke only, never its moves. It leaves a finger to the page (it scrolls, taps the bullets) whenever the
+/// touch is known to be one; what the ring touches is reported to the page, which takes those strokes off.
 final class EraserOverlayView: UIView {
+    var onSamples: (([CGPoint]) -> Void)?
+    var onEnd: (() -> Void)?
     private let ring = CAShapeLayer()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
-        isUserInteractionEnabled = false
         isHidden = true
         ring.actions = ["position": NSNull(), "bounds": NSNull(), "path": NSNull(), "hidden": NSNull()]
         ring.isHidden = true
@@ -1251,45 +1247,48 @@ final class EraserOverlayView: UIView {
     }
 
     func hideRing() { ring.isHidden = true }
-}
 
-/// The Apple Pencil's touches for the eraser, on the canvas: a recognizer that takes the Pencil only (UIKit filters the
-/// touch types, so no hit-testing is involved; a finger scrolls as usual) and reports every sample, coalesced.
-final class EraserGesture: UIGestureRecognizer {
-    var onSamples: (([CGPoint]) -> Void)?
-    var onEnd: (() -> Void)?
-
-    override init(target: Any?, action: Selector?) {
-        super.init(target: target, action: action)
-        allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
-        cancelsTouchesInView = false
-        delaysTouchesBegan = false
-        delaysTouchesEnded = false
+    /// Not a finger: the touch is taken unless the event says, for certain, that it is only fingers (the event's touches
+    /// may not be filled in yet while it is hit-tested, so "unknown" counts as the Pencil).
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, bounds.contains(point) else { return nil }
+        if let touches = event?.allTouches, !touches.isEmpty, !touches.contains(where: { $0.type == .pencil }) { return nil }
+        return self
     }
 
-    private func report(_ touches: Set<UITouch>, _ event: UIEvent) {
-        guard let t = touches.first, let view else { return }
-        let samples = (event.coalescedTouches(for: t) ?? [t]).map { $0.location(in: view) }
-        if !samples.isEmpty { onSamples?(samples) }
+    private func pencil(_ touches: Set<UITouch>) -> UITouch? { touches.first { $0.type == .pencil } }
+
+    private func handle(_ t: UITouch, _ event: UIEvent?) {
+        // Every sample the Pencil made since the last event, so a quick swipe misses nothing.
+        let samples = (event?.coalescedTouches(for: t) ?? [t]).map { $0.location(in: self) }
+        guard let last = samples.last else { return }
+        showRing(at: last)
+        onSamples?(samples)
     }
 
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
-        state = .began
-        report(touches, event)
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let t = pencil(touches) { handle(t, event) } else { super.touchesBegan(touches, with: event) }
     }
 
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
-        if state == .began || state == .changed { state = .changed }
-        report(touches, event)
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let t = pencil(touches) { handle(t, event) } else { super.touchesMoved(touches, with: event) }
     }
 
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
-        if state == .began || state == .changed { state = .ended }
-        onEnd?()
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if pencil(touches) != nil {
+            hideRing()
+            onEnd?()
+        } else {
+            super.touchesEnded(touches, with: event)
+        }
     }
 
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
-        if state == .began || state == .changed { state = .cancelled }
-        onEnd?()
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if pencil(touches) != nil {
+            hideRing()
+            onEnd?()
+        } else {
+            super.touchesCancelled(touches, with: event)
+        }
     }
 }
