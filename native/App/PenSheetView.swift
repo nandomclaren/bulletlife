@@ -969,6 +969,11 @@ struct PenToolbar: View {
     /// Write or Draw, whichever was last: a size or color picked under the eraser or lasso goes back to it.
     @State private var lastInking: PenTool = .write
 
+    /// What marks the chosen tool or size: the page's rule color on a light page; on a dark one a clearly lighter disc, as
+    /// the rule color nearly vanished against the dark glass.
+    static let selected = Color(
+        uiColor: UIColor { t in t.userInterfaceStyle == .dark ? UIColor.white.withAlphaComponent(0.26) : Theme.ui("rule").resolvedColor(with: t) })
+
     /// Sizes and colors belong to Write and Draw; under the eraser or lasso none is shown as chosen (they
     /// come back as they were).
     private var inking: Bool { tool == .write || tool == .draw }
@@ -983,7 +988,7 @@ struct PenToolbar: View {
             } label: {
                 Image(systemName: "eraser")
                     .frame(width: 40, height: 40)
-                    .background(tool == .erase ? Theme.rule : Color.clear, in: Circle())
+                    .background(tool == .erase ? Self.selected : Color.clear, in: Circle())
                     .contentShape(Circle())
             }
             .accessibilityLabel(S.eraser)
@@ -998,7 +1003,7 @@ struct PenToolbar: View {
                                 .stroke(Theme.text, lineWidth: 1.5)
                                 .frame(width: CGFloat([10, 18, 30][i]), height: CGFloat([10, 18, 30][i]))
                                 .frame(width: 44, height: 44)
-                                .background(eraserSize == i ? Theme.rule : Color.clear, in: Circle())
+                                .background(eraserSize == i ? Self.selected : Color.clear, in: Circle())
                                 .contentShape(Circle())
                         }
                         .accessibilityLabel(S.eraserSizes[i])
@@ -1018,7 +1023,7 @@ struct PenToolbar: View {
                         .fill(Theme.text)
                         .frame(width: 18, height: CGFloat(s))
                         .frame(width: 36, height: 36)
-                        .background(inking && size == s ? Theme.rule : Color.clear, in: Circle())
+                        .background(inking && size == s ? Self.selected : Color.clear, in: Circle())
                         .contentShape(Circle())  // the whole circle takes the tap, not just the thin line
                 }
                 .accessibilityLabel(S.sizes[i])
@@ -1063,7 +1068,7 @@ struct PenToolbar: View {
         } label: {
             Image(systemName: icon)
                 .frame(width: 40, height: 40)
-                .background(tool == t ? Theme.rule : Color.clear, in: Circle())
+                .background(tool == t ? Self.selected : Color.clear, in: Circle())
                 .contentShape(Circle())
         }
         .accessibilityLabel(label)

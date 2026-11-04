@@ -694,3 +694,7 @@ Undo step for a whole movement of the pencil. PencilKit's own drawing gesture (`
 the eraser is the tool and back on for any other. Tapping the eraser in the toolbar when it is already the tool opens a small
 popover with three circles, Small, Medium (default) and Large (radius 8, 16 and 32 pt on the screen, kept on the device as
 `eraserSize`). The Habits names' eraser (the Pencil's double tap) is unchanged.
+
+Pen toolbar, selected tool in dark mode (2026-11-04): the disc behind the chosen tool or size used the page's rule colour, which is
+almost the glass's own colour on a dark page. It is now a clearly lighter disc in dark appearances (white at 26%) and the rule
+colour as before in light ones (`PenToolbar.selected`); the eraser's size popover uses it too.
