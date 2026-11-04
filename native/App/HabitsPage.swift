@@ -89,20 +89,20 @@ struct HabitsPage: View {
                 }
                 .background(
                     GeometryReader { g in
-                        Color.clear.preference(key: HabitsGridTop.self, value: g.frame(in: .global).minY)
+                        Color.clear.preference(key: HabitsGridTop.self, value: HabitsGridTop.Value(grid: g.frame(in: .global).minY))
                     })
-                .onPreferenceChange(HabitsGridTop.self) { pin.measured(grid: $0) }
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
             .padding(.bottom, 120)
+            .background(
+                GeometryReader { g in
+                    Color.clear.preference(key: HabitsGridTop.self, value: HabitsGridTop.Value(content: g.frame(in: .global).minY))
+                })
         }
-        .background(
-            GeometryReader { g in
-                Color.clear.preference(key: ScrollViewTop.self, value: g.frame(in: .global).minY)
-            }
-        )
-        .onPreferenceChange(ScrollViewTop.self) { pin.scrollTop = $0; pin.recompute() }
+        // Both are read in the same pass, so their difference (where the grid starts in the page's content) is the
+        // same wherever the page is scrolled, whenever it is read.
+        .onPreferenceChange(HabitsGridTop.self) { pin.measured(from: $0) }
         .modifier(ScrolledReader { offset, inset in pin.scrolled(offset, inset: inset) })
         .onChange(of: rows.count, initial: true) {
             // The days stay pinned only while the habits' rows are under them.
@@ -925,10 +925,19 @@ struct NoteEditor: View {
     }
 }
 
-/// Where the habits grid's top is in the page as it scrolls.
+/// The habits grid's top and the page content's top on the screen, read in the same layout pass.
 struct HabitsGridTop: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    struct Value: Equatable {
+        var grid: CGFloat?
+        var content: CGFloat?
+    }
+
+    static var defaultValue = Value()
+    static func reduce(value: inout Value, nextValue: () -> Value) {
+        let next = nextValue()
+        if let g = next.grid { value.grid = g }
+        if let c = next.content { value.content = c }
+    }
 }
 
 /// How far the days' header is held down so it stays at the top while the habits scroll under it. It is a class that
@@ -937,29 +946,24 @@ final class HabitsPin: ObservableObject {
     @Published private(set) var shift: CGFloat = 0
     var offset: CGFloat?
     var inset: CGFloat = 0
-    var scrollTop: CGFloat = 0
-    var gridTop: CGFloat?
-    var offsetWhenMeasured: CGFloat?
+    /// Where the grid starts in the page's content.
+    var gridInContent: CGFloat?
     var maxShift: CGFloat = 0
 
     func scrolled(_ o: CGFloat, inset i: CGFloat) {
         offset = o
         inset = i
-        if offsetWhenMeasured == nil { offsetWhenMeasured = o }
         recompute()
     }
 
-    /// The grid's top on the screen, as laid out now (with the offset at that moment: together, where it starts in the
-    /// page's content).
-    func measured(grid: CGFloat) {
-        gridTop = grid
-        offsetWhenMeasured = offset
+    func measured(from top: HabitsGridTop.Value) {
+        guard let grid = top.grid, let content = top.content else { return }
+        gridInContent = grid - content
         recompute()
     }
 
     func recompute() {
-        guard let offset, let grid = gridTop, let then = offsetWhenMeasured else { return }
-        let gridInContent = grid - scrollTop + then
+        guard let offset, let gridInContent else { return }
         // The days stay just below the top inset, where the page starts to show.
         let value = min(max(0, offset + inset - gridInContent), maxShift).rounded()
         if value != shift { shift = value }
@@ -977,11 +981,6 @@ struct PinnedHeader: ViewModifier {
     }
 }
 
-/// Where a scroll view's top is on the screen.
-struct ScrollViewTop: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
 
 /// A scroll view's own offset and top inset (iOS 18 and later; nothing is reported before).
 struct ScrolledReader: ViewModifier {

@@ -665,3 +665,10 @@ Habits, pinned header, second round (2026-11-04): the header stuck at a fixed wr
 - Weight: the offset changes at every frame of a scroll; as the page's `@State` it rebuilt the whole page (names, cells,
   marks) for each frame. It lives in `HabitsPin`, a class held in `@State` but never observed by the page; only the
   `PinnedHeader` modifier on the two headers re-reads `shift`, so the rest of the page does nothing while scrolling.
+
+Habits, pinned header, third round (2026-11-04): pairing a screen position read at layout time with the scroll offset read at
+another instant gave a wrong "where the grid starts" (the header dropped about 130 pt with the page barely scrolled).
+Now two anchors are read in the same layout pass, in screen coordinates: the page content's top (a background on the
+scrolled content) and the grid's top; their difference is where the grid starts in the content, the same wherever the
+page is scrolled and whenever it is read. The pin is `offset + inset - gridInContent`, clamped, with the offset from
+`onScrollGeometryChange` only.
