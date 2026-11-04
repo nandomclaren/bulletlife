@@ -41,13 +41,13 @@ struct HabitsPage: View {
     @State private var sharing: [Any]?
     /// How far the grid's top has scrolled past the top of the page: the days' header moves down by as much, so
     /// it stays in view however many habits there are.
-    @State private var scrolled: CGFloat = 0
-    /// Where the grid starts in the page's content (it does not change as the page scrolls).
-    @State private var gridTop: CGFloat = 0
-    private var pinShift: CGFloat {
-        let rowsHeight = CGFloat(rows.count + (role != .second ? 1 : 0)) * rowHeight
-        return min(max(0, scrolled - gridTop), max(0, rowsHeight - rowHeight))
-    }
+    /// The scroll view's own offset and top inset (iOS 18 and later), the scroll view's and the grid's top on the screen
+    /// when last laid out, and the offset then: together they give where the grid starts in the page's content, which
+    /// does not change as the page scrolls. (Measuring the grid's position live while scrolling did not update on the
+    /// iPad, and a named coordinate space did not resolve to the scroll view.)
+    /// Held in a plain object that only the two pinned headers watch: the offset changes at every frame of a scroll, and
+    /// keeping it in this view's state made the whole page (names, cells, marks) build again for each one.
+    @State private var pin = HabitsPin()
     @AppStorage("penMode") private var penOn = false
     @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
     @ObservedObject private var handwriting = Handwriting.shared
@@ -89,25 +89,26 @@ struct HabitsPage: View {
                 }
                 .background(
                     GeometryReader { g in
-                        // Where the grid is in the page's content (from the content's top: steady while scrolling), and
-                        // in the scroll view (moving), for systems that cannot read the scroll offset directly.
-                        Color.clear.preference(
-                            key: HabitsGridTop.self,
-                            value: HabitsGridTop.Value(content: g.frame(in: .named("habitsContent")).minY, page: g.frame(in: .named("habitsPage")).minY))
+                        Color.clear.preference(key: HabitsGridTop.self, value: g.frame(in: .global).minY)
                     })
-                .onPreferenceChange(HabitsGridTop.self) { top in
-                    gridTop = top.content
-                    // Before iOS 18 the scroll offset comes from where the grid is in the scroll view.
-                    if #unavailable(iOS 18.0) { scrolled = top.content - top.page }
-                }
+                .onPreferenceChange(HabitsGridTop.self) { pin.measured(grid: $0) }
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
             .padding(.bottom, 120)
-            .coordinateSpace(name: "habitsContent")
         }
-        .coordinateSpace(name: "habitsPage")
-        .modifier(ScrolledReader(scrolled: $scrolled))
+        .background(
+            GeometryReader { g in
+                Color.clear.preference(key: ScrollViewTop.self, value: g.frame(in: .global).minY)
+            }
+        )
+        .onPreferenceChange(ScrollViewTop.self) { pin.scrollTop = $0; pin.recompute() }
+        .modifier(ScrolledReader { offset, inset in pin.scrolled(offset, inset: inset) })
+        .onChange(of: rows.count, initial: true) {
+            // The days stay pinned only while the habits' rows are under them.
+            pin.maxShift = max(0, CGFloat(rows.count + (role != .second ? 1 : 0)) * rowHeight - rowHeight)
+            pin.recompute()
+        }
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.paper)
         .onAppear {
@@ -240,7 +241,7 @@ struct HabitsPage: View {
     private var names: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Paper over the names that scroll under the pinned days' header.
-            Theme.paper.frame(height: headerHeight).offset(y: pinShift).zIndex(1)
+            Theme.paper.frame(height: headerHeight).modifier(PinnedHeader(pin: pin, rule: false)).zIndex(1)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     nameCell(row)
@@ -430,8 +431,7 @@ struct HabitsPage: View {
             }
             // Pinned: it follows the page down while the habits scroll under it.
             .background(Theme.paper)
-            .overlay(alignment: .bottom) { if pinShift > 0 { Theme.rule.frame(height: 1) } }
-            .offset(y: pinShift)
+            .modifier(PinnedHeader(pin: pin, rule: true))
             .zIndex(1)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
@@ -927,22 +927,70 @@ struct NoteEditor: View {
 
 /// Where the habits grid's top is in the page as it scrolls.
 struct HabitsGridTop: PreferenceKey {
-    struct Value: Equatable {
-        var content: CGFloat = 0
-        var page: CGFloat = 0
-    }
-    static var defaultValue = Value()
-    static func reduce(value: inout Value, nextValue: () -> Value) { value = nextValue() }
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
-/// How far a scroll view has been scrolled, from the scroll view itself (iOS 18 and later).
+/// How far the days' header is held down so it stays at the top while the habits scroll under it. It is a class that
+/// is not observed by the page: only `PinnedHeader` (on the two headers) re-reads `shift`.
+final class HabitsPin: ObservableObject {
+    @Published private(set) var shift: CGFloat = 0
+    var offset: CGFloat?
+    var inset: CGFloat = 0
+    var scrollTop: CGFloat = 0
+    var gridTop: CGFloat?
+    var offsetWhenMeasured: CGFloat?
+    var maxShift: CGFloat = 0
+
+    func scrolled(_ o: CGFloat, inset i: CGFloat) {
+        offset = o
+        inset = i
+        if offsetWhenMeasured == nil { offsetWhenMeasured = o }
+        recompute()
+    }
+
+    /// The grid's top on the screen, as laid out now (with the offset at that moment: together, where it starts in the
+    /// page's content).
+    func measured(grid: CGFloat) {
+        gridTop = grid
+        offsetWhenMeasured = offset
+        recompute()
+    }
+
+    func recompute() {
+        guard let offset, let grid = gridTop, let then = offsetWhenMeasured else { return }
+        let gridInContent = grid - scrollTop + then
+        // The days stay just below the top inset, where the page starts to show.
+        let value = min(max(0, offset + inset - gridInContent), maxShift).rounded()
+        if value != shift { shift = value }
+    }
+}
+
+struct PinnedHeader: ViewModifier {
+    @ObservedObject var pin: HabitsPin
+    let rule: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .bottom) { if rule && pin.shift > 0 { Theme.rule.frame(height: 1) } }
+            .offset(y: pin.shift)
+    }
+}
+
+/// Where a scroll view's top is on the screen.
+struct ScrollViewTop: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// A scroll view's own offset and top inset (iOS 18 and later; nothing is reported before).
 struct ScrolledReader: ViewModifier {
-    @Binding var scrolled: CGFloat
+    let changed: (CGFloat, CGFloat) -> Void
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, new in
-                scrolled = new
+            content.onScrollGeometryChange(for: [CGFloat].self) { [$0.contentOffset.y, $0.contentInsets.top] } action: { _, new in
+                changed(new[0], new[1])
             }
         } else {
             content

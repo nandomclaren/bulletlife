@@ -655,3 +655,13 @@ pin followed a `GeometryReader` frame read in the scroll view's coordinate space
 It now follows the scroll view's own offset (`onScrollGeometryChange`, iOS 18 and later: `contentOffset.y + contentInsets.top`)
 against where the grid starts in the page's content (measured once, in a coordinate space inside the content, so it
 does not move). The old frame measure remains only for systems before iOS 18.
+
+Habits, pinned header, second round (2026-11-04): the header stuck at a fixed wrong height, and scrolling became heavy.
+- Position: the named coordinate spaces did not resolve to the scroll view (frames came back in screen coordinates), so the
+  grid's top was taken as a screen position and the header pinned late by a constant. Now the scroll view's top and the
+  grid's top are both read in screen coordinates (`.global`) when the page is laid out, together with the scroll offset at
+  that moment, which gives where the grid starts in the page's content; the pin is then `offset + inset - gridInContent`,
+  clamped to the habits' rows, so the days stay just below the top inset.
+- Weight: the offset changes at every frame of a scroll; as the page's `@State` it rebuilt the whole page (names, cells,
+  marks) for each frame. It lives in `HabitsPin`, a class held in `@State` but never observed by the page; only the
+  `PinnedHeader` modifier on the two headers re-reads `shift`, so the rest of the page does nothing while scrolling.
