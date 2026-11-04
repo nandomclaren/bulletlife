@@ -341,6 +341,9 @@ enum S {
     static let deleteNote = "Delete note"
     static let save = "Save"
     static func daysToFill(_ n: Int) -> String { n == 1 ? "1 day to fill" : "\(n) days to fill" }
+    static func daysToWrite(_ n: Int) -> String { n == 1 ? "1 day to write" : "\(n) days to write" }
+    static let monthDaysPrompt = "Month days in Open items"
+    static let monthDaysHint = "A day of the Month with nothing written in it appears in Open items once it has passed, and today from the Close the day time."
     static let name = "Name"
     static let create = "Create"
     static let cancel = "Cancel"

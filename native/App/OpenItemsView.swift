@@ -14,6 +14,7 @@ struct OpenItemsButton: View {
     /// read again a few seconds after the last change, and never while the pen is on the page.
     @State private var count = 0
     @State private var refresh: Task<Void, Never>?
+    @AppStorage("openMonthDays") private var monthDaysSetting = true
     @AppStorage("eventStates") private var eventStates = true
     @AppStorage("firstDay") private var firstDay = 1
     /// Settings: the count can be hidden.
@@ -24,13 +25,14 @@ struct OpenItemsButton: View {
     /// Read and counted off the main thread, on a context of its own.
     private func recount() {
         let container = context.container
-        let (events, first, due, today) = (eventStates, firstDay, Habits.todayDue, Dates.today())
+        let (events, first, due, today, monthOn) = (eventStates, firstDay, Habits.todayDue, Dates.today(), MonthDays.enabled)
         Task {
             await PenState.idle()
             let n = await Task.detached(priority: .utility) { () -> Int in
                 let snap = NotebookReader.read(container)
                 let habits = Habits.pending(snap.entries, habitLogIds: snap.habitLogIds, today: today, todayDue: due).count
-                return OpenItems.items(snap.entries, eventStates: events, firstDay: first, today: today).count + habits
+                let month = monthOn && MonthDays.toWrite(snap.entries, today: today, todayDue: due) != nil ? 1 : 0
+                return OpenItems.items(snap.entries, eventStates: events, firstDay: first, today: today).count + habits + month
             }.value
             await PenState.idle()
             count = n
@@ -65,6 +67,15 @@ struct OpenItemsButton: View {
         .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { _ in recount(after: 0.3) }
         .onChange(of: eventStates) { recount() }
         .onChange(of: firstDay) { recount() }
+        .onChange(of: monthDaysSetting) { recount() }
+    }
+}
+
+extension MonthDays {
+    /// Settings: the Month's empty days in Open items (on by default; only while the Month log is on).
+    static var enabled: Bool {
+        let d = UserDefaults.standard
+        return (d.object(forKey: "openMonthDays") as? Bool ?? true) && (d.object(forKey: "logMonthly") as? Bool ?? true)
     }
 }
 
@@ -75,6 +86,8 @@ struct OpenItemsPanel: View {
     var open: (OpenItem) -> Void
     /// Opens a Habits collection on a day still to fill.
     var openHabits: (String, String) -> Void = { _, _ in }
+    /// Opens the Month (its year-month) on a day still to write.
+    var openMonth: (String, String) -> Void = { _, _ in }
     @Environment(\.modelContext) private var context
     /// The notebook's entries (without ink), read when the panel opens, at once after a change made from outside a
     /// page (its own taps), and a moment after a page is saved, never with the pen on the glass. A @Query over every
@@ -130,7 +143,35 @@ struct OpenItemsPanel: View {
         let groups = OpenItems.groups(items)
         let titles = Dictionary(repo.collections().map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
         let habits = onlyToday ? [] : Habits.pending(entries, habitLogIds: repo.habitLogIds(), today: today, todayDue: Habits.todayDue)
+        let month = onlyToday || !MonthDays.enabled ? nil : MonthDays.toWrite(entries, today: today, todayDue: Habits.todayDue)
         List {
+            if let m = month {
+                Section {
+                    Button {
+                        openMonth(m.month, m.latest)
+                    } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.task)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(PageView.format(m.month + "-01", "MMMM")).font(Theme.body(16)).foregroundStyle(Theme.text)
+                                Text("\(S.daysToWrite(m.days)) · \(PageView.format(m.latest, "EEE, MMM d"))")
+                                    .font(Theme.body(13))
+                                    .foregroundStyle(Theme.muted)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Text(S.month)
+                        .font(Theme.body(12, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .textCase(nil)
+                }
+            }
             if !habits.isEmpty {
                 Section {
                     ForEach(habits, id: \.logId) { h in
@@ -160,7 +201,7 @@ struct OpenItemsPanel: View {
                         .textCase(nil)
                 }
             }
-            if loaded && groups.isEmpty && habits.isEmpty {
+            if loaded && groups.isEmpty && habits.isEmpty && month == nil {
                 Text(S.nothingOpen)
                     .font(Theme.body(15))
                     .foregroundStyle(Theme.muted)

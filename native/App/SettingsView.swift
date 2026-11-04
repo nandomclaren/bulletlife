@@ -35,6 +35,7 @@ struct SettingsView: View {
     @AppStorage("prefixNote") private var prefixNote = "-"
     @AppStorage("prefixHeading") private var prefixHeading = "#"
     @AppStorage("prefixPriority") private var prefixPriority = "*"
+    @AppStorage("openMonthDays") private var openMonthDays = true
     @AppStorage("closeDay") private var closeDay = true
     @AppStorage("closeDayAt") private var closeDayAt = "20:00"
     @AppStorage("closeDayNotify") private var closeDayNotify = false
@@ -124,6 +125,10 @@ struct SettingsView: View {
             Section {
                 Toggle(S.setupBanner, isOn: $setupBanner)
                 Toggle(S.openCount, isOn: $openCount)
+                if monthly {
+                    Toggle(S.monthDaysPrompt, isOn: $openMonthDays)
+                    Text(S.monthDaysHint).font(.footnote).foregroundStyle(.secondary)
+                }
                 Toggle(S.closeDay, isOn: $closeDay)
                 if closeDay {
                     DatePicker(S.closeDayTime, selection: closeDayTime, displayedComponents: .hourAndMinute)

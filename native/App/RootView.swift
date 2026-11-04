@@ -291,6 +291,12 @@ struct RootView: View {
                         let opener = layout == .two && target != nav.place ? second : nav
                         opener.go(target, highlight: "habits:\(day)", focus: day)
                         if sizeClass == .compact { nav.showOpen = false }
+                    } openMonth: { ym, day in
+                        // The Month with days still to write: that month, scrolled to the latest of them.
+                        let target = Place.time(.month(ym))
+                        let opener = layout == .two && target != nav.place ? second : nav
+                        opener.go(target, focus: day)
+                        if sizeClass == .compact { nav.showOpen = false }
                     }
                     .inspectorColumnWidth(min: 320, ideal: 380, max: 440)
                 }

@@ -639,3 +639,12 @@ The sheet under the ink follows the app's appearance (2026-11-04): holding the p
 the sheet inside it (the dot grid, typed lines) resolve its dynamic colours as light, so the dots were far too bright on a dark
 page. The sheet now carries its own `overrideUserInterfaceStyle`, set from the container's real appearance (when it joins a
 window and whenever light/dark change); only the canvas stays light.
+
+## Month days in Open items (2026-11-04)
+Like a Habits collection's days to fill, the Month's days appear in Open items (`MonthDays.toWrite`, Core, tested; derived,
+never stored): for the month of today, each day with nothing written in its slot (an entry with text) is owed once it has
+passed, and today from the Close the day time (`Habits.todayDue`). Only from the first day of the month with something
+written (a month started late owes nothing before it); a month with nothing written owes only today. One line for the
+Month ("November · 2 days to write · Wed, Nov 4"; a tap opens the Month scrolled to the latest such day) and one in the
+count. Settings: "Month days in Open items" (on by default; shown while the Month log is on); `MonthDays.enabled` reads it
+and the Month log's switch. Not in the Close the day panel (it lists only what is open today), as for habits.

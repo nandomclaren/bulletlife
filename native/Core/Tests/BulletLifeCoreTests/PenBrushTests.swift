@@ -121,3 +121,43 @@ final class MisreadBulletTests: XCTestCase {
         XCTAssertNil(edited.lines[1].ink?.n)
     }
 }
+
+final class MonthDaysTests: XCTestCase {
+    private func day(_ iso: String, _ text: String) -> Entry {
+        Entry(id: iso + text, logId: Period.month(Dates.monthOf(iso)).logId, slot: iso, order: "a0", createdAt: "", updatedAt: "")
+            .withText(text)
+    }
+
+    func testPastEmptyDaysAndTodayOnlyAtCheckInTime() {
+        let entries = [day("2026-11-01", "a"), day("2026-11-02", "b"), day("2026-11-04", "d")]
+        // Today is the 6th: the 3rd and the 5th are owed; today only once it is time.
+        let early = MonthDays.toWrite(entries, today: "2026-11-06", todayDue: false)
+        XCTAssertEqual(early, MonthDays.Pending(month: "2026-11", days: 2, latest: "2026-11-05"))
+        let late = MonthDays.toWrite(entries, today: "2026-11-06", todayDue: true)
+        XCTAssertEqual(late, MonthDays.Pending(month: "2026-11", days: 3, latest: "2026-11-06"))
+    }
+
+    func testNothingOwedWhenTodayIsWrittenAndNoDayBeforeTheFirstWrittenOne() {
+        let entries = [day("2026-11-04", "d"), day("2026-11-05", "  ")]
+        // The 1st-3rd are before the first written day: not owed; the 5th holds only blanks.
+        let p = MonthDays.toWrite(entries, today: "2026-11-05", todayDue: false)
+        XCTAssertNil(p)
+        XCTAssertEqual(MonthDays.toWrite(entries, today: "2026-11-05", todayDue: true)?.days, 1)
+        XCTAssertNil(MonthDays.toWrite([day("2026-11-05", "x")], today: "2026-11-05", todayDue: true))
+    }
+
+    func testAnEmptyMonthOwesOnlyToday() {
+        XCTAssertNil(MonthDays.toWrite([], today: "2026-11-09", todayDue: false))
+        XCTAssertEqual(MonthDays.toWrite([], today: "2026-11-09", todayDue: true), MonthDays.Pending(month: "2026-11", days: 1, latest: "2026-11-09"))
+        // Other months' entries do not count.
+        XCTAssertEqual(MonthDays.toWrite([day("2026-10-30", "z")], today: "2026-11-09", todayDue: true)?.days, 1)
+    }
+}
+
+private extension Entry {
+    func withText(_ t: String) -> Entry {
+        var e = self
+        e.text = t
+        return e
+    }
+}
