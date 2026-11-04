@@ -715,3 +715,8 @@ gesture stays ON beside it, so erasing never depends on the overlay.
 
 Eraser ring, more visible (2026-11-04): full-strength line (2.5 pt on the screen), a 22% tint inside and a thin dark edge, since
 the first ring (70% line, 8% tint) was too faint on dark pages.
+
+## Roadmap: full refactor first (2026-11-04)
+Fernando asked for a complete refactor as the most immediate item of the native roadmap (CLAUDE.md section 17, item 1): a
+smaller, faster, more readable and editable code base, with NO change of functionality, backed by complete tests against
+regression. Not started; waits for his go-ahead and a tagged stable version. Plan and rules are in CLAUDE.md.
