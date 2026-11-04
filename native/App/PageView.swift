@@ -32,6 +32,8 @@ struct PageView: View {
     @AppStorage("penMode") private var penOn = false
     @AppStorage("penColor") private var penColor = "ink"
     @AppStorage("penSize") private var penSize = defaultPenSize
+    /// The eraser's circle: 0 small, 1 medium (the default), 2 large.
+    @AppStorage("eraserSize") private var eraserSize = 1
     @State private var penTool: PenTool = .write
     /// The tool before the last change (the Apple Pencil's double tap goes back to it).
     @State private var previousTool: PenTool = .write
@@ -126,7 +128,7 @@ struct PageView: View {
     private var penPage: some View {
         ZStack(alignment: .top) {
             PenSheetView(
-                lines: $lines, tool: penTool, color: penColor, size: penSize, eventStates: eventStates, doneMark: doneMark,
+                lines: $lines, tool: penTool, color: penColor, size: penSize, eraserSize: eraserSize, eventStates: eventStates, doneMark: doneMark,
                 undoRequests: undoRequests, topInset: headerHeight,
                 restore: loadedFor == logId && nav.restore?.place == place ? nav.restore : nil,
                 onScroll: { [place] in nav.remember($0, for: place) },
@@ -140,7 +142,7 @@ struct PageView: View {
         .overlay(alignment: .bottom) {
             // Focus mode: the pen keeps the last tool; the bar comes back with the controls.
             if !focus {
-                PenToolbar(tool: $penTool, color: $penColor, size: $penSize, canUndo: canUndo) { undoRequests += 1 }
+                PenToolbar(tool: $penTool, color: $penColor, size: $penSize, eraserSize: $eraserSize, canUndo: canUndo) { undoRequests += 1 }
                     .padding(.bottom, 16)
             }
         }

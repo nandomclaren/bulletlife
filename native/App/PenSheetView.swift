@@ -94,6 +94,8 @@ struct PenSheetView: UIViewRepresentable {
     var tool: PenTool
     var color: String
     var size: Double
+    /// The eraser's circle: 0 small, 1 medium, 2 large.
+    var eraserSize: Int = 1
     var eventStates: Bool
     var doneMark: String
     /// Bumped by the toolbar's Undo.
@@ -130,6 +132,14 @@ struct PenSheetView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.paintSelection = paint
         paint.onResize = { [weak coordinator] k in coordinator?.resizeSelectedPaint(k) }
+        // The eraser: a circle where it erases, drawn and driven by us (PencilKit's own is switched off while it is the
+        // tool), so its size is ours to choose.
+        let eraser = EraserOverlayView()
+        canvas.addSubview(eraser)
+        coordinator.eraserView = eraser
+        eraser.onErase = { [weak coordinator] points, radius in coordinator?.erase(points: points, radius: radius) }
+        eraser.onEnd = { [weak coordinator] in coordinator?.eraseOpen = false }
+        canvas.addGestureRecognizer(UIHoverGestureRecognizer(target: coordinator, action: #selector(Coordinator.hovered(_:))))
         let finger = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.fingerTapped(_:)))
         finger.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         finger.cancelsTouchesInView = false
@@ -174,13 +184,14 @@ struct PenSheetView: UIViewRepresentable {
         c.parent = self
         setTopInset(canvas, topInset / penZoom)
         // Only when it changes: a new tool would drop the lasso's selection.
-        let toolKey = "\(tool.rawValue)/\(color)/\(size)"
+        let toolKey = "\(tool.rawValue)/\(color)/\(size)/\(eraserSize)"
         if toolKey != c.toolKey {
             c.toolKey = toolKey
             canvas.tool = c.pkTool()
             if tool != .lasso && c.stale { c.render() }
             if tool != .lasso { c.selectedPaint = nil }
             c.layoutPaintSelection()
+            c.applyEraser()
         }
         c.sheet?.showsRules = tool != .draw
         if c.lines != lines {
@@ -238,6 +249,9 @@ struct PenSheetView: UIViewRepresentable {
         weak var sheet: SheetBackground?
         weak var bullets: PassThroughView?
         weak var paintSelection: PaintSelectionView?
+        weak var eraserView: EraserOverlayView?
+        /// One Undo step for a whole stroke of the eraser: the first thing it takes opens it.
+        var eraseOpen = false
         /// The drawing selected for resizing (the id of its first entry), only while the lasso is the tool.
         var selectedPaint: String?
         var lines: [Line] = []
@@ -321,6 +335,74 @@ struct PenSheetView: UIViewRepresentable {
         func layoutSheet() {
             PenPerf.measure("layoutSheet") { layoutSheetNow() }
             layoutPaintSelection()
+            if let canvas, let eraserView, eraserView.frame.size != canvas.contentSize { eraserView.frame = canvas.sheetFrame }
+        }
+
+        // MARK: The eraser (our circle, Pencil only)
+
+        /// The circle's radius on the screen, for each size.
+        static let eraserRadii: [CGFloat] = [8, 16, 32]
+
+        /// Under the eraser the overlay takes the Pencil (PencilKit's own drawing gesture is off); under any other tool
+        /// it is hidden and PencilKit has the Pencil back.
+        func applyEraser() {
+            let on = parent.tool == .erase
+            canvas?.drawingGestureRecognizer.isEnabled = !on
+            guard let view = eraserView else { return }
+            view.isHidden = !on
+            if let canvas { view.frame = canvas.sheetFrame }
+            view.setRadius(Self.eraserRadii[min(max(0, parent.eraserSize), 2)] / penZoom, zoom: penZoom)
+            if !on { view.hideRing() }
+        }
+
+        @objc func hovered(_ g: UIHoverGestureRecognizer) {
+            guard parent.tool == .erase, let canvas, let view = eraserView else { return view_hide() }
+            switch g.state {
+            case .began, .changed: view.showRing(at: g.location(in: canvas))
+            default: view.hideRing()
+            }
+        }
+
+        private func view_hide() { eraserView?.hideRing() }
+
+        /// Strokes the circle touches (at any of the samples, or along a segment between a stroke's points) are taken
+        /// off the page, whole, as the vector eraser did; the whole movement of the pencil is one Undo step.
+        func erase(points: [CGPoint], radius: CGFloat) {
+            guard let canvas, !points.isEmpty else { return }
+            let strokes = canvas.drawing.strokes
+            guard strokes.count == owners.count else { return }
+            var hits: [String: Set<Int>] = [:]
+            for (i, pk) in strokes.enumerated() {
+                let box = pk.renderBounds.insetBy(dx: -radius, dy: -radius)
+                guard points.contains(where: { box.contains($0) }) else { continue }
+                var prev: CGPoint?
+                var touched = false
+                for p in pk.path {
+                    let q = p.location.applying(pk.transform)
+                    if points.contains(where: { Self.distance($0, from: prev ?? q, to: q) <= radius }) {
+                        touched = true
+                        break
+                    }
+                    prev = q
+                }
+                if touched { hits[owners[i].entryId, default: []].insert(owners[i].index) }
+            }
+            guard !hits.isEmpty else { return }
+            if !eraseOpen {
+                remember()
+                eraseOpen = true
+            }
+            lines = InkPage.erase(hits, from: lines)
+            lastStroke = nil
+            parent.lines = lines
+            render()
+        }
+
+        private static func distance(_ p: CGPoint, from a: CGPoint, to b: CGPoint) -> CGFloat {
+            let dx = b.x - a.x, dy = b.y - a.y
+            let len2 = dx * dx + dy * dy
+            let t = len2 == 0 ? 0 : min(1, max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2))
+            return hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
         }
 
         // MARK: Resizing a drawing (finger, lasso tool)
@@ -880,8 +962,10 @@ struct PenToolbar: View {
     @Binding var tool: PenTool
     @Binding var color: String
     @Binding var size: Double
+    @Binding var eraserSize: Int
     let canUndo: Bool
     let onUndo: () -> Void
+    @State private var showEraserSizes = false
     /// Write or Draw, whichever was last: a size or color picked under the eraser or lasso goes back to it.
     @State private var lastInking: PenTool = .write
 
@@ -893,7 +977,36 @@ struct PenToolbar: View {
         HStack(spacing: 4) {
             toolButton(.write, icon: "pencil.tip", label: S.write)
             toolButton(.draw, icon: "scribble", label: S.draw)
-            toolButton(.erase, icon: "eraser", label: S.eraser)
+            // Tapping the eraser when it is already the tool offers its three sizes.
+            Button {
+                if tool == .erase { showEraserSizes = true } else { tool = .erase }
+            } label: {
+                Image(systemName: "eraser")
+                    .frame(width: 40, height: 40)
+                    .background(tool == .erase ? Theme.rule : Color.clear, in: Circle())
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel(S.eraser)
+            .popover(isPresented: $showEraserSizes) {
+                HStack(spacing: 6) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Button {
+                            eraserSize = i
+                            showEraserSizes = false
+                        } label: {
+                            Circle()
+                                .stroke(Theme.text, lineWidth: 1.5)
+                                .frame(width: CGFloat([10, 18, 30][i]), height: CGFloat([10, 18, 30][i]))
+                                .frame(width: 44, height: 44)
+                                .background(eraserSize == i ? Theme.rule : Color.clear, in: Circle())
+                                .contentShape(Circle())
+                        }
+                        .accessibilityLabel(S.eraserSizes[i])
+                    }
+                }
+                .padding(10)
+                .presentationCompactAdaptation(.popover)
+            }
             toolButton(.lasso, icon: "lasso", label: S.lasso)
             Divider().frame(height: 24)
             ForEach(Array(penSizes.enumerated()), id: \.offset) { i, s in
@@ -1079,6 +1192,85 @@ final class PaintSelectionView: UIView {
         case .cancelled, .failed:
             place(box)
         default: break
+        }
+    }
+}
+
+
+/// The eraser: a ring where it erases, and the Apple Pencil's touches while it is the tool. It takes only the Pencil
+/// (the finger passes through to scroll the page); what the ring touches is reported to the page, which takes those
+/// strokes off. The ring also follows the Pencil hovering above the page, on iPads that can tell.
+final class EraserOverlayView: UIView {
+    var onErase: (([CGPoint], CGFloat) -> Void)?
+    var onEnd: (() -> Void)?
+    private let ring = CAShapeLayer()
+    private var radius: CGFloat = 16
+    private var zoom: CGFloat = 1
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isHidden = true
+        ring.actions = ["position": NSNull(), "bounds": NSNull(), "path": NSNull(), "hidden": NSNull()]
+        ring.isHidden = true
+        layer.addSublayer(ring)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func setRadius(_ r: CGFloat, zoom z: CGFloat) {
+        radius = r
+        zoom = z
+        ring.bounds = CGRect(x: 0, y: 0, width: r * 2, height: r * 2)
+        ring.path = UIBezierPath(ovalIn: ring.bounds).cgPath
+        ring.lineWidth = 1.5 / z
+        let tint = Theme.display("text", in: self)
+        ring.strokeColor = tint.withAlphaComponent(0.7).cgColor
+        ring.fillColor = tint.withAlphaComponent(0.08).cgColor
+    }
+
+    func showRing(at p: CGPoint) {
+        ring.position = p
+        ring.isHidden = false
+    }
+
+    func hideRing() { ring.isHidden = true }
+
+    // Only the Apple Pencil: a finger goes through (the page scrolls).
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard !isHidden, let touches = event?.allTouches, touches.contains(where: { $0.type == .pencil }) else { return nil }
+        return bounds.contains(point) ? self : nil
+    }
+
+    private func pencil(_ touches: Set<UITouch>) -> UITouch? { touches.first { $0.type == .pencil } }
+
+    private func handle(_ t: UITouch, _ event: UIEvent?) {
+        // Every sample the Pencil made since the last event, so a quick swipe misses nothing.
+        let samples = (event?.coalescedTouches(for: t) ?? [t]).map { $0.location(in: self) }
+        guard let last = samples.last else { return }
+        showRing(at: last)
+        onErase?(samples, radius)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let t = pencil(touches) { handle(t, event) }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let t = pencil(touches) { handle(t, event) }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if pencil(touches) != nil {
+            hideRing()
+            onEnd?()
+        }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if pencil(touches) != nil {
+            hideRing()
+            onEnd?()
         }
     }
 }

@@ -683,3 +683,14 @@ letting go resizes (`InkPage.resizeFigure`, Core, tested): points scale about th
 by the same factor, pressure untouched, and the pieces of the picture become one entry (the first), so it stays one picture
 in Type mode (whose own size/place, `Ink.view`, are kept). Paint takes no line, so nothing else moves. One Undo step
 (the toolbar's). Tapping elsewhere, or choosing another tool, lets the selection go. Factor limited to 0.2-6.
+
+## Native pen: the eraser with a circle and three sizes (2026-11-04)
+PencilKit's vector eraser shows no circle and has no size, so the eraser is ours while it is the tool (`EraserOverlayView`, a
+layer over the canvas): it takes only the Apple Pencil (the finger passes through and scrolls), draws a ring where the pencil is
+(touching, and hovering on iPads that report it, through a hover recognizer on the canvas), and reports the pencil's samples
+(coalesced, so a quick swipe misses nothing). The page takes off, whole as the vector eraser did, every stroke the ring touches
+(at a sample, or along a segment between a stroke's points; `Coordinator.erase`), through `InkPage.erase` and a redraw, with one
+Undo step for a whole movement of the pencil. PencilKit's own drawing gesture (`drawingGestureRecognizer`) is switched off while
+the eraser is the tool and back on for any other. Tapping the eraser in the toolbar when it is already the tool opens a small
+popover with three circles, Small, Medium (default) and Large (radius 8, 16 and 32 pt on the screen, kept on the device as
+`eraserSize`). The Habits names' eraser (the Pencil's double tap) is unchanged.

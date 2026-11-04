@@ -413,6 +413,8 @@ enum S {
     static let write = "Write"
     static let draw = "Draw"
     static let eraser = "Eraser"
+    static let eraserSizes = ["Small", "Medium", "Large"]
+    static let eraserSize = "Eraser size"
     static let lasso = "Lasso"
     static let undo = "Undo"
     static let deletedLine = "Line deleted"
