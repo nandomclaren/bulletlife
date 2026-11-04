@@ -74,6 +74,11 @@ final class PenSheetContainer: UIView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { canvas.onAppearanceChange?() }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         canvas.transform = .identity
@@ -126,6 +131,13 @@ struct PenSheetView: UIViewRepresentable {
         canvas.onWidthChange = { [weak coordinator] in coordinator?.render() }
         canvas.onAppearanceChange = { [weak coordinator] in
             guard let coordinator, let canvas = coordinator.canvas else { return }
+            // The sheet under the ink (the dots, the typed lines) follows the app's real appearance; only the
+            // canvas is held in the light one.
+            if let style = canvas.superview?.traitCollection.userInterfaceStyle, style != .unspecified,
+                coordinator.sheet?.overrideUserInterfaceStyle != style
+            {
+                coordinator.sheet?.overrideUserInterfaceStyle = style
+            }
             canvas.tool = coordinator.pkTool()
             coordinator.render()
         }

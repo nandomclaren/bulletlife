@@ -634,3 +634,8 @@ stops PencilKit's own inversion) and every colour they are given is resolved aga
 still the token (`ink` for the default pen), which is why ink written "white" on a dark page is black on a light page, in
 Type mode previews and in the PDF (`light(stroke.c)`), exactly as written. Not changed: the Habits names' Type-mode picture
 (`HabitInk.image`).
+
+The sheet under the ink follows the app's appearance (2026-11-04): holding the pen canvas in the light appearance also made
+the sheet inside it (the dot grid, typed lines) resolve its dynamic colours as light, so the dots were far too bright on a dark
+page. The sheet now carries its own `overrideUserInterfaceStyle`, set from the container's real appearance (when it joins a
+window and whenever light/dark change); only the canvas stays light.
