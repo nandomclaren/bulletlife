@@ -975,7 +975,6 @@ struct PenToolbar: View {
     @Binding var eraserSize: Int
     let canUndo: Bool
     let onUndo: () -> Void
-    @State private var showEraserSizes = false
     /// Write or Draw, whichever was last: a size or color picked under the eraser or lasso goes back to it.
     @State private var lastInking: PenTool = .write
 
@@ -992,48 +991,24 @@ struct PenToolbar: View {
         HStack(spacing: 4) {
             toolButton(.write, icon: "pencil.tip", label: S.write)
             toolButton(.draw, icon: "scribble", label: S.draw)
-            // Tapping the eraser when it is already the tool offers its three sizes.
-            Button {
-                if tool == .erase { showEraserSizes = true } else { tool = .erase }
-            } label: {
-                Image(systemName: "eraser")
-                    .frame(width: 40, height: 40)
-                    .background(tool == .erase ? Self.selected : Color.clear, in: Circle())
-                    .contentShape(Circle())
-            }
-            .accessibilityLabel(S.eraser)
-            .popover(isPresented: $showEraserSizes) {
-                HStack(spacing: 6) {
-                    ForEach(0..<3, id: \.self) { i in
-                        Button {
-                            eraserSize = i
-                            showEraserSizes = false
-                        } label: {
-                            Circle()
-                                .stroke(Theme.text, lineWidth: 1.5)
-                                .frame(width: CGFloat([10, 18, 30][i]), height: CGFloat([10, 18, 30][i]))
-                                .frame(width: 44, height: 44)
-                                .background(eraserSize == i ? Self.selected : Color.clear, in: Circle())
-                                .contentShape(Circle())
-                        }
-                        .accessibilityLabel(S.eraserSizes[i])
-                    }
-                }
-                .padding(10)
-                .presentationCompactAdaptation(.popover)
-            }
+            toolButton(.erase, icon: "eraser", label: S.eraser)
             toolButton(.lasso, icon: "lasso", label: S.lasso)
             Divider().frame(height: 24)
             ForEach(Array(penSizes.enumerated()), id: \.offset) { i, s in
                 Button {
-                    size = s
-                    if !inking { tool = lastInking }
+                    // The same three sizes serve the eraser's circle; under the lasso one goes back to the pen.
+                    if tool == .erase {
+                        eraserSize = i
+                    } else {
+                        size = s
+                        if !inking { tool = lastInking }
+                    }
                 } label: {
                     Capsule()
                         .fill(Theme.text)
                         .frame(width: 18, height: CGFloat(s))
                         .frame(width: 36, height: 36)
-                        .background(inking && size == s ? Self.selected : Color.clear, in: Circle())
+                        .background((tool == .erase ? eraserSize == i : inking && size == s) ? Self.selected : Color.clear, in: Circle())
                         .contentShape(Circle())  // the whole circle takes the tap, not just the thin line
                 }
                 .accessibilityLabel(S.sizes[i])
