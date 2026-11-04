@@ -41,7 +41,13 @@ struct HabitsPage: View {
     @State private var sharing: [Any]?
     /// How far the grid's top has scrolled past the top of the page: the days' header moves down by as much, so
     /// it stays in view however many habits there are.
-    @State private var pinShift: CGFloat = 0
+    @State private var scrolled: CGFloat = 0
+    /// Where the grid starts in the page's content (it does not change as the page scrolls).
+    @State private var gridTop: CGFloat = 0
+    private var pinShift: CGFloat {
+        let rowsHeight = CGFloat(rows.count + (role != .second ? 1 : 0)) * rowHeight
+        return min(max(0, scrolled - gridTop), max(0, rowsHeight - rowHeight))
+    }
     @AppStorage("penMode") private var penOn = false
     @AppStorage("handwritingLang") private var handwritingLang = HandwritingLang.ptBR.rawValue
     @ObservedObject private var handwriting = Handwriting.shared
@@ -83,18 +89,25 @@ struct HabitsPage: View {
                 }
                 .background(
                     GeometryReader { g in
-                        Color.clear.preference(key: HabitsGridTop.self, value: g.frame(in: .named("habitsPage")).minY)
+                        // Where the grid is in the page's content (from the content's top: steady while scrolling), and
+                        // in the scroll view (moving), for systems that cannot read the scroll offset directly.
+                        Color.clear.preference(
+                            key: HabitsGridTop.self,
+                            value: HabitsGridTop.Value(content: g.frame(in: .named("habitsContent")).minY, page: g.frame(in: .named("habitsPage")).minY))
                     })
                 .onPreferenceChange(HabitsGridTop.self) { top in
-                    let rowsHeight = CGFloat(rows.count + (role != .second ? 1 : 0)) * rowHeight
-                    pinShift = min(max(0, -top), max(0, rowsHeight - rowHeight))
+                    gridTop = top.content
+                    // Before iOS 18 the scroll offset comes from where the grid is in the scroll view.
+                    if #unavailable(iOS 18.0) { scrolled = top.content - top.page }
                 }
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
             .padding(.bottom, 120)
+            .coordinateSpace(name: "habitsContent")
         }
         .coordinateSpace(name: "habitsPage")
+        .modifier(ScrolledReader(scrolled: $scrolled))
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.paper)
         .onAppear {
@@ -914,6 +927,25 @@ struct NoteEditor: View {
 
 /// Where the habits grid's top is in the page as it scrolls.
 struct HabitsGridTop: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    struct Value: Equatable {
+        var content: CGFloat = 0
+        var page: CGFloat = 0
+    }
+    static var defaultValue = Value()
+    static func reduce(value: inout Value, nextValue: () -> Value) { value = nextValue() }
+}
+
+/// How far a scroll view has been scrolled, from the scroll view itself (iOS 18 and later).
+struct ScrolledReader: ViewModifier {
+    @Binding var scrolled: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, new in
+                scrolled = new
+            }
+        } else {
+            content
+        }
+    }
 }

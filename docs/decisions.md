@@ -648,3 +648,10 @@ written (a month started late owes nothing before it); a month with nothing writ
 Month ("November · 2 days to write · Wed, Nov 4"; a tap opens the Month scrolled to the latest such day) and one in the
 count. Settings: "Month days in Open items" (on by default; shown while the Month log is on); `MonthDays.enabled` reads it
 and the Month log's switch. Not in the Close the day panel (it lists only what is open today), as for habits.
+
+## Habits: the days header pins by the scroll offset (2026-11-04)
+On Fernando's iPad the day numbers and initials did not stay at the top when scrolling down a long list of habits: the
+pin followed a `GeometryReader` frame read in the scroll view's coordinate space, which did not update while scrolling.
+It now follows the scroll view's own offset (`onScrollGeometryChange`, iOS 18 and later: `contentOffset.y + contentInsets.top`)
+against where the grid starts in the page's content (measured once, in a coordinate space inside the content, so it
+does not move). The old frame measure remains only for systems before iOS 18.
