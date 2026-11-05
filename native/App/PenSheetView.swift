@@ -295,7 +295,11 @@ struct PenSheetView: UIViewRepresentable {
             let byId = Dictionary(lines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var strokes: [PKStroke] = []
             owners = []
-            for (n, ps) in InkPage.strokes(blocks).enumerated() {
+            // The highlighter goes on the canvas first, so the writing is drawn over it: the colour shows behind the
+            // letters without touching their line.
+            let every = Array(InkPage.strokes(blocks).enumerated())
+            let ordered = every.filter { $0.element.stroke.k == .highlight } + every.filter { $0.element.stroke.k != .highlight }
+            for (n, ps) in ordered {
                 var tint = ps.stroke.b == true ? Theme.display(colors[ps.entryId]?.rawValue ?? "ink", in: canvas) : Theme.display(ps.stroke.c, in: canvas)
                 // A handwritten line shows its state like a typed one: done and cancelled fade, and the drawn
                 // bullet gives way to ×, > or < (drawn on the sheet).
@@ -692,7 +696,8 @@ struct PenSheetView: UIViewRepresentable {
             // same when the page is drawn again from what is stored.
             let sizes = pk.path.map { Double($0.size.width) }.sorted()
             let median = sizes.isEmpty ? parent.size : sizes[sizes.count / 2]
-            let drawn = (median * 10).rounded() / 10
+            // A marking is stored at the width of the tool: the sizes PencilKit reports for its marker are not the width it paints.
+            let drawn = kind == .highlight ? (Double(highlightWidth(parent.size)) * 10).rounded() / 10 : (median * 10).rounded() / 10
             let fountain = pk.ink.inkType == .pen || pk.ink.inkType == .fountainPen
             // (The highlighter has no calibration: it is stored at the width PencilKit drew it.)
             if kind != .highlight, !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
@@ -736,7 +741,8 @@ struct PenSheetView: UIViewRepresentable {
             let after = InkPage.blocks(lines) { sheet?.typedRows($0, width: width) ?? 1 }
             // Nothing above moved: the canvas already shows the stroke where it belongs; just note its owner.
             let moved = after.contains { b in before[b.id].map { $0 != b.top } ?? false }
-            if moved {
+            if moved || kind == .highlight {
+                // (A marking goes under the writing: the page is drawn again so it takes its place at once.)
                 render()
             } else {
                 blocks = after
@@ -784,7 +790,9 @@ struct PenSheetView: UIViewRepresentable {
         }
 
         static func pkStroke(_ s: Stroke, color: UIColor, date: Date) -> PKStroke {
-            let width = CGFloat(s.s ?? storedDefaultSize)
+            // A marking stored thinner than the finest highlighter (from before its width was kept as the tool's) is drawn
+            // at that width.
+            let width = s.k == .highlight ? max(CGFloat(s.s ?? 0), highlightWidth(penSizes[0])) : CGFloat(s.s ?? storedDefaultSize)
             let nib = s.fountain ? s.w : nil
             var points: [PKStrokePoint] = []
             var i = 0

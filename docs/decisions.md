@@ -764,3 +764,12 @@ the pen's own colours and its Fine/Medium/Bold buttons for the width (`highlight
 - Not in this version: highlighting typed text (a marking over typed lines is paint, floating in Type mode), colours of its own.
 - Unverified on the iPad: how the marker looks (and on dark pages, where the pen's colour is white), and how well reading in stretches
   keeps accuracy (a stretch has less context): the check is on real handwriting.
+
+Highlighter, first test on the iPad (2026-11-05): two problems.
+- A marking turned into a thin line after a few seconds (when the page was drawn again): its stored width was the median of the
+  point sizes PencilKit reports for its marker, which is not the width it paints. It is now stored at the tool's width
+  (`highlightWidth(size)`), and a marking stored thinner than the finest highlighter is drawn at that width (the ones made
+  before the fix).
+- The marking sat over the writing and hurt reading: it is now drawn under it (a bright colour behind the letters that does not
+  touch their stroke). On the Pen canvas the marking strokes go first in the drawing (`renderNow`), and a new one makes the page
+  draw again at once so it takes its place; in Type mode's preview and in the PDF the markings are drawn before the writing too.

@@ -224,12 +224,12 @@ enum PdfExport {
                 let s = w / sheetWidth
                 // Paint lies where it was drawn and takes no line: nothing after it moves down.
                 if ink.isPaint && l.text.isEmpty {
-                    for stroke in ink.strokes { drawStroke(stroke, type: color, x: x, y: y, scale: s) }
+                    for stroke in ink.strokes.filter({ $0.k == .highlight }) + ink.strokes.filter({ $0.k != .highlight }) { drawStroke(stroke, type: color, x: x, y: y, scale: s) }
                     return
                 }
                 let h = CGFloat(max(1, ink.rows)) * CGFloat(inkRow) * s
                 need(h)
-                for stroke in ink.strokes { drawStroke(stroke, type: color, x: x, y: y, scale: s) }
+                for stroke in ink.strokes.filter({ $0.k == .highlight }) + ink.strokes.filter({ $0.k != .highlight }) { drawStroke(stroke, type: color, x: x, y: y, scale: s) }
                 y += h
                 return
             }

@@ -1467,7 +1467,8 @@ final class InkPreviewView: UIView, UIEditMenuInteractionDelegate {
     override func draw(_ rect: CGRect) {
         guard let ink, let b = InkPreview.bounds(ink) else { return }
         let s = bounds.width / CGFloat(max(1, b.x1 - b.x0))
-        for stroke in ink.strokes where stroke.p.count >= 3 {
+        // The marking first, so the writing is drawn over it.
+        for stroke in ink.strokes.filter({ $0.k == .highlight }) + ink.strokes.filter({ $0.k != .highlight }) where stroke.p.count >= 3 {
             let path = UIBezierPath()
             var i = 0
             while i + 1 < stroke.p.count {
