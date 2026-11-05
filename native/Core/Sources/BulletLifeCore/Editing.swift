@@ -209,6 +209,11 @@ public enum PageEdit {
         let prefix = num != nil && !asChild ? "\(Outline.nextNumber(num!)) " : ""
         fresh.text = prefix + line.text.u16Suffix(from: at.offset)
         lines[i].text = line.text.u16Prefix(at.offset)
+        // Splitting a handwritten line splits its text, not its strokes: the part after the Enter is the transcription of
+        // handwriting that stays whole above it, so it is marked as such and Pen mode does not show it again.
+        if handwritten(line) && !fresh.text.trimmingCharacters(in: .whitespaces).isEmpty {
+            fresh.ink = Ink(strokes: [], tx: fresh.text)
+        }
         lines.insert(fresh, at: at2)
         return commit(lines, before: before, caret: Caret(index: at2, offset: prefix.u16))
     }

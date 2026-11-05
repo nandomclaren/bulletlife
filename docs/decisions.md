@@ -735,3 +735,13 @@ Roadmap order (2026-11-04): the highlighter now comes before the refactor (items
 handwriting must appear as `==text==` in the transcription (the editor's existing highlight mark; also in Markdown). Plan: split
 the writing strokes by what the highlight covers, recognise each run, join with `==` around the covered ones; to be checked in a
 prototype against reading accuracy (ML Kit returns text only, no word positions).
+
+## Native: a split transcription never shows twice in Pen mode (2026-11-05)
+Fernando pressed Enter in the middle of a transcribed paragraph in Type mode. `PageEdit.enter` split the text, but the strokes
+stay whole on the first line, so the part after the Enter became a typed line with no ink and Pen mode drew it under the
+handwriting: the transcription leaked into Pen mode. Now, when a handwritten line is split with text after the caret, that
+tail line gets an `Ink` with no strokes and `tx` set (`Ink.isTranscriptTail`): `InkPage.isTyped` is false for it, so Pen mode
+draws one blank row there (the page does not jump) and not its text, and the PDF the same. Type mode and the Markdown/Text
+exports show it as the ordinary line it is. Backspace at its start joins it back (the text returns to the line with the
+handwriting). Enter at the end of the text, or on typed text, is unchanged (a plain line). A page already split before this has the
+tail as an ordinary typed line: Backspace at the start of that line joins it back, and the leak is gone.

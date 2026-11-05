@@ -233,6 +233,13 @@ enum PdfExport {
                 y += h
                 return
             }
+            // The text split off a handwritten line is drawn by the handwriting above it, not again: one blank row, as in Pen mode.
+            if l.ink?.isTranscriptTail == true {
+                let h = CGFloat(inkRow) * (w / sheetWidth)
+                need(h)
+                y += h
+                return
+            }
             let indent = CGFloat(l.indent) * 14
             let glyph = States.glyph(l.type, l.state, eventStates: eventStates, doneMark: doneMark)
             let stateful = States.stateful(l.type, eventStates: eventStates)

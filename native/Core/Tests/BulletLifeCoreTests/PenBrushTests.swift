@@ -209,3 +209,41 @@ final class PaintResizeTests: XCTestCase {
         XCTAssertNil(PaintFigures.hit(figs, x: 200, y: 60, tolerance: 8))
     }
 }
+
+final class SplitTranscriptionTests: XCTestCase {
+    private func handwritten() -> Line {
+        let word = Stroke(k: .writing, c: "ink", p: [80, 5, 0.5, 120, 20, 0.5])
+        return Line(id: "a", text: "first part second part", ink: Ink(strokes: [word], tx: "first part second part", n: 1))
+    }
+
+    func testEnterInTheMiddleOfHandwritingKeepsTheTailOutOfPen() {
+        let edited = PageEdit.enter([handwritten()], at: Caret(index: 0, offset: 11))
+        XCTAssertEqual(edited.lines.map(\.text), ["first part ", "second part"])
+        // The handwriting stays whole on the first line.
+        XCTAssertEqual(edited.lines[0].ink?.strokes.count, 1)
+        // The tail has no strokes and is not drawn as typed text in Pen mode.
+        XCTAssertEqual(edited.lines[1].ink?.isTranscriptTail, true)
+        XCTAssertFalse(InkPage.isTyped(edited.lines[1]))
+        XCTAssertTrue(InkPage.isTyped(Line(text: "typed by hand")))
+        // It still takes one blank row on the Pen page, so the page does not jump.
+        let blocks = InkPage.blocks(edited.lines) { _ in 1 }
+        XCTAssertEqual(blocks[1].height, inkRow)
+        XCTAssertFalse(blocks[1].typed)
+    }
+
+    func testEnterAtTheEndOrOnTypedTextAddsAPlainLine() {
+        let end = PageEdit.enter([handwritten()], at: Caret(index: 0, offset: 22))
+        XCTAssertNil(end.lines[1].ink)
+        let typed = PageEdit.enter([Line(text: "typed text here")], at: Caret(index: 0, offset: 6))
+        XCTAssertNil(typed.lines[1].ink)
+        XCTAssertTrue(InkPage.isTyped(typed.lines[1]))
+    }
+
+    func testBackspaceJoinsTheTailBack() {
+        let split = PageEdit.enter([handwritten()], at: Caret(index: 0, offset: 11)).lines
+        let joined = PageEdit.backspaceAtStart(split, at: Caret(index: 1, offset: 0))!
+        XCTAssertEqual(joined.lines.count, 1)
+        XCTAssertEqual(joined.lines[0].text, "first part second part")
+        XCTAssertEqual(joined.lines[0].ink?.strokes.count, 1)
+    }
+}

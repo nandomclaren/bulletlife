@@ -236,6 +236,11 @@ public struct Ink: Codable, Equatable, Sendable {
         self.free = free
     }
 
+    /// The text of a handwritten line that was split in Type mode (Enter in the middle of a transcription): the part after
+    /// the Enter is a line of its own with no strokes, whose text came from handwriting that stays whole on the line above.
+    /// Pen mode shows the handwriting only, so it never draws this text (it would show it twice).
+    public var isTranscriptTail: Bool { strokes.isEmpty && tx != nil }
+
     /// Paint: a free drawing with nothing but drawing strokes.
     public var isPaint: Bool { free == true && !strokes.isEmpty && strokes.allSatisfy { $0.k == .drawing } }
 

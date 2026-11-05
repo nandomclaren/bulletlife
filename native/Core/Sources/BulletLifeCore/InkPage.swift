@@ -22,6 +22,8 @@ public enum InkPage {
     /// ink is the original, the text its transcription), even after its text was corrected in Type mode.
     public static func isTyped(_ l: Line) -> Bool {
         if let ink = l.ink, ink.hasWriting, ink.tx != nil { return false }
+        // What was transcribed from handwriting never shows as typed text in Pen mode, split off or not.
+        if l.ink?.isTranscriptTail == true { return false }
         if !l.text.trimmingCharacters(in: .whitespaces).isEmpty { return true }
         return l.type != .text && !(l.ink?.hasWriting ?? false)
     }
