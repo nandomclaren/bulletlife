@@ -247,3 +247,100 @@ final class SplitTranscriptionTests: XCTestCase {
         XCTAssertEqual(joined.lines[0].ink?.strokes.count, 1)
     }
 }
+
+final class HighlighterTests: XCTestCase {
+    /// One stroke per "word", 40 wide, 30 apart, on row 0.
+    private func word(_ x: Double) -> Stroke { Stroke(k: .writing, c: "ink", p: [x, 5, 0.5, x + 40, 25, 0.5]) }
+    private func mark(from x0: Double, to x1: Double, y: Double = 15, size: Double = 16) -> Stroke {
+        Stroke(k: .highlight, c: "task", p: [x0, y, 0.5, x1, y, 0.5], s: size)
+    }
+    private func line(_ strokes: [Stroke]) -> Line { Line(id: "a", ink: Ink(strokes: strokes)) }
+
+    func testAHighlightedMiddleWordBecomesACoveredRun() {
+        // Words at x 0, 70 and 140; the marking covers the middle one only.
+        let job = Transcription.jobs([line([word(0), word(70), word(140), mark(from: 65, to: 115)])])[0]
+        XCTAssertEqual(job.h, 1)
+        XCTAssertEqual(job.runs.map(\.covered), [false, true, false])
+        XCTAssertEqual(job.runs.map { $0.strokes.count }, [1, 1, 1])
+        XCTAssertEqual(Transcription.text(of: job.runs, readings: ["one", "two", "three"]), "one ==two== three")
+        // The marking is no writing: the whole line still comes as before.
+        XCTAssertEqual(job.strokes.count, 3)
+        XCTAssertEqual(job.n, 3)
+    }
+
+    func testNoMarkingOrNoWordCoveredMeansNoRuns() {
+        XCTAssertTrue(Transcription.jobs([line([word(0), word(70)])])[0].runs.isEmpty)
+        // A marking far from the words covers none of them.
+        XCTAssertTrue(Transcription.jobs([line([word(0), word(70), mark(from: 0, to: 120, y: 300)])])[0].runs.isEmpty)
+    }
+
+    func testAdjacentCoveredWordsFormOneRun() {
+        let job = Transcription.jobs([line([word(0), word(70), word(140), mark(from: 60, to: 190)])])[0]
+        XCTAssertEqual(job.runs.map(\.covered), [false, true])
+        XCTAssertEqual(job.runs[1].strokes.count, 2)
+        XCTAssertEqual(Transcription.text(of: job.runs, readings: ["one", "two three"]), "one ==two three==")
+    }
+
+    func testMarkingAfterTranscriptionAsksForAReadingAndAMismatchIsSkipped() {
+        var l = line([word(0), word(70)])
+        l.ink!.tx = "one two"
+        l.ink!.n = 2
+        XCTAssertFalse(l.ink!.needsTranscription)
+        l.ink!.strokes.append(mark(from: 60, to: 120))
+        XCTAssertTrue(l.ink!.needsTranscription)
+        let job = Transcription.jobs([l])[0]
+        l.text = "one two"
+        // A reading made for another count of markings is not applied.
+        XCTAssertNil(Transcription.apply(id: "a", n: 2, h: 0, text: "one ==two==", shape: job.shape, to: [l]))
+        let out = Transcription.apply(id: "a", n: 2, h: 1, text: "one ==two==", shape: job.shape, to: [l])!
+        XCTAssertEqual(out[0].text, "one ==two==")
+        XCTAssertEqual(out[0].ink?.h, 1)
+        XCTAssertFalse(out[0].ink!.needsTranscription)
+    }
+
+    func testAMarkedLineIsStillOnItsRowsAndTheMarkingTakesNone() {
+        let plain = Ink(strokes: [word(0)])
+        let marked = Ink(strokes: [word(0), mark(from: 0, to: 40)])
+        XCTAssertEqual(plain.rows, marked.rows)
+        XCTAssertEqual(marked.writingCount, 1)
+    }
+
+    func testAHighlightOverHandwritingJoinsItAndOverNothingLiesAsPaint() {
+        let lines = [line([word(0), word(70)])]
+        let blocks = InkPage.blocks(lines) { _ in 1 }
+        let over = PenRules.place(blocks, contentEnd: InkPage.contentEnd(blocks), stroke: mark(from: 0, to: 100), row: 0)
+        guard case .join(let id, _, _, _) = over else { return XCTFail("should join the line it covers") }
+        XCTAssertEqual(id, "a")
+        let out = InkPage.add(mark(from: 0, to: 100), placement: over, to: lines).lines
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].ink?.highlightCount, 1)
+        // Below the handwriting, on blank page: a free entry that takes no row.
+        let far = mark(from: 0, to: 100, y: 400)
+        let placed = PenRules.place(blocks, contentEnd: InkPage.contentEnd(blocks), stroke: far, row: 10)
+        let withPaint = InkPage.add(far, placement: placed, to: lines).lines
+        XCTAssertEqual(withPaint.count, 2)
+        XCTAssertEqual(withPaint[1].ink?.free, true)
+        XCTAssertTrue(withPaint[1].ink!.isPaint)
+        XCTAssertEqual(InkPage.blocks(withPaint) { _ in 1 }[1].height, 0)
+    }
+
+    func testErasingTheMarkingAsksForAReadingAgain() {
+        var l = line([word(0), word(70), mark(from: 60, to: 120)])
+        l.ink!.tx = "one ==two=="
+        l.ink!.n = 2
+        l.ink!.h = 1
+        l.text = "one ==two=="
+        let out = InkPage.erase(["a": [2]], from: [l])
+        XCTAssertEqual(out[0].ink?.highlightCount, 0)
+        XCTAssertTrue(out[0].ink!.needsTranscription)
+    }
+
+    func testStrokeKindSurvivesTheJSONRoundTrip() throws {
+        let ink = Ink(strokes: [word(0), mark(from: 0, to: 40)], tx: "x", n: 1, h: 1)
+        let data = try JSONEncoder().encode(ink)
+        let back = try JSONDecoder().decode(Ink.self, from: data)
+        XCTAssertEqual(back, ink)
+        XCTAssertEqual(back.strokes[1].k, .highlight)
+        XCTAssertEqual(back.h, 1)
+    }
+}

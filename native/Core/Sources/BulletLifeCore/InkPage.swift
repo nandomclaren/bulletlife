@@ -127,7 +127,7 @@ public enum InkPage {
             return (lines, id)
         case .new(let after, let blanks, _):
             local.r = 0
-            let paint = stroke.k == .drawing
+            let paint = stroke.k != .writing
             var fresh = Line(ink: Ink(strokes: [local], free: paint ? true : nil))
             let added = (paint ? [] : (0..<blanks).map { _ in Line() })
             let at = insertIndex(after: after, in: lines)
@@ -226,7 +226,7 @@ extension InkPage {
             lines.removeAll { gonePaint.contains($0.id) && $0.id != id }
             return (lines, id)
         case .new(let afterId, let blanks, _):
-            let paint = anchor.k == .drawing && strokes.allSatisfy { $0.k == .drawing }
+            let paint = anchor.k != .writing && strokes.allSatisfy { $0.k != .writing }
             var fresh = Line(ink: Ink(strokes: strokes, free: paint ? true : nil))
             let at = insertIndex(after: afterId, in: lines)
             if paint, at < lines.count { fresh.indent = lines[at].indent }
@@ -263,7 +263,7 @@ public enum InkPreview {
 
     public static func kind(_ l: Line) -> Kind? {
         guard let ink = l.ink, !ink.strokes.isEmpty else { return nil }
-        if ink.strokes.allSatisfy({ $0.k == .drawing }) { return .drawing }
+        if ink.strokes.allSatisfy({ $0.k != .writing }) { return .drawing }
         if l.text.isEmpty && ink.tx == nil { return .writing }
         return nil
     }

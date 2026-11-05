@@ -412,6 +412,7 @@ enum S {
     static let penMode = "Pen"
     static let write = "Write"
     static let draw = "Draw"
+    static let highlighter = "Highlighter"
     static let eraser = "Eraser"
     static let lasso = "Lasso"
     static let undo = "Undo"

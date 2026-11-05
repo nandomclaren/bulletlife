@@ -87,7 +87,7 @@ struct PageView: View {
     }
 
     private var transcriptionKeyNow: String {
-        "\(logId)|\(penOn)|\(Transcription.writingTotal(lines))|\(Transcription.pending(lines).count)|\(handwritingLang)|\(handwriting.status == .ready)"
+        "\(logId)|\(penOn)|\(Transcription.writingTotal(lines))/\(lines.reduce(0) { $0 + ($1.ink?.highlightCount ?? 0) })|\(Transcription.pending(lines).count)|\(handwritingLang)|\(handwriting.status == .ready)"
     }
 
     /// Reads the handwriting the last pass didn't, after a pause in writing (at once in Type mode). The ink is
@@ -103,10 +103,23 @@ struct PageView: View {
         let lang = HandwritingLang(rawValue: handwritingLang) ?? .ptBR
         for job in Transcription.jobs(lines) {
             await PenState.idle()
-            guard !Task.isCancelled, let text = await handwriting.recognize(job.strokes, lang: lang), !Task.isCancelled else { return }
+            let text: String
+            if job.runs.isEmpty {
+                guard !Task.isCancelled, let read = await handwriting.recognize(job.strokes, lang: lang), !Task.isCancelled else { return }
+                text = read
+            } else {
+                // The highlighter covers some words: each stretch is read on its own and the covered ones go between `==`.
+                var readings: [String] = []
+                for run in job.runs {
+                    await PenState.idle()
+                    guard !Task.isCancelled, let read = await handwriting.recognize(run.strokes, lang: lang), !Task.isCancelled else { return }
+                    readings.append(read)
+                }
+                text = Transcription.text(of: job.runs, readings: readings)
+            }
             await PenState.idle()
             guard !Task.isCancelled else { return }
-            if let next = PenPerf.measure("transcribe-apply", { Transcription.apply(id: job.id, n: job.n, text: text, shape: job.shape, to: lines) }) {
+            if let next = PenPerf.measure("transcribe-apply", { Transcription.apply(id: job.id, n: job.n, h: job.h, text: text, shape: job.shape, to: lines) }) {
                 lines = next
             }
         }

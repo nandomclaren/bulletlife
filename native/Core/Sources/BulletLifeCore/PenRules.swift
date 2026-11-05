@@ -124,7 +124,7 @@ public enum PenRules {
     /// cedilla) that is not wholly below it stays on its line; a small mark poking into the line above, over
     /// or before it (an accent, an i-dot), stays with it.
     public static func strokeRow(_ box: Box, kind: StrokeKind, last: LastStroke?, now: TimeInterval) -> Int {
-        if kind == .drawing { return Int((box.y0 / inkRow).rounded(.down)) }
+        if kind != .writing { return Int((box.y0 / inkRow).rounded(.down)) }
         let ay = box.y0 + min(box.height, inkRow * 0.6) * 0.5
         let row = Int((ay / inkRow).rounded(.down))
         guard let recent = last, now - recent.at < 2.5 else { return row }
@@ -151,11 +151,21 @@ public enum PenRules {
     public static func place(_ blocks: [PlacedBlock], contentEnd: Double, stroke s: Stroke, row: Int, lastId: String? = nil) -> InkPlacement {
         let box = s.box
         let y = Double(row) * inkRow
-        let drawingOnly = { (b: PlacedBlock) in !b.strokes.isEmpty && b.strokes.allSatisfy { $0.k == .drawing } }
+        let drawingOnly = { (b: PlacedBlock) in !b.strokes.isEmpty && b.strokes.allSatisfy { $0.k != .writing } }
         // Draw mode is paint: a drawing takes no line and nothing on the page moves. The strokes of one
         // drawing, drawn one after the other, stay one drawing; a new drawing lies after the line it starts
         // on (or at the end of the page).
-        if s.k == .drawing {
+        // A highlighter stroke over handwriting joins that line (it goes with it, and the line is read again, so what it
+        // covers comes out between `==`); anywhere else it lies on the page like paint.
+        if s.k == .highlight {
+            let cy = (box.y0 + box.y1) / 2
+            if let b = blocks.last(where: { b in
+                !b.typed && b.height > 0 && cy >= b.top && cy < b.top + b.height && b.strokes.contains { $0.k == .writing }
+            }) {
+                return .join(id: b.id, r: 0, top: b.top, absorb: nil)
+            }
+        }
+        if s.k != .writing {
             if let lastId, let b = blocks.first(where: { $0.id == lastId }), b.height == 0, drawingOnly(b) {
                 return .join(id: b.id, r: 0, top: b.top, absorb: nil)
             }
@@ -222,21 +232,24 @@ public enum PenRules {
 
     /// A paragraph written over several ruled lines, laid out as one long line in reading order (each ruled
     /// line to the right of the one before), so the recognizer does not have to find the lines itself.
-    public static func onOneLine(_ strokes: [Stroke]) -> [Stroke] {
-        let rows = Dictionary(grouping: strokes, by: \.r)
-        guard rows.count > 1 else { return strokes }
-        var out: [Stroke] = []
+    public static func onOneLine(_ strokes: [Stroke]) -> [Stroke] { onOneLineOrdered(strokes).map(\.stroke) }
+
+    /// `onOneLine`, with each stroke's place in the input (to carry what is known of it, such as being highlighted).
+    public static func onOneLineOrdered(_ strokes: [Stroke]) -> [(source: Int, stroke: Stroke)] {
+        let rows = Dictionary(grouping: strokes.indices, by: { strokes[$0].r })
+        guard rows.count > 1 else { return strokes.indices.map { ($0, strokes[$0]) } }
+        var out: [(source: Int, stroke: Stroke)] = []
         var right: Double?
         for r in rows.keys.sorted() {
             let row = rows[r]!
-            let x0 = row.map(\.box.x0).min()!
-            let x1 = row.map(\.box.x1).max()!
+            let x0 = row.map { strokes[$0].box.x0 }.min()!
+            let x1 = row.map { strokes[$0].box.x1 }.max()!
             let dx = right.map { $0 + 40 - x0 } ?? 0
             let dy = -Double(r) * inkRow
-            for s in row {
-                var moved = s
-                moved.p = s.p.enumerated().map { i, v in i % 3 == 0 ? v + dx : i % 3 == 1 ? v + dy : v }
-                out.append(moved)
+            for i in row {
+                var moved = strokes[i]
+                moved.p = moved.p.enumerated().map { j, v in j % 3 == 0 ? v + dx : j % 3 == 1 ? v + dy : v }
+                out.append((i, moved))
             }
             right = x1 + dx
         }

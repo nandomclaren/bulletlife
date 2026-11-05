@@ -287,9 +287,15 @@ enum PdfExport {
                 return
             }
             path.lineWidth = max(0.4, CGFloat(stroke.s ?? 2.4) * s)
-            path.lineCapStyle = .round
             path.lineJoinStyle = .round
-            path.stroke()
+            if stroke.k == .highlight {
+                // A marking: translucent and multiplied, so the writing under it stays black on the print.
+                path.lineCapStyle = .butt
+                path.stroke(with: .multiply, alpha: 0.38)
+            } else {
+                path.lineCapStyle = .round
+                path.stroke()
+            }
         }
 
         /// All the days on one sheet when they fit: number, initial, the day's lines, week rules.

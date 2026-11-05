@@ -1477,9 +1477,11 @@ final class InkPreviewView: UIView, UIEditMenuInteractionDelegate {
             }
             if stroke.p.count == 3 { path.addLine(to: path.currentPoint) }
             path.lineWidth = max(0.6, CGFloat(stroke.s ?? storedDefaultSize) * s)
-            path.lineCapStyle = .round
+            path.lineCapStyle = stroke.k == .highlight ? .butt : .round
             path.lineJoinStyle = .round
-            (stroke.b == true ? Theme.ui(colorType.rawValue) : Theme.ui(stroke.c)).setStroke()
+            let tint = stroke.b == true ? Theme.ui(colorType.rawValue) : Theme.ui(stroke.c)
+            // A marking is translucent, so the writing under it shows.
+            (stroke.k == .highlight ? tint.withAlphaComponent(0.4) : tint).setStroke()
             path.stroke()
         }
     }

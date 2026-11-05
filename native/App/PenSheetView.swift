@@ -8,7 +8,7 @@ import SwiftUI
 import UIKit
 
 enum PenTool: String, CaseIterable {
-    case write, draw, erase, lasso
+    case write, draw, highlight, erase, lasso
 }
 
 /// Pen sizes, as the stroke's drawn diameter: fine, medium, bold (Fernando's choice after trying them on the iPad;
@@ -49,6 +49,10 @@ enum PenCalibration {
 /// The tool's width for a pen size (a drawn diameter, in the page's own units: the page is shown at penZoom, so
 /// the line, the writing and the stroke all look smaller together, as the writing already on the page does).
 func penWidth(_ size: Double) -> CGFloat { CGFloat(size / PenCalibration.ratio) }
+
+/// The highlighter's width, in the page's own units, for a pen size (Fine, Medium or Bold): about four and a half times
+/// the pen's (PencilKit keeps a tool's width within what its ink allows).
+func highlightWidth(_ size: Double) -> CGFloat { CGFloat(size * 4.5) }
 
 
 /// The pen page is shown at 75% (Fernando, after comparing with a notebook app): a line looks 30 pt tall and the
@@ -597,6 +601,7 @@ struct PenSheetView: UIViewRepresentable {
             // ink came out a third heavier (2.67 / 2), and thinning the tool to make up for it squeezed the sizes
             // together (Fine and Medium alike).
             case .write, .draw: return PKInkingTool(penInk, color: Theme.display(parent.color, in: canvas), width: penWidth(parent.size))
+            case .highlight: return PKInkingTool(.marker, color: Theme.display(parent.color, in: canvas), width: highlightWidth(parent.size))
             }
         }
 
@@ -682,14 +687,15 @@ struct PenSheetView: UIViewRepresentable {
                 p.append((min(1, max(0, Double(point.force))) * 100).rounded() / 100)
             }
             guard !p.isEmpty else { return }
-            let kind: StrokeKind = parent.tool == .draw ? .drawing : .writing
+            let kind: StrokeKind = parent.tool == .highlight ? .highlight : parent.tool == .draw ? .drawing : .writing
             // The size PencilKit actually drew (larger than the tool's nominal width), so the stroke looks the
             // same when the page is drawn again from what is stored.
             let sizes = pk.path.map { Double($0.size.width) }.sorted()
             let median = sizes.isEmpty ? parent.size : sizes[sizes.count / 2]
             let drawn = (median * 10).rounded() / 10
             let fountain = pk.ink.inkType == .pen || pk.ink.inkType == .fountainPen
-            if !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
+            // (The highlighter has no calibration: it is stored at the width PencilKit drew it.)
+            if kind != .highlight, !sizes.isEmpty, let tool = canvas?.tool as? PKInkingTool, tool.width > 0 {
                 // The next strokes come out at the size asked for (this one is stored as it was drawn); each pen has
                 // its own measure.
                 if fountain {
@@ -720,8 +726,11 @@ struct PenSheetView: UIViewRepresentable {
             remember()
             let result = InkPage.add(stroke, placement: placement, to: lines)
             lines = result.lines
-            lastStroke = LastStroke(row: row, at: now, box: box)
-            lastId = result.entryId
+            // A marking is not part of the writing: it must not change what the next stroke is taken to continue.
+            if kind != .highlight {
+                lastStroke = LastStroke(row: row, at: now, box: box)
+                lastId = result.entryId
+            }
             let before = Dictionary(blocks.map { ($0.id, $0.top) }, uniquingKeysWith: { a, _ in a })
             let width = canvas?.bounds.width ?? 0
             let after = InkPage.blocks(lines) { sheet?.typedRows($0, width: width) ?? 1 }
@@ -794,7 +803,8 @@ struct PenSheetView: UIViewRepresentable {
                 i += 3
                 t += 0.008
             }
-            return PKStroke(ink: PKInk(nib != nil ? .pen : penInk, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
+            let type: PKInk.InkType = s.k == .highlight ? .marker : nib != nil ? .pen : penInk
+            return PKStroke(ink: PKInk(type, color: color), path: PKStrokePath(controlPoints: points, creationDate: date))
         }
     }
 }
@@ -985,12 +995,13 @@ struct PenToolbar: View {
 
     /// Sizes and colors belong to Write and Draw; under the eraser or lasso none is shown as chosen (they
     /// come back as they were).
-    private var inking: Bool { tool == .write || tool == .draw }
+    private var inking: Bool { tool == .write || tool == .draw || tool == .highlight }
 
     var body: some View {
         HStack(spacing: 4) {
             toolButton(.write, icon: "pencil.tip", label: S.write)
             toolButton(.draw, icon: "scribble", label: S.draw)
+            toolButton(.highlight, icon: "highlighter", label: S.highlighter)
             toolButton(.erase, icon: "eraser", label: S.eraser)
             toolButton(.lasso, icon: "lasso", label: S.lasso)
             Divider().frame(height: 24)

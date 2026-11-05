@@ -745,3 +745,22 @@ draws one blank row there (the page does not jump) and not its text, and the PDF
 exports show it as the ordinary line it is. Backspace at its start joins it back (the text returns to the line with the
 handwriting). Enter at the end of the text, or on typed text, is unchanged (a plain line). A page already split before this has the
 tail as an ordinary typed line: Backspace at the start of that line joins it back, and the leak is gone.
+
+## Native: the highlighter, first version (2026-11-05)
+A pen tool (toolbar, between Draw and the eraser; `PenTool.highlight`) with PencilKit's marker ink (`PKInk(.marker)`, translucent),
+the pen's own colours and its Fine/Medium/Bold buttons for the width (`highlightWidth` = size x 4.5 page units, stored as drawn).
+- Data: `StrokeKind.highlight` (JSON kind "h"). It is no writing (`writingCount`, rows, `readLineShape` ignore it) and takes no ruled
+  line (`Ink.rows` skips it). A stroke whose centre is over a handwritten line joins that line's entry (`PenRules.place`), so it goes
+  with it; anywhere else it lies on the page as paint (a free entry that takes no row, joined to touching paint, like a drawing).
+  `Ink.isPaint` is now "free and no writing". It does not touch `lastStroke`/`lastId`, so the writing rules do not see it.
+- Transcription (`==text==`, Fernando's requirement): `Ink.h` counts the markings the last reading knew (`needsTranscription` also
+  compares it, so marking, erasing or moving one reads the line again; the same `apply` rule keeps a typed correction). With
+  markings over the line, `Transcription.jobs` also gives `runs`: the writing laid on one line (`PenRules.onOneLineOrdered`), strokes
+  grouped into words by gaps over 12 units, a word covered when more than half of its strokes have their centre inside the band
+  the marking draws (its width), consecutive words of the same kind as one run. Each run is recognised on its own and
+  `Transcription.text(of:readings:)` puts the covered ones between `==` (Type mode shows them highlighted, Markdown keeps them).
+  No covered word, or no marking: no runs, one reading as before.
+- Display: Type mode's preview of untranscribed ink draws a marking translucent; the PDF multiplies it (alpha 0.38) over the writing.
+- Not in this version: highlighting typed text (a marking over typed lines is paint, floating in Type mode), colours of its own.
+- Unverified on the iPad: how the marker looks (and on dark pages, where the pen's colour is white), and how well reading in stretches
+  keeps accuracy (a stretch has less context): the check is on real handwriting.

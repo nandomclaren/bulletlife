@@ -42,7 +42,7 @@ public enum Export {
     static func withInkText(_ l: Line) -> Line {
         guard l.text.trimmingCharacters(in: .whitespaces).isEmpty, let ink = l.ink, !ink.strokes.isEmpty else { return l }
         var out = l
-        out.text = ink.strokes.allSatisfy { $0.k == .drawing } ? "(drawing)" : "(handwriting)"
+        out.text = ink.strokes.allSatisfy { $0.k != .writing } ? "(drawing)" : "(handwriting)"
         return out
     }
 

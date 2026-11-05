@@ -145,6 +145,9 @@ public enum StrokeKind: String, Codable, Sendable {
     case writing = "w"
     /// Drawing: never transcribed.
     case drawing = "d"
+    /// Highlighter: a wide translucent stroke over writing (or over anything). Never transcribed itself, and it takes no
+    /// ruled line; what it covers of the handwriting comes out of the transcription between `==` marks.
+    case highlight = "h"
 }
 
 public struct Stroke: Codable, Equatable, Sendable {
@@ -224,16 +227,19 @@ public struct Ink: Codable, Equatable, Sendable {
     public var n: Int?
     /// A drawing's size and place in Type mode.
     public var view: View?
+    /// Highlighter strokes the last transcription knew of (a different count means the marking changed since).
+    public var h: Int?
     /// A drawing done in Draw mode lies on the page like paint: it takes no ruled line, so nothing moves
     /// when it is drawn, grows or goes (drawings made before this was set keep the lines they took).
     public var free: Bool?
 
-    public init(strokes: [Stroke], tx: String? = nil, n: Int? = nil, view: View? = nil, free: Bool? = nil) {
+    public init(strokes: [Stroke], tx: String? = nil, n: Int? = nil, view: View? = nil, free: Bool? = nil, h: Int? = nil) {
         self.strokes = strokes
         self.tx = tx
         self.n = n
         self.view = view
         self.free = free
+        self.h = h
     }
 
     /// The text of a handwritten line that was split in Type mode (Enter in the middle of a transcription): the part after
@@ -241,18 +247,19 @@ public struct Ink: Codable, Equatable, Sendable {
     /// Pen mode shows the handwriting only, so it never draws this text (it would show it twice).
     public var isTranscriptTail: Bool { strokes.isEmpty && tx != nil }
 
-    /// Paint: a free drawing with nothing but drawing strokes.
-    public var isPaint: Bool { free == true && !strokes.isEmpty && strokes.allSatisfy { $0.k == .drawing } }
+    /// Paint: a free drawing, or marking, with no writing in it.
+    public var isPaint: Bool { free == true && !strokes.isEmpty && strokes.allSatisfy { $0.k != .writing } }
 
     public var writingCount: Int { strokes.filter { $0.k == .writing }.count }
+    public var highlightCount: Int { strokes.filter { $0.k == .highlight }.count }
     public var hasWriting: Bool { writingCount > 0 }
-    /// Has writing the last transcription did not read.
-    public var needsTranscription: Bool { hasWriting && n != writingCount }
+    /// Has writing (or marking over it) the last transcription did not read.
+    public var needsTranscription: Bool { hasWriting && (n != writingCount || (h ?? 0) != highlightCount) }
 
     /// Ruled rows the ink takes: writing counts the rows it was written on; drawings every row they cover.
     public var rows: Int {
         var rows = 0
-        for s in strokes {
+        for s in strokes where s.k != .highlight {
             rows = max(rows, s.k == .writing ? s.r + 1 : Int(((s.box.y1 + 4) / inkRow).rounded(.up)))
         }
         return rows
