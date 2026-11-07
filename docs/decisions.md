@@ -773,3 +773,10 @@ Highlighter, first test on the iPad (2026-11-05): two problems.
 - The marking sat over the writing and hurt reading: it is now drawn under it (a bright colour behind the letters that does not
   touch their stroke). On the Pen canvas the marking strokes go first in the drawing (`renderNow`), and a new one makes the page
   draw again at once so it takes its place; in Type mode's preview and in the PDF the markings are drawn before the writing too.
+
+## Native: Enter (or paste) over a selection inside one line crashed the app (2026-11-07)
+`PageEdit.deleteRange` was written for a selection over several lines: for one line it built the range `(i+1)...i`, which
+Swift traps on. Return with a word selected, and pasting over a word, both go through it, so the app closed. It now handles a
+selection inside one line (and an empty or backwards one) by taking just the characters between. Tests: the same delete and
+Enter on a selection, and every one-line selection (from every start to every end) on plain, task, event, nested, numbered and
+transcribed lines followed by Enter.

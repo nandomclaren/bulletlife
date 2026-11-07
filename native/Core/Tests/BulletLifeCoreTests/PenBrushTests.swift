@@ -344,3 +344,42 @@ final class HighlighterTests: XCTestCase {
         XCTAssertEqual(back.h, 1)
     }
 }
+
+final class SelectionEditTests: XCTestCase {
+    func testDeletingASelectionInsideOneLine() {
+        let lines = [Line(text: "hello brave world")]
+        let out = PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 6), to: Caret(index: 0, offset: 12))
+        XCTAssertEqual(out.lines[0].text, "hello world")
+        XCTAssertEqual(out.caret, Caret(index: 0, offset: 6))
+        // An empty or backwards selection does not crash and takes the characters between.
+        XCTAssertEqual(PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 5), to: Caret(index: 0, offset: 5)).lines[0].text, "hello brave world")
+    }
+
+    func testEnterOverASelectionInsideOneLineSplitsAtItsStart() {
+        // What the editor does for Return with a word selected: delete the selection, then Enter at its start.
+        let lines = [Line(text: "hello brave world")]
+        let cleared = PageEdit.deleteRange(lines, from: Caret(index: 0, offset: 6), to: Caret(index: 0, offset: 12))
+        let out = PageEdit.enter(cleared.lines, at: cleared.caret)
+        XCTAssertEqual(out.lines.map(\.text), ["hello ", "world"])
+    }
+
+    func testEveryOneLineSelectionOnEveryKindOfLineSurvivesEnter() {
+        let word = Stroke(k: .writing, c: "ink", p: [80, 5, 0.5, 120, 20, 0.5])
+        let kinds: [Line] = [
+            Line(text: "plain text here"), Line(type: .task, text: "a task to do"), Line(type: .event, text: "an event"),
+            Line(type: .note, indent: 1, text: "nested note"), Line(text: "1. numbered item"),
+            Line(text: "transcribed words here", ink: Ink(strokes: [word], tx: "transcribed words here", n: 1)),
+        ]
+        for line in kinds {
+            let n = line.text.u16
+            for a in 0...n {
+                for b in a...n {
+                    let lines = [Line(text: "above"), line, Line(text: "below")]
+                    let cleared = PageEdit.deleteRange(lines, from: Caret(index: 1, offset: a), to: Caret(index: 1, offset: b))
+                    let out = PageEdit.enter(cleared.lines, at: cleared.caret)
+                    XCTAssertGreaterThanOrEqual(out.lines.count, 3, "\(line.text) \(a)-\(b)")
+                }
+            }
+        }
+    }
+}

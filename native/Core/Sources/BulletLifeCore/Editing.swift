@@ -135,6 +135,14 @@ public enum PageEdit {
     /// and a last line holding some keeps its remaining text instead of joining the first.
     public static func deleteRange(_ lines: [Line], from start: Caret, to end: Caret) -> Edited {
         var lines = lines
+        // Inside one line: just the characters between (the range below is for a selection over several lines, and for
+        // one line it is empty and backwards, which Swift does not allow).
+        if end.index <= start.index {
+            let line = lines[start.index]
+            let from = min(start.offset, end.offset), to = max(start.offset, end.offset)
+            lines[start.index].text = line.text.u16Prefix(from) + line.text.u16Suffix(from: to)
+            return Edited(lines: lines, caret: Caret(index: start.index, offset: from))
+        }
         let b = lines[end.index]
         let keepB = end.index > start.index && handwritten(b)
         let tail = b.text.u16Suffix(from: end.offset)
