@@ -780,3 +780,14 @@ Swift traps on. Return with a word selected, and pasting over a word, both go th
 selection inside one line (and an empty or backwards one) by taking just the characters between. Tests: the same delete and
 Enter on a selection, and every one-line selection (from every start to every end) on plain, task, event, nested, numbered and
 transcribed lines followed by Enter.
+
+## Native: notices no longer cover Open items; "I wrote it there" and "Link it" can be undone (2026-11-07)
+The notice at the bottom (Link it, Migrated...) was an overlay on the whole window, so with Open items beside the page it
+reached over the panel and sat on its "I wrote it there" buttons: Fernando tapped that by mistake, an item left the list, and
+nothing could bring it back. Now:
+- the notice is an overlay of the page's own column (before `.inspector`), so it never reaches the panel; on iPhone, where
+  the panel is a sheet over the page, the panel carries a notice of its own;
+- "I wrote it there" shows "<text> marked as written there." with Undo for 8 s (it puts the placement back to pending, so the
+  item returns to the list);
+- "Link it" shows "Linked..." with Undo for 8 s (the original returns to its earlier state and placement).
+`Toasts.show` takes the number of seconds.

@@ -125,8 +125,12 @@ struct OpenItemsPanel: View {
         }
     }
 
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
     var body: some View {
         content
+            // On iPhone the panel is a sheet over the page: a notice made here has to show here.
+            .overlay(alignment: .bottom) { if sizeClass == .compact { ToastView().padding(.bottom, 24) } }
             .onAppear { load() }
             .onReceive(NotificationCenter.default.publisher(for: Repository.saved)) { _ in load(after: 2) }
             .onReceive(NotificationCenter.default.publisher(for: Repository.changedOutside)) { _ in load() }
@@ -271,6 +275,10 @@ struct OpenItemsPanel: View {
                 if item.category == .unplaced && e.placement?.status == .pending {
                     Button(S.wroteItThere) {
                         act(item) { $0.placement = Placement(status: .placed, confirmedAt: Repository.now()) }
+                        // It leaves the list: a tap that was not meant can be taken back for a while.
+                        Toasts.shared.show(S.markedWritten(shortText(shown.text)), seconds: 8) {
+                            act(item) { $0.placement = Placement(status: .pending) }
+                        }
                     }
                     .font(Theme.body(13, weight: .medium))
                     .buttonStyle(.bordered)
@@ -290,6 +298,11 @@ struct OpenItemsPanel: View {
             }
         }
         .listRowBackground(Color.clear)
+    }
+
+    private func shortText(_ text: String) -> String {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        return t.count > 40 ? String(t.prefix(38)) + "…" : t
     }
 
     /// > or < on one entry; marking it again takes it back to open.

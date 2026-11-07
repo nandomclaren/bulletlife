@@ -406,6 +406,7 @@ enum S {
 
     static let nothingOpen = "Nothing is open. Everything has a place."
     static let wroteItThere = "I wrote it there"
+    static func markedWritten(_ text: String) -> String { text.isEmpty ? "Marked as written there." : "“\(text)” marked as written there." }
     static let close = "Close"
     static func openCount(_ n: Int) -> String { "\(n) open \(n == 1 ? "item" : "items")" }
     static let typeMode = "Type"

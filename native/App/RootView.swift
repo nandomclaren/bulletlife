@@ -274,6 +274,10 @@ struct RootView: View {
                 .id(builtLook)
                 .onAppear { if builtLook != currentLook { builtLook = currentLook } }
                 .background(Theme.paper.ignoresSafeArea())
+                // "Migrated" / "Scheduled" / "Link it" with Undo, above the pen toolbar, over the page's own column: with
+                // Open items beside it, a notice that reached over the panel sat on its buttons.
+                // (On iPhone, where there is no pen toolbar, it sits lower.)
+                .overlay(alignment: .bottom) { ToastView().padding(.bottom, sizeClass == .compact ? 24 : 84) }
                 // Open items: a column beside the page on iPad (the page stays visible and editable), a sheet on
                 // iPhone (CLAUDE.md 4.2).
                 .inspector(isPresented: $nav.showOpen) {
@@ -351,9 +355,6 @@ struct RootView: View {
                     }
                 }
         }
-        // "Migrated" / "Scheduled" with Undo, above the pen toolbar.
-        // (On iPhone, where there is no pen toolbar, it sits lower.)
-        .overlay(alignment: .bottom) { ToastView().padding(.bottom, sizeClass == .compact ? 24 : 84) }
         // Focus mode: the bar goes (inside the stack), and the one control left is the way back, where the
         // bar's buttons were.
         .overlay(alignment: .topTrailing) {

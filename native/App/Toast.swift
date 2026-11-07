@@ -17,8 +17,8 @@ final class Toasts: ObservableObject {
 
     @Published var current: Toast?
 
-    func show(_ text: String, undo: @escaping () -> Void) {
-        present(Toast(text: text, action: (S.undo, undo)), for: 4)
+    func show(_ text: String, seconds: Double = 4, undo: @escaping () -> Void) {
+        present(Toast(text: text, action: (S.undo, undo)), for: seconds)
     }
 
     /// A notice with no button (it just says what happened).
@@ -107,11 +107,18 @@ enum Rewrites {
         let text = (plain as String).trimmingCharacters(in: .whitespaces)
         let short = text.count > 48 ? String(text.prefix(46)) + "…" : text
         let lineId = line.id, sourceId = item.entry.id
+        let before = item.entry
         Toasts.shared.suggest(
             S.looksLike(short, origin), S.linkIt,
             run: {
                 repo.link(sourceId, writtenAs: lineId)
-                Toasts.shared.tell(S.linked)
+                // Undo puts the original back as it was (its state and whether it was written elsewhere).
+                Toasts.shared.show(S.linked, seconds: 8) {
+                    repo.update(id: sourceId) { e in
+                        e.state = before.state
+                        e.placement = before.placement
+                    }
+                }
             },
             other: S.notThisOne,
             otherRun: {
